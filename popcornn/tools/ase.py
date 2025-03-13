@@ -52,19 +52,20 @@ def output_to_atoms(output, ref_images):
         List of Atoms objects.
     """
     images = []
+    n_atoms = len(ref_images.numbers)
     for positions, energy, velocities, forces in zip(output.path_geometry, output.path_energy, output.path_velocity, output.path_force):
         atoms = ase.Atoms(
             numbers=ref_images.numbers.detach().cpu().numpy(),
-            positions=positions.detach().cpu().numpy().reshape(-1, 3),
-            velocities=velocities.detach().cpu().numpy().reshape(-1, 3),
+            positions=positions.detach().cpu().numpy().reshape(n_atoms, 3),
+            velocities=velocities.detach().cpu().numpy().reshape(n_atoms, 3),
             pbc=ref_images.pbc.detach().cpu().numpy(),
             cell=ref_images.cell.detach().cpu().numpy(),
             tags=ref_images.tags.detach().cpu().numpy(),
         )
         calc = SinglePointCalculator(
             atoms,
-            energy=energy.detach().cpu().numpy(),
-            # forces=forces.detach().cpu().numpy().reshape(-1, 3),
+            energy=energy.detach().cpu().numpy().item(),
+            forces=forces.detach().cpu().numpy().sum(axis=0).reshape(n_atoms, 3),
         )
         atoms.calc = calc
         images.append(atoms)
