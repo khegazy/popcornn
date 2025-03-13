@@ -2,6 +2,7 @@ import torch
 from torch_geometric.data import Data
 from newtonnet.utils.ase_interface import MLAseCalculator
 from newtonnet.data.neighbors import RadiusGraph
+from newtonnet.models.output import NullAggregator
 
 from .base_potential import BasePotential, PotentialOutput
 
@@ -30,18 +31,20 @@ class NewtonNetPotential(BasePotential):
         data = self.data_formatter(points)
         pred = self.model(data.z, data.disp, data.edge_index, data.batch)
         self.n_eval += 1
-        energy = pred.energy
-        force = pred.gradient_force
-        energy = energy.view(-1, 1)
-        force = force.view(*points.shape)
-        return PotentialOutput(energy=energy, force=force)
+        energy_terms = pred.energy
+        # force = pred.gradient_force
+        energy_terms = energy_terms.view(-1, self.n_atoms)
+        return PotentialOutput(energy_terms=energy_terms)
+        # force = force.view(*points.shape)
+        # return PotentialOutput(energy=energy, force=force)
         
 
     def load_model(self, model_path):
-        calc = MLAseCalculator(model_path, properties=['energy', 'forces'], device=self.device)
+        calc = MLAseCalculator(model_path, properties=['energy'], device=self.device)
         model = calc.models[0]
+        model.aggregators[0] = NullAggregator()
         model.eval()
-        model.output_layers[1].create_graph = True
+        # model.output_layers[1].create_graph = True
         model.to(torch.float64)
         model.requires_grad_(False)
         model.embedding_layer.requires_dr = False

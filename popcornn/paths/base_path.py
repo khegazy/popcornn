@@ -172,21 +172,27 @@ class BasePath(torch.nn.Module):
             potential_output = self.potential(path_geometry)
 
         if return_energy:
-            path_energy = potential_output.energy
+            # path_energy = potential_output.energy
+            path_energy = potential_output.energy_terms.sum(dim=-1, keepdim=True)
         else:
             path_energy = None
 
         if return_force:
-            if potential_output.force is not None:
-                path_force = potential_output.force
-            else:
+            # if potential_output.force is not None:
+            #     path_force = potential_output.force
+            # else:
                 
-                path_force = -torch.autograd.grad(
-                    potential_output.energy,
-                    path_geometry,
-                    grad_outputs=torch.ones_like(potential_output.energy),
-                    create_graph=self.training,
-                )[0]
+            #     path_force = -torch.autograd.grad(
+            #         potential_output.energy,
+            #         path_geometry,
+            #         grad_outputs=torch.ones_like(potential_output.energy),
+            #         create_graph=self.training,
+            #     )[0]
+            path_force = torch.vmap(
+                lambda vec: torch.autograd.grad(
+                    potential_output.energy_terms.flatten(), path_geometry, grad_outputs=vec, create_graph=self.training
+                )[0],
+            )(torch.eye(potential_output.energy_terms.shape[1], device=self.device).repeat(1, potential_output.energy_terms.shape[0])).transpose(0, 1)
         else:
             path_force = None
         if return_velocity:

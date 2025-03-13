@@ -14,8 +14,9 @@ class PotentialOutput():
     force : torch.Tensor, optional
         The force along the path.
     """
-    energy: torch.Tensor
-    force: torch.Tensor = None
+    energy_terms: torch.Tensor
+    # energy: torch.Tensor
+    # force: torch.Tensor = None
 
 
 
