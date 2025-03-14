@@ -241,7 +241,11 @@ class BasePath(torch.nn.Module):
         TS_interp = sp.interpolate.interp1d(
             t_interp[mask_interp], E_interp[mask_interp], kind='cubic'
         )
-        TS_search = np.linspace(t_interp[0], t_interp[-1], N_interp)
+        TS_search = np.linspace(
+            t_interp[0] + 1e-12,
+            t_interp[-1] - 1e-12,
+            N_interp
+        )
         TS_E_search = TS_interp(TS_search)
         TS_idx = np.argmax(TS_E_search)
         
