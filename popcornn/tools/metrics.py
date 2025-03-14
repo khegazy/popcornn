@@ -330,6 +330,7 @@ class Metrics():
             requires_velocity=False,
             requires_energy=False,
             requires_force=False,
+            requires_forceterms=False,
             fxn_name=None
             ):
         inp_velocity = velocity is not None or not requires_velocity
@@ -360,8 +361,8 @@ class Metrics():
         if path is not None:
             if t is None:
                 raise ValueError("Must specify evaluation times for path when using path argument")
-            path_output = path(t, return_velocity=requires_velocity, return_energy=requires_energy, return_force=requires_force)
-            return path_output.path_geometry, path_output.path_velocity, path_output.path_energy, path_output.path_force
+            path_output = path(t, return_velocity=requires_velocity, return_energy=requires_energy, return_force=requires_force, return_forceterms=requires_forceterms)
+            return path_output.path_geometry, path_output.path_velocity, path_output.path_energy, path_output.path_force, path_output.path_forceterms
         
         message = f"Cannot parse input arguments to {fxn_name}, please use one of the following options\n"
         message += f"\t1) Provide geometric_path and potential path, and if needed velocity and/or force\n"
@@ -370,14 +371,14 @@ class Metrics():
         raise ValueError(message)
 
     def E_geo(self, **kwargs):
-        kwargs['requires_force'] = True
+        kwargs['requires_forceterms'] = True
         kwargs['requires_energy'] = True
         kwargs['requires_velocity'] = True
         kwargs['fxn_name'] = self.E_vre.__name__
 
-        path_geometry, path_velocity, path_energy, path_force = self._parse_input(**kwargs)
+        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
         
-        Egeo = torch.linalg.norm(torch.einsum('bki,bi->bk', path_force, path_velocity), dim=-1, keepdim=True)
+        Egeo = torch.linalg.norm(torch.einsum('bki,bi->bk', path_forceterms, path_velocity), dim=-1, keepdim=True, ord=1)
         return Egeo, path_energy
 
     def E_vre(self, **kwargs):
@@ -386,7 +387,7 @@ class Metrics():
         kwargs['requires_velocity'] = True
         kwargs['fxn_name'] = self.E_vre.__name__
 
-        path_geometry, path_velocity, path_energy, path_force = self._parse_input(**kwargs)
+        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
         
         Evre = torch.linalg.norm(path_force, dim=-1, keepdim=True) * torch.linalg.norm(path_velocity, dim=-1, keepdim=True)
         return Evre, path_energy, path_force, path_velocity
@@ -397,10 +398,10 @@ class Metrics():
         kwargs['requires_velocity'] = True
         kwargs['fxn_name'] = self.E_pvre.__name__
 
-        path_geometry, path_velocity, path_energy, path_force = self._parse_input(**kwargs)
+        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
 
-        # Epvre = torch.abs(torch.sum(path_velocity*path_force, dim=-1, keepdim=True))
-        Epvre = torch.abs(torch.sum(torch.einsum('bki,bi->bk', path_force, path_velocity), dim=-1, keepdim=True))
+        Epvre = torch.abs(torch.sum(path_velocity*path_force, dim=-1, keepdim=True))
+        # Epvre = torch.abs(torch.sum(torch.einsum('bki,bi->bk', path_force, path_velocity), dim=-1, keepdim=True))
 
         return Epvre, path_energy #, path_force, path_velocity
 

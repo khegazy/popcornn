@@ -104,7 +104,6 @@ def optimize_MEP(
     for optim_idx in tqdm(range(num_optimizer_iterations)):
         path.neval = 0
         try:
-            path.train()
             path_integral = optimizer.optimization_step(path, integrator)
             neval = path.neval
         except ValueError as e:
@@ -112,7 +111,6 @@ def optimize_MEP(
             raise e
 
         if output_dir is not None:
-            path.eval()
             time = path_integral.t.flatten()
             ts_time = path.TS_time
             path_output = path(time, return_velocity=True, return_energy=True, return_force=True)
@@ -123,14 +121,14 @@ def optimize_MEP(
                 path_geometry=path_output.path_geometry.tolist(),
                 path_energy=path_output.path_energy.tolist(),
                 path_velocity=path_output.path_velocity.tolist(),
-                path_force=path_output.path_force.sum(dim=1).tolist(),
+                path_force=path_output.path_force.tolist(),
                 path_loss=path_integral.y.tolist(),
                 path_integral=path_integral.integral.item(),
                 path_ts_time=ts_time.tolist(),
                 path_ts_geometry=ts_output.path_geometry.tolist(),
                 path_ts_energy=ts_output.path_energy.tolist(),
                 path_ts_velocity=ts_output.path_velocity.tolist(),
-                path_ts_force=ts_output.path_force.sum(dim=1).tolist(),
+                path_ts_force=ts_output.path_force.tolist(),
             )
             output.save(os.path.join(log_dir, f"output_{optim_idx}.json"))            
 
@@ -155,13 +153,13 @@ def optimize_MEP(
             path_geometry=path_output.path_geometry.tolist(),
             path_energy=path_output.path_energy.tolist(),
             path_velocity=path_output.path_velocity.tolist(),
-            path_force=path_output.path_force.sum(dim=1).tolist(),
+            path_force=path_output.path_force.tolist(),
             path_loss=path_integral.y.tolist(),
             path_integral=path_integral.integral.item(),
             path_ts_time=ts_time.tolist(),
             path_ts_geometry=ts_output.path_geometry.tolist(),
             path_ts_energy=ts_output.path_energy.tolist(),
             path_ts_velocity=ts_output.path_velocity.tolist(),
-            path_ts_force=ts_output.path_force.sum(dim=1).tolist(),
+            path_ts_force=ts_output.path_force.tolist(),
         )
 

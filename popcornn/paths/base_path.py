@@ -30,9 +30,10 @@ class PathOutput():
     """
     times: torch.Tensor
     path_geometry: torch.Tensor
-    path_energy: torch.Tensor
+    path_energy: torch.Tensor = None
     path_velocity: torch.Tensor = None
     path_force: torch.Tensor = None
+    path_forceterms: torch.Tensor = None
 
 
 class BasePath(torch.nn.Module):
@@ -135,7 +136,8 @@ class BasePath(torch.nn.Module):
             t : torch.Tensor = None,
             return_velocity: bool = False,
             return_energy: bool = False,
-            return_force: bool = False
+            return_force: bool = False,
+            return_forceterms: bool = False
     ) -> PathOutput:
         """
         Forward pass to compute the path, potential, velocity, and force.
@@ -168,7 +170,7 @@ class BasePath(torch.nn.Module):
         path_geometry = self.get_geometry(t)
         if self.transform is not None:
             path_geometry = self.transform(path_geometry)
-        if return_energy or return_force:
+        if return_energy or return_force or return_forceterms:
             potential_output = self.potential(path_geometry)
 
         if return_energy:
@@ -182,19 +184,22 @@ class BasePath(torch.nn.Module):
             #     path_force = potential_output.force
             # else:
                 
-            #     path_force = -torch.autograd.grad(
-            #         potential_output.energy,
-            #         path_geometry,
-            #         grad_outputs=torch.ones_like(potential_output.energy),
-            #         create_graph=self.training,
-            #     )[0]
-            path_force = torch.vmap(
+            path_force = -torch.autograd.grad(
+                path_energy,
+                path_geometry,
+                grad_outputs=torch.ones_like(path_energy),
+                create_graph=self.training,
+            )[0]
+        else:
+            path_force = None
+        if return_forceterms:
+            path_forceterms = -torch.vmap(
                 lambda vec: torch.autograd.grad(
                     potential_output.energy_terms.flatten(), path_geometry, grad_outputs=vec, create_graph=self.training
                 )[0],
             )(torch.eye(potential_output.energy_terms.shape[1], device=self.device).repeat(1, potential_output.energy_terms.shape[0])).transpose(0, 1)
         else:
-            path_force = None
+            path_forceterms = None
         if return_velocity:
             # if is_batched:
             #     fxn = lambda t: torch.sum(self.geometric_path(t), axis=0)
@@ -209,7 +214,7 @@ class BasePath(torch.nn.Module):
         else:
             path_velocity = None
 
-        if return_energy or return_force:
+        if return_energy or return_force or return_forceterms:
             del potential_output
         
         return PathOutput(
@@ -218,6 +223,7 @@ class BasePath(torch.nn.Module):
             path_energy=path_energy,
             path_velocity=path_velocity,
             path_force=path_force,
+            path_forceterms=path_forceterms,
         )
     
     def find_TS(self, times, energies, idx_shift=5, N_interp=5000):
