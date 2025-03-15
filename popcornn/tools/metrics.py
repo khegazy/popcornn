@@ -378,7 +378,7 @@ class Metrics():
 
         path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
         
-        Egeo = torch.linalg.norm(torch.einsum('bki,bi->bk', path_forceterms, path_velocity), dim=-1, keepdim=True, ord=1)
+        Egeo = torch.linalg.norm(torch.einsum('bki,bi->bk', path_forceterms, path_velocity), dim=-1, keepdim=True)
         return Egeo, path_energy
 
     def E_vre(self, **kwargs):
