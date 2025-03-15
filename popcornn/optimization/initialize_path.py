@@ -150,7 +150,7 @@ def initialize_path(
         #     fig.savefig(f"./plots/initialization/init_path_{idx}.png")
         # if rel_error < 1e-8:
         #     break
-        if loss.item() < 1e-2:
+        if loss.item() < 1e-8:
             break
     else:
         # raise ValueError(f"INFO: Maximum number of steps reached: {max_steps}")
