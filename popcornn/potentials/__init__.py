@@ -26,6 +26,9 @@ def get_potential(potential, **kwargs):
     elif name == "harmonic":
         from .harmonic import HarmonicPotential
         return HarmonicPotential(**kwargs)
+    elif name == "mace":
+        from .mace import MacePotential
+        return MacePotential(**kwargs)
     elif name == "newtonnet":
         from .newtonnet import NewtonNetPotential
         return NewtonNetPotential(**kwargs)
