@@ -1,4 +1,7 @@
 import torch
+from torch_geometric.nn import radius_graph
+from torch.nn.functional import one_hot
+from torch_geometric.data import Batch
 from torch_geometric.data import Data
 from mace.calculators import mace_off
 
@@ -22,23 +25,23 @@ class MacePotential(BasePotential):
         super().__init__(**kwargs)
         self.model = self.load_model(model_path)
         self.n_eval = 0
+        self.node_attrs = one_hot(self.numbers, num_classes=118)[:, self.model.atomic_numbers].double()
 
     
     def forward(self, points):
         data = self.data_formatter(points)
-        pred = self.model(data.z, data.disp, data.edge_index, data.batch)
+        pred = self.model(data.to_dict(), compute_force=False)
         self.n_eval += 1
-        energy_terms = pred.energy
-        # force = pred.gradient_force
-        energy_terms = energy_terms.view(-1, self.n_atoms)
-        return PotentialOutput(energy_terms=energy_terms)
+        energy = pred['energy'].view(*points.shape[:-1], 1)
+        # force = pred['forces'].view(*points.shape)
+        return PotentialOutput(energy=energy)
         # force = force.view(*points.shape)
         # return PotentialOutput(energy=energy, force=force)
         
 
     def load_model(self, model_path):
-        model = mace_off().models[0]
-        state_dict = torch.load(model_path).get('state_dict')
+        model = mace_off(device=self.device).models[0]
+        state_dict = torch.load(model_path, map_location=self.device).get('state_dict')
         state_dict = {k.replace('potential.', ''): v for k, v in state_dict.items()}
         model.load_state_dict(state_dict)
         model.eval()
@@ -46,25 +49,25 @@ class MacePotential(BasePotential):
         return model
     
     def data_formatter(self, pos):
-        config = data.config_from_atoms(atoms, charges_key=self.charges_key)
-        data_loader = torch_geometric.dataloader.DataLoader(
-            dataset=[
-                data.AtomicData.from_config(
-                    config, z_table=self.z_table, cutoff=self.r_max, heads=self.heads
-                )
-            ],
-            batch_size=1,
-            shuffle=False,
-            drop_last=False,
-        )
-        batch = next(iter(data_loader)).to(self.device)
-        
         n_atoms = self.n_atoms
         n_data = pos.numel() // (n_atoms * 3)
-        z = self.numbers.repeat(n_data)
-        pos = pos.view(n_data * n_atoms, 3)
-        lattice = torch.ones(1, device=self.device) * torch.inf
-        batch = torch.arange(n_data, device=self.device).repeat_interleave(n_atoms)
-        data = Data(pos=pos, z=z, lattice=lattice, batch=batch)
         
-        return self.transform(data)
+        positions = pos.view(n_data * n_atoms, 3)
+        cell = self.cell.repeat(n_data, 1)
+        node_attrs = self.node_attrs.repeat(n_data, 1)
+        batch = torch.arange(n_data, device=self.device).repeat_interleave(n_atoms)
+        ptr = torch.arange(0, n_data + 1, device=self.device) * n_atoms
+        edge_index = radius_graph(positions, r=self.model.r_max, batch=batch)
+        shifts = torch.zeros(edge_index.shape[1], 3, device=self.device)
+        unit_shifts = torch.zeros(edge_index.shape[1], 3, device=self.device)
+        data = Data(
+            positions=positions,
+            cell=cell,
+            node_attrs=node_attrs,
+            edge_index=edge_index,
+            shifts=shifts,
+            unit_shifts=unit_shifts,
+            batch=batch,
+            ptr=ptr,
+        )
+        return data
