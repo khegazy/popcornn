@@ -41,8 +41,7 @@ class MacePotential(BasePotential):
 
     def load_model(self, model_path):
         model = mace_off(device=self.device).models[0]
-        state_dict = torch.load(model_path, map_location=self.device).get('state_dict')
-        state_dict = {k.replace('potential.', ''): v for k, v in state_dict.items()}
+        state_dict = torch.load(model_path, map_location=self.device)
         model.load_state_dict(state_dict)
         model.eval()
         model.requires_grad_(False)
