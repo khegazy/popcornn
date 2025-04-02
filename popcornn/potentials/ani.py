@@ -37,8 +37,9 @@ class AniPotential(BasePotential):
         
 
     def load_model(self, model_path):
-        calc = ANICalculator(model_path)
-        model = calc.model
+        # calc = ANICalculator(model_path)
+        # model = calc.model
+        model = torch.load(model_path, weights_only=False, map_location=self.device)
         model.eval()
         model.requires_grad_(False)
         return model
