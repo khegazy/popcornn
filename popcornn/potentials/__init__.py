@@ -35,6 +35,9 @@ def get_potential(potential, **kwargs):
     elif name == "ani":
         from .ani import AniPotential
         return AniPotential(**kwargs)
+    elif name == "leftnet":
+        from .leftnet import LeftNetPotential
+        return LeftNetPotential(**kwargs)
     elif name == "escaip":
         from .escaip import EScAIPPotential
         return EScAIPPotential(**kwargs)
