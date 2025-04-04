@@ -38,6 +38,9 @@ def get_potential(potential, **kwargs):
     elif name == "leftnet":
         from .leftnet import LeftNetPotential
         return LeftNetPotential(**kwargs)
+    elif name == "orb":
+        from .orb import OrbPotential
+        return OrbPotential(**kwargs)
     elif name == "escaip":
         from .escaip import EScAIPPotential
         return EScAIPPotential(**kwargs)
