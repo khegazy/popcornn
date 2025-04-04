@@ -3,7 +3,7 @@ from torch_geometric.nn import radius_graph
 from torch.nn.functional import one_hot
 from torch_geometric.data import Batch
 from torch_geometric.data import Data
-from mace.calculators import mace_off
+from mace.calculators import mace_off, mace_off_finetuned
 
 from .base_potential import BasePotential, PotentialOutput
 
@@ -31,6 +31,7 @@ class MacePotential(BasePotential):
     def forward(self, points):
         data = self.data_formatter(points)
         pred = self.model(data.to_dict(), compute_force=False)
+        # pred = self.model(data.to_dict(), training=True)
         self.n_eval += 1
         energy = pred['energy'].view(*points.shape[:-1], 1)
         # force = pred['forces'].view(*points.shape)
@@ -40,9 +41,10 @@ class MacePotential(BasePotential):
         
 
     def load_model(self, model_path):
-        model = mace_off(device=self.device).models[0]
-        state_dict = torch.load(model_path, map_location=self.device)
-        model.load_state_dict(state_dict)
+        # model = mace_off(device=self.device).models[0]
+        # state_dict = torch.load(model_path, map_location=self.device)
+        # model.load_state_dict(state_dict)
+        model = torch.load(model_path, weights_only=False, map_location=self.device)
         model.eval()
         model.requires_grad_(False)
         return model
