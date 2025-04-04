@@ -9,17 +9,12 @@ from .base_potential import BasePotential, PotentialOutput
 class NewtonNetPotential(BasePotential):
     def __init__(self, model_path, **kwargs):
         """
-        Constructor for NewtonNetPotential
+        Constructor for NewtonNet Potential
 
         Parameters
         ----------
-        model_path: str or list of str
-            path to the model. eg. '5k/models/best_model_state.tar'
-        settings_path: str or list of str
-            path to the .yml setting path. eg. '5k/run_scripts/config_h2.yml'
-        device: 
-            device to run model. eg. 'cpu', ['cuda:0', 'cuda:1']
-        kwargs
+        model_path: str
+            path to the model. eg. 'weights/newtonnet/model.pt'
         """
         super().__init__(**kwargs)
         self.model = self.load_model(model_path)

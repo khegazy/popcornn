@@ -12,13 +12,8 @@ class CHGNetPotential(BasePotential):
 
         Parameters
         ----------
-        model_path: str or list of str
-            path to the model. eg. '5k/models/best_model_state.tar'
-        settings_path: str or list of str
-            path to the .yml setting path. eg. '5k/run_scripts/config_h2.yml'
-        device: 
-            device to run model. eg. 'cpu', ['cuda:0', 'cuda:1']
-        kwargs
+        model_path: str
+            path to the model. eg. 'weights/chg/model.pt'
         """
         raise NotImplementedError("CHGNetPotential is not implemented yet.")
         super().__init__(**kwargs)

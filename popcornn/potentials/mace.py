@@ -1,26 +1,19 @@
 import torch
 from torch_geometric.nn import radius_graph
 from torch.nn.functional import one_hot
-from torch_geometric.data import Batch
 from torch_geometric.data import Data
-from mace.calculators import mace_off, mace_off_finetuned
 
 from .base_potential import BasePotential, PotentialOutput
 
 class MacePotential(BasePotential):
     def __init__(self, model_path, **kwargs):
         """
-        Constructor for NewtonNetPotential
+        Constructor for MACE Potential
 
         Parameters
         ----------
-        model_path: str or list of str
-            path to the model. eg. '5k/models/best_model_state.tar'
-        settings_path: str or list of str
-            path to the .yml setting path. eg. '5k/run_scripts/config_h2.yml'
-        device: 
-            device to run model. eg. 'cpu', ['cuda:0', 'cuda:1']
-        kwargs
+        model_path: str
+            path to the model. eg. 'weights/mace/model.pt'
         """
         super().__init__(**kwargs)
         self.model = self.load_model(model_path)
