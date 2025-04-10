@@ -148,18 +148,19 @@ def optimize_MEP(
         images, ts_images = output_to_atoms(path_output, images), output_to_atoms(ts_output, images)
         return images, ts_images[0]
     else:
-        return OptimizationOutput(
-            path_time=time.tolist(),
-            path_geometry=path_output.path_geometry.tolist(),
-            path_energy=path_output.path_energy.tolist(),
-            path_velocity=path_output.path_velocity.tolist(),
-            path_force=path_output.path_force.tolist(),
-            path_loss=path_integral.y.tolist(),
-            path_integral=path_integral.integral.item(),
-            path_ts_time=ts_time.tolist(),
-            path_ts_geometry=ts_output.path_geometry.tolist(),
-            path_ts_energy=ts_output.path_energy.tolist(),
-            path_ts_velocity=ts_output.path_velocity.tolist(),
-            path_ts_force=ts_output.path_force.tolist(),
-        )
+        # return OptimizationOutput(
+        #     path_time=time.tolist(),
+        #     path_geometry=path_output.path_geometry.tolist(),
+        #     path_energy=path_output.path_energy.tolist(),
+        #     path_velocity=path_output.path_velocity.tolist(),
+        #     path_force=path_output.path_force.tolist(),
+        #     path_loss=path_integral.y.tolist(),
+        #     path_integral=path_integral.integral.item(),
+        #     path_ts_time=ts_time.tolist(),
+        #     path_ts_geometry=ts_output.path_geometry.tolist(),
+        #     path_ts_energy=ts_output.path_energy.tolist(),
+        #     path_ts_velocity=ts_output.path_velocity.tolist(),
+        #     path_ts_force=ts_output.path_force.tolist(),
+        # )
+        return path_output, ts_output
 
