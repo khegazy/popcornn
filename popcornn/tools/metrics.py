@@ -411,7 +411,7 @@ class Metrics():
         kwargs['requires_velocity'] = True
         kwargs['fxn_name'] = self.E_pvre_vre.__name__
         
-        path_geometry, path_velocity, path_energy, path_force = self._parse_input(**kwargs)
+        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
 
         Evre = torch.linalg.norm(path_force, dim=-1, keepdim=True) * torch.linalg.norm(path_velocity, dim=-1, keepdim=True)
         Epvre = torch.abs(torch.sum(path_velocity*path_force, dim=-1, keepdim=True))
@@ -421,7 +421,8 @@ class Metrics():
         kwargs['requires_force'] = True
         kwargs['requires_velocity'] = True
         kwargs['fxn_name'] = self.E_pvre_vre.__name__
-        geo_val, velocity, pes_val, force = self._parse_input(**kwargs)
+
+        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
 
         vre = self.E_vre(force=force, velocity=velocity, **kwargs)
         pvre = self.E_pvre(force=force, velocity=velocity, **kwargs)
@@ -432,30 +433,27 @@ class Metrics():
         kwargs['requires_force'] = True
         kwargs['requires_velocity'] = True
         kwargs['fxn_name'] = self.E_pvre.__name__
-        geo_val, path_velocity, path_energy, path_force = self._parse_input(**kwargs)
+
+        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
         
         return torch.linalg.norm(path_velocity*path_force), path_energy, path_force, path_velocity
 
     
     def E(self, **kwargs):
-        kwargs['requires_force'] = False
         kwargs['requires_energy'] = True
-        kwargs['requires_velocity'] = False
         kwargs['fxn_name'] = self.E.__name__
 
-        path_geometry, path_velocity, path_energy, path_force = self._parse_input(**kwargs)
+        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
 
         return path_energy, path_energy, path_force, path_velocity
 
 
     def E_mean(self, **kwargs):
-        kwargs['requires_force'] = False
         kwargs['requires_energy'] = True
-        kwargs['requires_velocity'] = False
         kwargs['fxn_name'] = self.E_mean.__name__
 
-        loss, path_energy, path_force, path_velocity = self.E(**kwargs)
-        mean_E = torch.mean(loss, dim=0, keepdim=True)
+        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
+        mean_E = torch.mean(path_energy, dim=0, keepdim=True)
         return mean_E, mean_E, path_force, path_velocity
 
 
@@ -464,7 +462,7 @@ class Metrics():
         kwargs['requires_force'] = True
         kwargs['requires_velocity'] = True
         kwargs['fxn_name'] = self.E_pvre.__name__
-        path_geometry, path_velocity, path_energy, path_force = self._parse_input(**kwargs)
+        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
         
         e_pvre = self.E_pvre(
             geo_val=path_geometry, velocity=path_velocity, pes_val=path_energy, force=path_force
@@ -477,10 +475,9 @@ class Metrics():
     
     def F_mag(self, **kwargs):
         kwargs['requires_force'] = True
-        kwargs['requires_energy'] = False
-        kwargs['requires_velocity'] = False
+        kwargs['requires_energy'] = True
         kwargs['fxn_name'] = self.F_mag.__name__
 
-        path_geometry, path_velocity, path_energy, path_force = self._parse_input(**kwargs)
+        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
 
         return torch.linalg.norm(path_force, dim=-1, keepdim=True), path_energy, path_force, path_velocity
