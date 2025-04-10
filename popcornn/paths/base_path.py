@@ -232,58 +232,69 @@ class BasePath(torch.nn.Module):
             path_forceterms=path_forceterms,
         )
     
-    def find_TS(self, times, path, energies, force_mags=None, topk_E=7, topk_F=16, idx_shift=3, N_interp=3000):
+    def find_TS(self, times, energies, forces, topk_E=7, topk_F=16, idx_shift=3, N_interp=10000):
         # Remove repeated evaluations
         unique_mask = torch.all(times[0,1:] - times[0,:-1] > 1e-13, dim=-1)
         unique_mask = torch.concatenate([unique_mask, torch.tensor([True])])
         times = times[:,unique_mask]
         energies = energies[:,unique_mask]
+        forces = forces[:,unique_mask]
 
         if torch.all(torch.abs(times[:-1,-1] - times[1:,0]) < 1e-13):
             times = times[:,:-1]
             energies = energies[:,:-1]
+            forces = forces[:,:-1]
         
         # Find highest energy points
-        print("TS Energy", energies.shape)
         N_C = times.shape[-2]
         energies = energies.flatten()
+        forces = torch.flatten(forces, start_dim=0, end_dim=1)
         times = times[:,:,0].flatten()
         _, TS_idxs = torch.topk(energies, topk_E)
-        print("TS IDX0", TS_idxs)
         TS_idxs = TS_idxs - (TS_idxs % N_C)
-        print("TS IDX1", TS_idxs)
         TS_idxs = torch.unique(TS_idxs, sorted=False)
-        print("TS IDX2", TS_idxs)
 
         # Get time and energy range
-        max_min = len(energies) - 1 - 2*N_C*idx_shift
+        max_min = len(energies) - (2*N_C + 1)*idx_shift
         idxs_min = TS_idxs - idx_shift*N_C
         idxs_min[idxs_min>max_min] = max_min
         idxs_min[idxs_min<0] = 0
-        min_max = 2*N_C*idx_shift
-        idxs_max = TS_idxs + idx_shift*N_C
+        min_max = (2*N_C + 1)*idx_shift
+        idxs_max = TS_idxs + idx_shift*(1 + N_C)
         idxs_max[idxs_max<min_max] = min_max
-        idxs_max[idxs_max>=len(energies)] = len(energies) - 1
+        idxs_max[idxs_max>=len(energies)] = len(energies)
         
-        print(idxs_min, idxs_max)
-        t_interp = times[:2*N_C*idx_shift].detach().cpu().numpy()
-        print(idxs_max - idxs_min)
+        t_interp = times[:(2*N_C + 1)*idx_shift].detach().cpu().numpy()
+        F_interp = np.stack(
+            [
+                forces[idxs_min[i]:idxs_max[i]].detach().cpu().numpy()\
+                for i in range(len(idxs_max)) 
+            ]
+        )
         E_interp = np.stack(
             [
                 energies[idxs_min[i]:idxs_max[i]].detach().cpu().numpy()\
                 for i in range(len(idxs_max)) 
             ]
         )
-        print("INTERP INP", t_interp.shape, E_interp.shape)
-        TS_interp = sp.interpolate.interp1d(
-            t_interp, E_interp, axis=-1, kind='cubic'
+        TS_E_interp = sp.interpolate.interp1d(
+            t_interp, E_interp, axis=1, kind='cubic'
+        )
+        TS_F_interp = sp.interpolate.interp1d(
+            t_interp, F_interp, axis=1, kind='cubic'
         )
         TS_search = np.linspace(
             t_interp[0] + 1e-12,
             t_interp[-1] - 1e-12,
             N_interp
         )
-        TS_E_search = TS_interp(TS_search)
+        TS_E_search = TS_E_interp(TS_search)
+        TS_F_search = TS_F_interp(TS_search)
+        TS_magF_search = np.linalg.norm(TS_F_search, ord=2, axis=-1).flatten()
+        TS_idx = np.argmin(TS_magF_search)
+        
+
+        """
         TS_idxs = np.argpartition(TS_E_search.flatten(), -1*topk_F)[-1*topk_F:]
         TS_times = TS_search[TS_idxs % N_interp]
 
@@ -292,10 +303,14 @@ class BasePath(torch.nn.Module):
         TS_idx = torch.argmin(
             torch.linalg.vector_norm(path_output.path_force, ord=2, dim=-1)
         )
-
-        self.TS_time = TS_times[TS_idx]
-        self.TS_energy = path_output.path_energy[TS_idx]
-        self.TS_force = path_output.path_force[TS_idx]
+        """
+        
+        idx0 = TS_idx//N_interp
+        idx1 = TS_idx % N_interp
+        self.TS_time = TS_search[idx1]
+        self.TS_time = torch.tensor(self.TS_time) + times[idxs_min[idx0]]
+        self.TS_energy = torch.tensor(TS_E_search[idx0, idx1])
+        self.TS_force = torch.tensor(TS_F_search[idx0, idx1])
         self.TS_force_mag = torch.linalg.vector_norm(
             self.TS_force, ord=2, dim=-1
         )
@@ -308,4 +323,5 @@ class BasePath(torch.nn.Module):
             device=self.device
         )
         self.TS_time = torch.unsqueeze(self.TS_time, -1)
+        #print(self.TS_energy, self.TS_force_mag, TS_magF_search[TS_idx], self.TS_force)
  
