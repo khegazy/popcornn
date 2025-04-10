@@ -168,7 +168,7 @@ class PathOptimizer():
         ############# Testing ##############
         # Find transition state time
         path.find_TS(
-            path_integral.t, path_integral.y[:,:,integrator.path_ode_energy_idx]
+            path_integral.t, path, path_integral.y[:,:,integrator.path_ode_energy_idx]
         )
         ##############
         self.iteration = self.iteration + 1
