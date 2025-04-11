@@ -235,7 +235,7 @@ class BasePath(torch.nn.Module):
     def find_TS(self, times, energies, forces, topk_E=7, topk_F=16, idx_shift=3, N_interp=10000):
         # Remove repeated evaluations
         unique_mask = torch.all(times[0,1:] - times[0,:-1] > 1e-13, dim=-1)
-        unique_mask = torch.concatenate([unique_mask, torch.tensor([True])])
+        unique_mask = torch.concatenate([unique_mask, torch.tensor([True], device=self.device)])
         times = times[:,unique_mask]
         energies = energies[:,unique_mask]
         forces = forces[:,unique_mask]
