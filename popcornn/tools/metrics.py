@@ -1,4 +1,3 @@
-import collections
 from typing import Any
 import torch
 import matplotlib.pyplot as plt
@@ -302,9 +301,9 @@ class Metrics():
             ]
             """
             loss = loss + scale*ode_loss
-        nans = torch.stack([torch.tensor([torch.nan])]*len(loss))
+        nans = torch.stack([torch.tensor([torch.nan], device=self.device)]*len(loss))
         keep_variables = [
-            variables[name] if name in variables else nans\
+            variables[name] if name in variables and variables[name] is not None else nans\
                 for name in ['energy', 'force']
         ]
         
@@ -390,10 +389,11 @@ class Metrics():
         
         Egeo = torch.linalg.norm(torch.einsum('bki,bi->bk', path_forceterms, path_velocity), dim=-1, keepdim=True)
 
-        variables = collections.defaultdict(None)
-        variables["energy"] = path_energy
-        variables["force"] = path_force
-        variables["velocity"] = path_velocity
+        variables = {
+            "energy" : path_energy,
+            "force" : path_force,
+            "velocity" : path_velocity
+        }
         return Egeo, variables
 
     def E_vre(self, **kwargs):
@@ -405,10 +405,11 @@ class Metrics():
         path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
         
         Evre = torch.linalg.norm(path_force, dim=-1, keepdim=True) * torch.linalg.norm(path_velocity, dim=-1, keepdim=True)
-        variables = collections.defaultdict(None)
-        variables["energy"] = path_energy
-        variables["force"] = path_force
-        variables["velocity"] = path_velocity
+        variables = {
+            "energy" : path_energy,
+            "force" : path_force,
+            "velocity" : path_velocity
+        }
         return Evre, variables
 
     def E_pvre(self, **kwargs):
@@ -422,10 +423,11 @@ class Metrics():
         Epvre = torch.abs(torch.sum(path_velocity*path_force, dim=-1, keepdim=True))
         # Epvre = torch.abs(torch.sum(torch.einsum('bki,bi->bk', path_force, path_velocity), dim=-1, keepdim=True))
 
-        variables = collections.defaultdict(None)
-        variables["energy"] = path_energy
-        variables["force"] = path_force
-        variables["velocity"] = path_velocity
+        variables = {
+            "energy" : path_energy,
+            "force" : path_force,
+            "velocity" : path_velocity
+        }
         return Epvre, variables
 
     def E_pvre_vre(self, **kwargs):
@@ -468,8 +470,7 @@ class Metrics():
 
         path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
 
-        variables = collections.defaultdict(None)
-        variables["energy"] = path_energy
+        variables = {"energy" : path_energy}
         return path_energy, variables
 
 
@@ -480,7 +481,7 @@ class Metrics():
         path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
         mean_E = torch.mean(path_energy, dim=0, keepdim=True)
         
-        variables = collections.defaultdict(None)
+        variables = {}
         return mean_E, variables
 
 
@@ -498,10 +499,11 @@ class Metrics():
             geo_val=path_geometry, velocity=path_velocity, pes_val=path_energy, force=path_force
         )
         
-        variables = collections.defaultdict(None)
-        variables["energy"] = path_energy
-        variables["force"] = path_force
-        variables["velocity"] = path_velocity
+        variables = { 
+            "energy" : path_energy,
+            "force" : path_force,
+            "velocity" : path_velocity
+        }
         return e_vre - e_pvre, variables
 
     
@@ -512,5 +514,5 @@ class Metrics():
 
         path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
 
-        variables = collections.defaultdict(None)
+        variables = {}
         return torch.linalg.norm(path_force, dim=-1, keepdim=True), variables
