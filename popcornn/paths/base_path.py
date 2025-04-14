@@ -321,11 +321,10 @@ class BasePath(torch.nn.Module):
         interp_Es = []
         interp_Fs = []
         interp_magFs = []
-        self.TS_force_mag = torch.tensor([1e100], device=self.device)
+        self.TS_force_mag = torch.tensor([np.inf], device=self.device)
         for imin, imax in zip(idxs_min, idxs_max):
-            print("IN LOOP")
             t_interp = times[imin:imax].detach().cpu().numpy()
-            print(t_interp.shape, energies[imin:imax].shape, forces[imin:imax].shape)
+            #print(t_interp.shape, energies[imin:imax].shape, forces[imin:imax].shape)
             TS_F_interp = sp.interpolate.interp1d(
                 t_interp, forces[imin:imax].detach().cpu().numpy(), axis=0, kind='cubic'
             )
@@ -337,7 +336,6 @@ class BasePath(torch.nn.Module):
             interp_F = TS_F_interp(TS_search)
             interp_magF = np.linalg.norm(interp_F, ord=2, axis=-1).flatten()
             TS_idx = np.argmin(interp_magF)
-            print('forces', interp_magF[TS_idx], self.TS_force_mag)
             if interp_magF[TS_idx] < self.TS_force_mag:
                 self.TS_time = torch.tensor(TS_search[TS_idx], device=self.device)
                 self.TS_force = torch.tensor(interp_F[TS_idx], device=self.device)
@@ -349,10 +347,9 @@ class BasePath(torch.nn.Module):
                 )
                 interp_E = TS_E_interp(TS_search)
                 self.TS_energy = torch.tensor(interp_E[TS_idx], device=self.device)
-                print("setting TS time")
                 TS_time_scale = t_interp[-1] - t_interp[0]
 
-                if TS_search[0] < self.orig_TS_time and TS_search[-1] > self.orig_TS_time:
+                if False and TS_search[0] < self.orig_TS_time and TS_search[-1] > self.orig_TS_time:
                     print(self.orig_TS_time.detach().cpu().numpy()[0,0], TS_search)
                     oidx = np.argmin(np.abs(self.orig_TS_time.detach().cpu().numpy()[0,0] - TS_search))
                     orig_FM = interp_magF[oidx]
@@ -362,10 +359,10 @@ class BasePath(torch.nn.Module):
             #interp_Fs.append(TS_F_interp(TS_search))
             #interp_magFs.append(np.linalg.norm(interp_Fs[-1], ord=2, axis=-1).flatten())
             #print("TS times", TS_search[0], TS_search[-1])
-        print("NEW METHOD", self.TS_time, self.TS_energy, self.TS_force_mag)
-        print("OLD METHOD", self.orig_TS_time, self.orig_TS_energy, orig_FM)
-        if torch.abs(self.TS_time - self.orig_TS_time).flatten()/self.orig_TS_time > 1e-2:
-            print("WARNING FAILED CONVERGENCE")
+        #print("NEW METHOD", self.TS_time, self.TS_energy, self.TS_force_mag)
+        #print("OLD METHOD", self.orig_TS_time, self.orig_TS_energy, orig_FM)
+        #if torch.abs(self.TS_time - self.orig_TS_time).flatten()/self.orig_TS_time > 1e-2:
+        #    print("WARNING FAILED CONVERGENCE")
         """
         interp_ts = np.array(interp_ts)
         interp_Es = np.array(interp_Es)
