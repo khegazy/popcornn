@@ -232,7 +232,50 @@ class BasePath(torch.nn.Module):
             path_forceterms=path_forceterms,
         )
     
-    def find_TS(self, times, energies, forces, topk_E=7, topk_F=16, idx_shift=3, N_interp=10000):
+    def find_TS_orig(self, times, energies, forces, idx_shift=5, N_interp=5000):
+        TS_idx = torch.argmax(energies.view(-1)).item()
+        N_C = times.shape[-2]
+        idx_min = np.max([0, TS_idx-(idx_shift*N_C)])
+        idx_max = np.min(
+            [len(times[:,:,0].view(-1)), TS_idx+(idx_shift*N_C)]
+        )
+        t_interp = times[:,:,0].view(-1)[idx_min:idx_max].detach().cpu().numpy()
+        E_interp = energies.view(-1)[idx_min:idx_max].detach().cpu().numpy()
+        FM_interp = torch.linalg.norm(forces, dim=-1).view(-1)[idx_min:idx_max].detach().cpu().numpy()
+        print("ORIGINAL TS")
+        print("\tidxs: ", idx_min, idx_max)
+        #print("\tEs: ", E_interp)
+        mask_interp = np.concatenate(
+            [t_interp[1:] - t_interp[:-1] > 1e-10, np.array([1], dtype=bool)]
+        )
+        TS_interp = sp.interpolate.interp1d(
+            t_interp[mask_interp], E_interp[mask_interp], kind='cubic'
+        )
+        TS_search = np.linspace(
+            t_interp[0] + 1e-12,
+            t_interp[-1] - 1e-12,
+            N_interp
+        )
+        TS_E_search = TS_interp(TS_search)
+        TS_idx = np.argmax(TS_E_search)
+        
+        TS_time_scale = t_interp[-1] - t_interp[0]
+        self.TS_time = TS_search[TS_idx]
+        self.TS_region = torch.linspace(
+            self.TS_time-TS_time_scale/(idx_shift),
+            self.TS_time+TS_time_scale/(idx_shift),
+            11,
+            device=self.device
+        )
+        self.orig_TS_energy =TS_E_search[TS_idx] 
+        print("ORIG TS TIME", self.TS_time, TS_E_search[TS_idx])
+        self.TS_time = torch.tensor([[self.TS_time]], device=self.device)
+        self.orig_TS_time = torch.tensor([[self.TS_time]], device=self.device)
+    
+    def find_TS(self, times, energies, forces, topk_E=7, topk_F=16, idx_shift=4, N_interp=10000):
+        assert not torch.all(torch.isnan(energies))
+        assert not torch.all(torch.isnan(forces))
+
         # Remove repeated evaluations
         unique_mask = torch.all(times[0,1:] - times[0,:-1] > 1e-13, dim=-1)
         unique_mask = torch.concatenate([unique_mask, torch.tensor([True], device=self.device)])
@@ -251,19 +294,101 @@ class BasePath(torch.nn.Module):
         forces = torch.flatten(forces, start_dim=0, end_dim=1)
         times = times[:,:,0].flatten()
         _, TS_idxs = torch.topk(energies, topk_E)
-        TS_idxs = TS_idxs - (TS_idxs % N_C)
+        TS_idxs = (TS_idxs//N_C)*N_C
         TS_idxs = torch.unique(TS_idxs, sorted=False)
+        if torch.any(TS_idxs % N_C > 0):
+            print("WTF", TS_idxs)
+            asdf
 
         # Get time and energy range
-        max_min = len(energies) - (2*N_C + 1)*idx_shift
+        """
+        max_min = len(energies) - (2*N_C + 2)*idx_shift
         idxs_min = TS_idxs - idx_shift*N_C
         idxs_min[idxs_min>max_min] = max_min
-        idxs_min[idxs_min<0] = 0
+        idxs_min[idxs_min<N_C] = N_C
         min_max = (2*N_C + 1)*idx_shift
         idxs_max = TS_idxs + idx_shift*(1 + N_C)
         idxs_max[idxs_max<min_max] = min_max
-        idxs_max[idxs_max>=len(energies)] = len(energies)
+        idxs_max[idxs_max>=len(energies)] = len(energies) - 1
+        """
+ 
+        idxs_min = TS_idxs - idx_shift*N_C
+        idxs_min[idxs_min<N_C] = N_C
+        idxs_max = TS_idxs + idx_shift*(1 + N_C)
+        idxs_max[idxs_max>=len(energies)] = len(energies) - N_C
         
+        interp_ts = []
+        interp_Es = []
+        interp_Fs = []
+        interp_magFs = []
+        self.TS_force_mag = torch.tensor([1e100], device=self.device)
+        for imin, imax in zip(idxs_min, idxs_max):
+            print("IN LOOP")
+            t_interp = times[imin:imax].detach().cpu().numpy()
+            print(t_interp.shape, energies[imin:imax].shape, forces[imin:imax].shape)
+            TS_F_interp = sp.interpolate.interp1d(
+                t_interp, forces[imin:imax].detach().cpu().numpy(), axis=0, kind='cubic'
+            )
+            TS_search = np.linspace(
+                t_interp[0] + 1e-12,
+                t_interp[-1] - 1e-12,
+                N_interp
+            )
+            interp_F = TS_F_interp(TS_search)
+            interp_magF = np.linalg.norm(interp_F, ord=2, axis=-1).flatten()
+            TS_idx = np.argmin(interp_magF)
+            print('forces', interp_magF[TS_idx], self.TS_force_mag)
+            if interp_magF[TS_idx] < self.TS_force_mag:
+                self.TS_time = torch.tensor(TS_search[TS_idx], device=self.device)
+                self.TS_force = torch.tensor(interp_F[TS_idx], device=self.device)
+                self.TS_force_mag = interp_magF[TS_idx]
+                TS_E_interp = sp.interpolate.interp1d(
+                    t_interp,
+                    energies[imin:imax].detach().cpu().numpy(),
+                    kind='cubic'
+                )
+                interp_E = TS_E_interp(TS_search)
+                self.TS_energy = torch.tensor(interp_E[TS_idx], device=self.device)
+                print("setting TS time")
+                TS_time_scale = t_interp[-1] - t_interp[0]
+
+                if TS_search[0] < self.orig_TS_time and TS_search[-1] > self.orig_TS_time:
+                    print(self.orig_TS_time.detach().cpu().numpy()[0,0], TS_search)
+                    oidx = np.argmin(np.abs(self.orig_TS_time.detach().cpu().numpy()[0,0] - TS_search))
+                    orig_FM = interp_magF[oidx]
+
+            #interp_ts.append(TS_search)
+            #interp_Es.append(TS_E_interp(TS_search))
+            #interp_Fs.append(TS_F_interp(TS_search))
+            #interp_magFs.append(np.linalg.norm(interp_Fs[-1], ord=2, axis=-1).flatten())
+            #print("TS times", TS_search[0], TS_search[-1])
+        print("NEW METHOD", self.TS_time, self.TS_energy, self.TS_force_mag)
+        print("OLD METHOD", self.orig_TS_time, self.orig_TS_energy, orig_FM)
+        if torch.abs(self.TS_time - self.orig_TS_time).flatten()/self.orig_TS_time > 1e-2:
+            print("WARNING FAILED CONVERGENCE")
+        """
+        interp_ts = np.array(interp_ts)
+        interp_Es = np.array(interp_Es)
+        interp_Fs = np.array(interp_Fs)
+        interp_magFs = np.array(interp_magFs)
+        TS_idx = np.argmin(interp_magFs)
+
+        idx0 = TS_idx//N_interp
+        idx1 = TS_idx % N_interp
+        self.TS_time = torch.tensor(interp_ts[idx0, idx1], device=self.device)
+        print("TS times", interp_ts[:,0], interp_ts[:,-1])
+        print("SELECTED TS time", self.TS_time)
+        if torch.abs(self.TS_time - self.orig_TS_time).flatten()/self.orig_TS_time > 1e-3:
+            asdfas
+        self.TS_energy = torch.tensor(interp_ts[idx0, idx1], device=self.device)
+        self.TS_force = torch.tensor(interp_Fs[idx0, idx1], device=self.device)
+        self.TS_force_mag = torch.linalg.vector_norm(
+            self.TS_force, ord=2, dim=-1
+        )
+        """
+
+
+        """
         t_interp = times[:(2*N_C + 1)*idx_shift].detach().cpu().numpy()
         F_interp = np.stack(
             [
@@ -277,6 +402,9 @@ class BasePath(torch.nn.Module):
                 for i in range(len(idxs_max)) 
             ]
         )
+        print("NEW TS")
+        print("\tidxs: ", idxs_min, idxs_max)
+        #print("\tEs: ", E_interp)
         TS_E_interp = sp.interpolate.interp1d(
             t_interp, E_interp, axis=1, kind='cubic'
         )
@@ -294,34 +422,36 @@ class BasePath(torch.nn.Module):
         TS_idx = np.argmin(TS_magF_search)
         
 
-        """
-        TS_idxs = np.argpartition(TS_E_search.flatten(), -1*topk_F)[-1*topk_F:]
-        TS_times = TS_search[TS_idxs % N_interp]
+        #TS_idxs = np.argpartition(TS_E_search.flatten(), -1*topk_F)[-1*topk_F:]
+        #TS_times = TS_search[TS_idxs % N_interp]
 
-        TS_times = torch.tensor(TS_times) + times[idxs_min[TS_idxs//N_interp]]
-        path_output = path(TS_times, return_energy=True, return_force=True)
-        TS_idx = torch.argmin(
-            torch.linalg.vector_norm(path_output.path_force, ord=2, dim=-1)
-        )
-        """
+        #TS_times = torch.tensor(TS_times) + times[idxs_min[TS_idxs//N_interp]]
+        #path_output = path(TS_times, return_energy=True, return_force=True)
+        #TS_idx = torch.argmin(
+        #    torch.linalg.vector_norm(path_output.path_force, ord=2, dim=-1)
+        #)
         
         idx0 = TS_idx//N_interp
         idx1 = TS_idx % N_interp
         self.TS_time = TS_search[idx1]
         self.TS_time = torch.tensor(self.TS_time, device=self.device) + times[idxs_min[idx0]]
+        print("TS times", TS_search[0] + times[idxs_min], TS_search[-1] + times[idxs_min])
+        print("SELECTED TS time", self.TS_time)
         self.TS_energy = torch.tensor(TS_E_search[idx0, idx1], device=self.device)
         self.TS_force = torch.tensor(TS_F_search[idx0, idx1], device=self.device)
         self.TS_force_mag = torch.linalg.vector_norm(
             self.TS_force, ord=2, dim=-1
         )
+        """
 
-        TS_time_scale = t_interp[-1] - t_interp[0]
+        #TS_time_scale = t_interp[-1] - t_interp[0]
         self.TS_region = torch.linspace(
             self.TS_time-TS_time_scale/idx_shift,
             self.TS_time+TS_time_scale/idx_shift,
             11,
             device=self.device
         )
-        self.TS_time = torch.unsqueeze(self.TS_time, -1)
+        #self.TS_time = torch.unsqueeze(self.TS_time, -1)
+        #self.TS_time = torch.unsqueeze(self.TS_time, -1)
         #print(self.TS_energy, self.TS_force_mag, TS_magF_search[TS_idx], self.TS_force)
  
