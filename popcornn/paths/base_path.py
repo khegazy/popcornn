@@ -69,6 +69,7 @@ class BasePath(torch.nn.Module):
             potential: BasePotential,
             images: Images,
             device: torch.device = None,
+            find_TS: bool = True,
             **kwargs: Any
         ) -> None:
         """
@@ -87,6 +88,7 @@ class BasePath(torch.nn.Module):
         """
         super().__init__()
         self.neval = 0
+        self.find_TS = find_TS
         self.potential = potential
         self.initial_point = images.points[0].to(device)
         self.final_point = images.points[-1].to(device)
@@ -137,7 +139,7 @@ class BasePath(torch.nn.Module):
             return_velocity: bool = False,
             return_energy: bool = False,
             return_force: bool = False,
-            return_forceterms: bool = False
+            return_forceterms: bool = False,
     ) -> PathOutput:
         """
         Forward pass to compute the path, potential, velocity, and force.
@@ -232,7 +234,7 @@ class BasePath(torch.nn.Module):
             path_forceterms=path_forceterms,
         )
     
-    def find_TS_orig(self, times, energies, forces, idx_shift=5, N_interp=5000):
+    def TS_search_orig(self, times, energies, forces, idx_shift=5, N_interp=5000):
         TS_idx = torch.argmax(energies.view(-1)).item()
         N_C = times.shape[-2]
         idx_min = np.max([0, TS_idx-(idx_shift*N_C)])
@@ -242,8 +244,6 @@ class BasePath(torch.nn.Module):
         t_interp = times[:,:,0].view(-1)[idx_min:idx_max].detach().cpu().numpy()
         E_interp = energies.view(-1)[idx_min:idx_max].detach().cpu().numpy()
         FM_interp = torch.linalg.norm(forces, dim=-1).view(-1)[idx_min:idx_max].detach().cpu().numpy()
-        print("ORIGINAL TS")
-        print("\tidxs: ", idx_min, idx_max)
         #print("\tEs: ", E_interp)
         mask_interp = np.concatenate(
             [t_interp[1:] - t_interp[:-1] > 1e-10, np.array([1], dtype=bool)]
@@ -268,14 +268,20 @@ class BasePath(torch.nn.Module):
             device=self.device
         )
         self.orig_TS_energy =TS_E_search[TS_idx] 
-        print("ORIG TS TIME", self.TS_time, TS_E_search[TS_idx])
         self.TS_time = torch.tensor([[self.TS_time]], device=self.device)
         self.orig_TS_time = torch.tensor([[self.TS_time]], device=self.device)
     
-    def find_TS(self, times, energies, forces, topk_E=7, topk_F=16, idx_shift=4, N_interp=10000):
-        assert not torch.all(torch.isnan(energies))
-        assert not torch.all(torch.isnan(forces))
-
+    def TS_search(self, path, times, energies, forces, topk_E=7, topk_F=16, idx_shift=4, N_interp=10000):
+        # Calculate missing energies and forces
+        calc_energies = torch.any(torch.isnan(energies)) or energies is None
+        calc_forces = torch.any(torch.isnan(forces)) or forces is None
+        if calc_energies or calc_forces:
+            path_output = path(times, return_energy=calc_energies, return_force=calc_forces)
+            if calc_energies:
+                energies = path_output.path_energy
+            if calc_forces:
+                forces = path_output.path_force
+        
         # Remove repeated evaluations
         unique_mask = torch.all(times[0,1:] - times[0,:-1] > 1e-13, dim=-1)
         unique_mask = torch.concatenate([unique_mask, torch.tensor([True], device=self.device)])
