@@ -276,7 +276,7 @@ class BasePath(torch.nn.Module):
         calc_energies = torch.any(torch.isnan(energies)) or energies is None
         calc_forces = torch.any(torch.isnan(forces)) or forces is None
         if calc_energies or calc_forces:
-            path_output = path(times, return_energy=calc_energies, return_force=calc_forces)
+            path_output = path(times, return_energy=calc_energies, return_force=calc_forces)  #TODO: check the dimensions of time
             if calc_energies:
                 energies = path_output.path_energy
             if calc_forces:
