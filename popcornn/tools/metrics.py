@@ -480,9 +480,10 @@ class Metrics():
 
         path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
         mean_E = torch.mean(path_energy, dim=0, keepdim=True)
-        
+    
         variables = {}
         return mean_E, variables
+
 
 
 
