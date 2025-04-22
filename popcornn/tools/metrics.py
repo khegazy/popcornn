@@ -1,4 +1,5 @@
 from typing import Any
+from collections import defaultdict
 import torch
 import matplotlib.pyplot as plt
 
@@ -285,14 +286,32 @@ class Metrics():
             self.ode_fxn = self._parallel_ode_fxn
         else:
             self.ode_fxn = self._serial_ode_fxn
+        
+        self._get_required_variables()
 
+
+    def _get_required_variables(self):
+        assert self._ode_fxns is not None
+        self.required_variables = defaultdict(lambda : False)
+        for fxn in self._ode_fxns:
+            for var in fxn(get_required_variables=True):
+                self.required_variables[f"requires_{var}"] = True
+    
+    def add_required_variable(self, variable_name):
+        self.required_variables[variable_name] = True
 
     def _parallel_ode_fxn(self, t, path, **kwargs):
         loss = 0
         variables = {}
         for fxn in self._ode_fxns:
             scale = self._ode_fxn_scales[fxn.__name__]
-            ode_loss, ode_variables = fxn(path=path, t=t, **kwargs, **variables)
+            ode_loss, ode_variables = fxn(
+                t=t,
+                path=path,
+                **self.required_variables,
+                **variables,
+                **kwargs
+            )
             variables.update(ode_variables)
             """
             variables = [
@@ -328,6 +347,155 @@ class Metrics():
 
 
     def _parse_input(
+            self,
+            t,
+            path,
+            times=None,
+            reaction_path=None,
+            velocity=None,
+            energy=None,
+            energyterms=None,
+            force=None,
+            forceterms=None,
+            requires_velocity=False,
+            requires_energy=False,
+            requires_energyterms=False,
+            requires_force=False,
+            requires_forceterms=False,
+            fxn_name=None
+            ):
+        
+        # Do input and previous times match
+        if times is not None:
+            print(times.shape, t.shape, times.shape == t.shape)
+        time_match = times is not None\
+            and (times.shape == t.shape and torch.allclose(times, t, atol=1e-10))
+
+        # Is energy missing and required 
+        missing_energy = requires_energy and energy is None
+        missing_energyterms = requires_energyterms and energyterms is None
+
+        # We must evaluate path if times do not match or energy is missing
+        evaluate_path = not time_match or missing_energy or missing_energyterms
+        
+        if not evaluate_path:
+            # Calculate force and forceterms if possible
+            if path.potential.is_conservative:
+                # Calculate force if missing and required
+                missing_force = requires_force and force is None
+                if missing_force and energy and reaction_path:
+                    force = path.potential.calculate_conservative_force(
+                        energy, reaction_path
+                    )
+                    requires_force = False
+                # Calculate forceterms if missing and required
+                missing_forceterms = requires_forceterms and forceterms is None
+                if missing_forceterms and energyterms and reaction_path:
+                    forceterms = path.potential.calculate_conservative_forceterms(
+                        energyterms, reaction_path
+                    )
+                    requires_forceterms = False
+            evaluate_path = requires_force or requires_forceterms
+            
+            # Calculate velocity if missing and required
+            missing_velocity = requires_velocity and velocity is None
+            if not evaluate_path and missing_velocity and reaction_path:
+                velocity = path.calculate_velocity(reaction_path, t)
+                requires_velocity = False
+
+            evaluate_path = evaluate_path or requires_velocity
+        
+        pth_out = None
+        if evaluate_path:
+            pth_out = path(
+                t,
+                return_velocity=requires_velocity,
+                return_energy=requires_energy, 
+                return_energyterms=requires_energyterms, 
+                return_force=requires_force,
+                return_forceterms=requires_forceterms
+            )
+        return {
+            'times' : times if pth_out is None else pth_out.times,
+            'reaction_path' : reaction_path if pth_out is None else pth_out.reaction_path,
+            'velocity' : velocity if pth_out is None else pth_out.velocity,
+            'energy' : energy if pth_out is None else pth_out.energy,
+            'energyterms' : energyterms if pth_out is None else pth_out.energyterms,
+            'force' : force if pth_out is None else pth_out.force,
+            'forceterms' : forceterms if pth_out is None else pth_out.forceterms
+        }
+
+
+
+
+
+        # Missing forces
+        missing_force = requires_force and force is None
+        missing_forceterms = requires_forceterms and forceterms is None
+        # Evaluate if missing energy when energy or forces are required
+        missing_energy = requires_energy and energy is None
+        missing_energy = missing_energy or (missing_force and energy is None)
+        missing_energyterms = requires_energyterms and energyterms is None
+        missing_energyterms = missing_energyterms or (missing_forceterms and energyterms is None)
+        # Evaluate if missing the reaction path when force or velocity is required
+        missing_path = reaction_path is None and missing_force
+        
+        if path_geometry is None or (requires_energy and energy is None):
+            return path(
+                t,
+                return_velocity=requires_velocity,
+                return_energy=requires_energy, 
+                return_force=requires_force,
+                return_forceterms=requires_forceterms
+            ).asdict()
+        
+        if requires_force and energy is not None:
+            if path.potential.is_conservative:
+                force = path.potential.force_from_conservative_energy(
+                    energy, 
+                )
+
+
+        inp_velocity = velocity is not None or not requires_velocity
+        inp_force = force is not None or not requires_force
+        use_input = geo_val is not None and energy is not None
+        use_input = use_input and inp_velocity and inp_force
+        if use_input:
+            return geo_val, velocity, energy, force
+        
+        if path_output is not None and path is not None:
+            raise ValueError("Cannot call metric functions with both path != None and path_output != None")
+        
+        if path_output is not None:
+            pout_velocity = path_output.velocity is not None or not requires_velocity
+            pout_force = path_output.force is not None or not requires_force
+            if not pout_velocity or not pout_velocity:
+                message = f"When calling {fxn_name} and providing path_output the "
+                if not pout_velocity:
+                    message += "velocity "
+                    if not pout_force:
+                        message += "and force "
+                else:
+                    message += "force "
+                raise ValueError(message + "must be provided in the PathOutput.")
+            return path_output.geometric_path, path_output.velocity,\
+                path_output.potential_path, path_output.force
+        
+        if path is not None:
+            if t is None:
+                raise ValueError("Must specify evaluation times for path when using path argument")
+            path_output = path(t, return_velocity=requires_velocity, return_energy=requires_energy, return_force=requires_force, return_forceterms=requires_forceterms)
+            return path_output.path_geometry, path_output.path_velocity, path_output.path_energy, path_output.path_force, path_output.path_forceterms
+        
+        message = f"Cannot parse input arguments to {fxn_name}, please use one of the following options\n"
+        message += f"\t1) Provide geometric_path and potential path, and if needed velocity and/or force\n"
+        message += f"\t2) Provide a PathOutput class\n"
+        message += f"\t3) Provide the path calculator and the time(s) to be evaluated"
+        raise ValueError(message)
+    
+
+
+    def __parse_input(
             self,
             geo_val=None,
             velocity=None,
@@ -379,11 +547,15 @@ class Metrics():
         message += f"\t3) Provide the path calculator and the time(s) to be evaluated"
         raise ValueError(message)
 
-    def E_geo(self, **kwargs):
+    def E_geo(self, get_required_variables=False, **kwargs):
+        if get_required_variables:
+            return ('forceterms', 'velocity')
+        """
         kwargs['requires_forceterms'] = True
         kwargs['requires_force'] = True
         kwargs['requires_energy'] = True
         kwargs['requires_velocity'] = True
+        """
         kwargs['fxn_name'] = self.E_vre.__name__
 
         path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
@@ -396,65 +568,57 @@ class Metrics():
         }
         return Egeo, variables
 
-    def E_vre(self, **kwargs):
+    def E_vre(self, get_required_variables=False, **kwargs):
+        if get_required_variables:
+            return ('force', 'velocity')
+        """
         kwargs['requires_force'] = True
         kwargs['requires_energy'] = True
         kwargs['requires_velocity'] = True
+        """
         kwargs['fxn_name'] = self.E_vre.__name__
 
-        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
+        variables = self._parse_input(**kwargs)
         
-        Evre = torch.linalg.norm(path_force, dim=-1, keepdim=True) * torch.linalg.norm(path_velocity, dim=-1, keepdim=True)
+        F = torch.linalg.norm(variables['force'], dim=-1, keepdim=True)
+        V = torch.linalg.norm(variables['velocity'], dim=-1, keepdim=True)
+        Evre = F*V
+        """
         variables = {
             "energy" : path_energy,
             "force" : path_force,
             "velocity" : path_velocity
         }
+        """
         return Evre, variables
 
-    def E_pvre(self, **kwargs):
-        kwargs['requires_force'] = True
-        kwargs['requires_energy'] = True
-        kwargs['requires_velocity'] = True
+    def E_pvre(self, get_required_variables=False, **kwargs):
+        if get_required_variables:
+            return ('force', 'velocity') 
         kwargs['fxn_name'] = self.E_pvre.__name__
 
-        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
+        variables = self._parse_input(**kwargs)
 
-        Epvre = torch.abs(torch.sum(path_velocity*path_force, dim=-1, keepdim=True))
+        overlap = torch.sum(
+            variables['velocity']*variables['force'],
+            dim=-1,
+            keepdim=True
+        )
+        Epvre = torch.abs(overlap)
         # Epvre = torch.abs(torch.sum(torch.einsum('bki,bi->bk', path_force, path_velocity), dim=-1, keepdim=True))
 
+        """
         variables = {
             "energy" : path_energy,
             "force" : path_force,
             "velocity" : path_velocity
         }
+        """
         return Epvre, variables
 
-    def E_pvre_vre(self, **kwargs):
-        kwargs['requires_force'] = True
-        kwargs['requires_energy'] = True
-        kwargs['requires_velocity'] = True
-        kwargs['fxn_name'] = self.E_pvre_vre.__name__
-        
-        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
-
-        Evre = torch.linalg.norm(path_force, dim=-1, keepdim=True) * torch.linalg.norm(path_velocity, dim=-1, keepdim=True)
-        Epvre = torch.abs(torch.sum(path_velocity*path_force, dim=-1, keepdim=True))
-        return self.parameters['vre_scale'] * Evre + self.parameters['pvre_scale'] * Epvre
-
-    def E_pvre_vre(self, **kwargs):
-        kwargs['requires_force'] = True
-        kwargs['requires_velocity'] = True
-        kwargs['fxn_name'] = self.E_pvre_vre.__name__
-
-        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
-
-        vre = self.E_vre(force=force, velocity=velocity, **kwargs)
-        pvre = self.E_pvre(force=force, velocity=velocity, **kwargs)
-        return self.parameters['vre_scale']*vre + self.parameters['pvre_scale']*pvre
-
-
-    def E_pvre_mag(self, **kwargs):
+    def E_pvre_mag(self, get_required_variables=False, **kwargs):
+        if get_required_variables:
+            return ('force', 'velocity') 
         kwargs['requires_force'] = True
         kwargs['requires_velocity'] = True
         kwargs['fxn_name'] = self.E_pvre.__name__
@@ -464,7 +628,9 @@ class Metrics():
         return torch.linalg.norm(path_velocity*path_force), path_energy, path_force, path_velocity
 
     
-    def E(self, **kwargs):
+    def E(self, get_required_variables=False, **kwargs):
+        if get_required_variables:
+            return ('energy') 
         kwargs['requires_energy'] = True
         kwargs['fxn_name'] = self.E.__name__
 
@@ -474,7 +640,9 @@ class Metrics():
         return path_energy, variables
 
 
-    def E_mean(self, **kwargs):
+    def E_mean(self, get_required_variables=False, **kwargs):
+        if get_required_variables:
+            return ('energy') 
         kwargs['requires_energy'] = True
         kwargs['fxn_name'] = self.E_mean.__name__
 
@@ -487,7 +655,12 @@ class Metrics():
 
 
 
-    def vre(self, **kwargs):
+    def vre(self, get_required_variables=False, **kwargs):
+        if get_required_variables:
+            return (
+                *self.E_pvre(get_required_variables=True),
+                *self.E_vre(get_required_variables=True)
+            ) 
         kwargs['requires_force'] = True
         kwargs['requires_velocity'] = True
         kwargs['fxn_name'] = self.E_pvre.__name__
@@ -508,7 +681,9 @@ class Metrics():
         return e_vre - e_pvre, variables
 
     
-    def F_mag(self, **kwargs):
+    def F_mag(self, get_required_variables=False, **kwargs):
+        if get_required_variables:
+            return ('force') 
         kwargs['requires_force'] = True
         kwargs['requires_energy'] = True
         kwargs['fxn_name'] = self.F_mag.__name__
