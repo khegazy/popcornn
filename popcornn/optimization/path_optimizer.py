@@ -128,7 +128,7 @@ class PathOptimizer():
             ode_fxn_scales=ode_fxn_scales,
             loss_scales=path_loss_scales,
             t_init=t_init,
-            t_final=t_final
+            t_final=t_final,
         )
         if not path_integral.gradient_taken:
             path_integral.loss.backward()
@@ -142,6 +142,7 @@ class PathOptimizer():
                 TS_time_loss = self.TS_time_metrics.ode_fxn(
                     path.TS_time, path
                 )[:,0]
+                print(path.TS_time, TS_time_loss)
                 TS_time_loss.backward()
             if self.has_TS_region_loss:
                 self.TS_region_metrics.update_ode_fxn_scales(
