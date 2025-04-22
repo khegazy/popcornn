@@ -17,7 +17,7 @@ class PathOutput():
 
     Attributes:
     -----------
-    path_geometry : torch.Tensor
+    reaction_path : torch.Tensor
         The coordinates along the path.
     path_velocity : torch.Tensor, optional
         The velocity along the path (default is None).
@@ -133,12 +133,23 @@ class BasePath(torch.nn.Module):
             The geometric path at the given time.
         """
         raise NotImplementedError()
-     
+
+    
+    def calculate_velocity(self, reaction_path, t,):
+        return torch.autograd.functional.jacobian(
+            lambda t: torch.sum(reaction_path, axis=0),
+            t,
+            create_graph=self.training,
+            vectorize=True
+        ).transpose(0, 1)[:, :, 0] 
+    
+    
     def forward(
             self,
             t : torch.Tensor = None,
             return_velocity: bool = False,
             return_energy: bool = False,
+            return_energyterms: bool = False,
             return_force: bool = False,
             return_forceterms: bool = False,
     ) -> PathOutput:
@@ -170,40 +181,27 @@ class BasePath(torch.nn.Module):
         # if self.neval > 1e5:
         #     raise ValueError("Too many evaluations!")
 
-        path_geometry = self.get_geometry(t)
+        reaction_path = self.get_geometry(t)
         if self.transform is not None:
-            path_geometry = self.transform(path_geometry)
-        if return_energy or return_force or return_forceterms:
-            potential_output = self.potential(path_geometry)
+            reaction_path = self.transform(reaction_path)
+        if return_energy or return_energyterms or return_force or return_forceterms:
+            potential_output = self.potential(reaction_path)
 
-        if return_energy:
-            if potential_output.energy is not None:
-                path_energy = potential_output.energy
-            elif potential_output.energy_terms is not None:
-                path_energy = potential_output.energy_terms.sum(dim=-1, keepdim=True)
-            else:
-                raise ValueError("No energy or energy terms found.")
-        else:
-            path_energy = None
-
-        if return_force:
-            if potential_output.force is not None:
-                path_force = potential_output.force
-            elif self.potential.is_conservative:
-                path_force = self.potential.calculate_conservative_force(path_energy, path_geometry)
+        missing_force = return_force and potential_output.force is None
+        if missing_force:
+            if self.potential.is_conservative:
+                potential_output.force = self.potential.calculate_conservative_force(
+                    potential_output.energy, reaction_path
+                )
             else:
                 raise RuntimeError("Non-conservative potentials must provide force when 'return_force' is True")
-        else:
-            path_force = None
-        if return_forceterms:
-            if potential_output.force_terms is not None:
-                path_forceterms = potential_output.force_terms
-            else:
-                path_forceterms = self.potential.calculate_conservative_forceterms(
-                    potential_output.energy_terms, path_geometry
+        missing_forceterms = return_forceterms and potential_output.force_terms is None
+        if missing_forceterms:
+            if self.potential.is_conservative:
+                potential_output.force_terms = self.potential.calculate_conservative_forceterms(
+                    potential_output.energy_terms, reaction_path
                 )
-        else:
-            path_forceterms = None
+        
         if return_velocity:
             # if is_batched:
             #     fxn = lambda t: torch.sum(self.geometric_path(t), axis=0)
@@ -212,22 +210,28 @@ class BasePath(torch.nn.Module):
             # velocity = torch.autograd.functional.jacobian(
             #     fxn, t, create_graph=self.training, vectorize=is_batched
             # )
+            """
             path_velocity = torch.autograd.functional.jacobian(
                 lambda t: torch.sum(self.get_geometry(t), axis=0), t, create_graph=self.training, vectorize=True
             ).transpose(0, 1)[:, :, 0]
+            """
+            velocity = self.calculate_velocity(reaction_path, t)
         else:
-            path_velocity = None
+            velocity = None
 
+        """
         if return_energy or return_force or return_forceterms:
             del potential_output
+        """
         
         return PathOutput(
             times=t,
-            path_geometry=path_geometry,
-            path_energy=path_energy,
-            path_velocity=path_velocity,
-            path_force=path_force,
-            path_forceterms=path_forceterms,
+            reaction_path=reaction_path,
+            velocity=velocity,
+            energy=potential_output.energy,
+            energyterms=potential_output.energy_terms,
+            force=potential_output.force,
+            forceterms=potential_output.force_terms,
         )
     
     def TS_search_orig(self, times, energies, forces, idx_shift=5, N_interp=5000):
