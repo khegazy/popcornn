@@ -294,6 +294,7 @@ class Metrics():
         assert self._ode_fxns is not None
         self.required_variables = defaultdict(lambda : False)
         for fxn in self._ode_fxns:
+            print("GETTING VARS", fxn.__name__, fxn(get_required_variables=True))
             for var in fxn(get_required_variables=True):
                 self.required_variables[f"requires_{var}"] = True
     
@@ -305,6 +306,7 @@ class Metrics():
         variables = {}
         for fxn in self._ode_fxns:
             scale = self._ode_fxn_scales[fxn.__name__]
+            print(list(self.required_variables.keys()), list(kwargs.keys()), list(variables.keys()))
             ode_loss, ode_variables = fxn(
                 t=t,
                 path=path,
@@ -325,6 +327,8 @@ class Metrics():
             variables[name] if name in variables and variables[name] is not None else nans\
                 for name in ['energy', 'force']
         ]
+        for k, v in zip(["e","f"], keep_variables):
+            print(k, v.shape)
         
         return torch.concatenate([loss] + keep_variables, dim=-1)
 
@@ -642,14 +646,14 @@ class Metrics():
 
     def E_mean(self, get_required_variables=False, **kwargs):
         if get_required_variables:
-            return ('energy') 
-        kwargs['requires_energy'] = True
+            return ('energy',) 
+        #kwargs['requires_energy'] = True
         kwargs['fxn_name'] = self.E_mean.__name__
 
-        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
-        mean_E = torch.mean(path_energy, dim=0, keepdim=True)
+        variables = self._parse_input(**kwargs)
+        mean_E = torch.mean(variables['energy'], dim=0, keepdim=True)
     
-        variables = {}
+        #variables = {}
         return mean_E, variables
 
 
@@ -683,12 +687,14 @@ class Metrics():
     
     def F_mag(self, get_required_variables=False, **kwargs):
         if get_required_variables:
-            return ('force') 
+            return ('force',)
+        """
         kwargs['requires_force'] = True
         kwargs['requires_energy'] = True
+        """
         kwargs['fxn_name'] = self.F_mag.__name__
 
-        path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
+        variables = self._parse_input(**kwargs)
 
-        variables = {}
-        return torch.linalg.norm(path_force, dim=-1, keepdim=True), variables
+        #variables = {}
+        return torch.linalg.norm(variables['force'], dim=-1, keepdim=True), variables
