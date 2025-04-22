@@ -29,11 +29,12 @@ class PathOutput():
         The times at which the path was evaluated.
     """
     times: torch.Tensor
-    path_geometry: torch.Tensor
-    path_energy: torch.Tensor = None
-    path_velocity: torch.Tensor = None
-    path_force: torch.Tensor = None
-    path_forceterms: torch.Tensor = None
+    reaction_path: torch.Tensor
+    velocity: torch.Tensor = None
+    energy: torch.Tensor = None
+    energyterms: torch.Tensor = None
+    force: torch.Tensor = None
+    forceterms: torch.Tensor = None
 
 
 class BasePath(torch.nn.Module):
@@ -189,7 +190,7 @@ class BasePath(torch.nn.Module):
             if potential_output.force is not None:
                 path_force = potential_output.force
             elif self.potential.is_conservative:
-                path_force = self.potential.force_from_conservative_energy(path_energy, path_geometry)
+                path_force = self.potential.calculate_conservative_force(path_energy, path_geometry)
             else:
                 raise RuntimeError("Non-conservative potentials must provide force when 'return_force' is True")
         else:
@@ -198,7 +199,7 @@ class BasePath(torch.nn.Module):
             if potential_output.force_terms is not None:
                 path_forceterms = potential_output.force_terms
             else:
-                path_forceterms = self.potential.forceterms_from_conservative_energyterms(
+                path_forceterms = self.potential.calculate_conservative_forceterms(
                     potential_output.energy_terms, path_geometry
                 )
         else:
