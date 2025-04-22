@@ -135,7 +135,7 @@ class BasePath(torch.nn.Module):
         raise NotImplementedError()
 
     
-    def calculate_velocity(self, reaction_path, t,):
+    def calculate_velocity(self, reaction_path, t):
         return torch.autograd.functional.jacobian(
             lambda t: torch.sum(reaction_path, axis=0),
             t,
