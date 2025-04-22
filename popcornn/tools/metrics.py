@@ -255,7 +255,8 @@ def get_loss_fxn(name, **kwargs):
 
 
 class Metrics():
-    def __init__(self, device):
+    def __init__(self, device, save_energy_force=False):
+        self.save_energy_force = save_energy_force
         self.device = device
         self.ode_fxn = None
         self._ode_fxn_scales = None
@@ -306,7 +307,7 @@ class Metrics():
         variables = {}
         for fxn in self._ode_fxns:
             scale = self._ode_fxn_scales[fxn.__name__]
-            print(list(self.required_variables.keys()), list(kwargs.keys()), list(variables.keys()))
+            print(fxn.__name__, list(self.required_variables.keys()), list(kwargs.keys()), list(variables.keys()))
             ode_loss, ode_variables = fxn(
                 t=t,
                 path=path,
@@ -322,15 +323,19 @@ class Metrics():
             ]
             """
             loss = loss + scale*ode_loss
-        nans = torch.stack([torch.tensor([torch.nan], device=self.device)]*len(loss))
-        keep_variables = [
-            variables[name] if name in variables and variables[name] is not None else nans\
-                for name in ['energy', 'force']
-        ]
-        for k, v in zip(["e","f"], keep_variables):
-            print(k, v.shape)
         
-        return torch.concatenate([loss] + keep_variables, dim=-1)
+        if self.save_energy_force:
+            nans = torch.stack([torch.tensor([torch.nan], device=self.device)]*len(variables['times']))
+            keep_variables = [
+                variables[name] if name in variables and variables[name] is not None else nans\
+                    for name in ['energy', 'force']
+            ]
+            for k, v in zip(["e","f"], keep_variables):
+                print(k, v.shape)
+            
+            return torch.concatenate([loss] + keep_variables, dim=-1)
+        else:
+            return loss
 
 
     def _serial_ode_fxn(self, t, path, **kwargs):
@@ -369,6 +374,12 @@ class Metrics():
             fxn_name=None
             ):
         
+        print("PARSING")
+        print("T", t.shape, t)
+        if times is not None:
+            print("times", times.shape)
+        print(energy, requires_energy)
+        print(force, requires_force)
         # Do input and previous times match
         if times is not None:
             print(times.shape, t.shape, times.shape == t.shape)
@@ -420,13 +431,13 @@ class Metrics():
                 return_forceterms=requires_forceterms
             )
         return {
-            'times' : times if pth_out is None else pth_out.times,
-            'reaction_path' : reaction_path if pth_out is None else pth_out.reaction_path,
-            'velocity' : velocity if pth_out is None else pth_out.velocity,
-            'energy' : energy if pth_out is None else pth_out.energy,
-            'energyterms' : energyterms if pth_out is None else pth_out.energyterms,
-            'force' : force if pth_out is None else pth_out.force,
-            'forceterms' : forceterms if pth_out is None else pth_out.forceterms
+            'times' : times if not evaluate_path else pth_out.times,
+            'reaction_path' : reaction_path if not evaluate_path else pth_out.reaction_path,
+            'velocity' : velocity if not evaluate_path else pth_out.velocity,
+            'energy' : energy if not evaluate_path else pth_out.energy,
+            'energyterms' : energyterms if not evaluate_path else pth_out.energyterms,
+            'force' : force if not evaluate_path else pth_out.force,
+            'forceterms' : forceterms if not evaluate_path else pth_out.forceterms
         }
 
 
@@ -650,6 +661,7 @@ class Metrics():
         #kwargs['requires_energy'] = True
         kwargs['fxn_name'] = self.E_mean.__name__
 
+        print("EM INP T",kwargs['t'].shape)
         variables = self._parse_input(**kwargs)
         mean_E = torch.mean(variables['energy'], dim=0, keepdim=True)
     
@@ -694,7 +706,10 @@ class Metrics():
         """
         kwargs['fxn_name'] = self.F_mag.__name__
 
+        print("FM INP T",kwargs['t'].shape, kwargs)
         variables = self._parse_input(**kwargs)
 
         #variables = {}
-        return torch.linalg.norm(variables['force'], dim=-1, keepdim=True), variables
+        out = torch.linalg.norm(variables['force'], dim=-1, keepdim=True)
+        print("out", kwargs['t'], out)
+        return out, variables
