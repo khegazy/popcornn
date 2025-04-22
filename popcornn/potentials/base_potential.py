@@ -43,20 +43,24 @@ class BasePotential(nn.Module):
         self.eval()
     
     def calculate_conservative_force(self, energy, reaction_path):
+        print("IN CALCULATING FORCE")
         return -torch.autograd.grad(
             energy,
             reaction_path,
             grad_outputs=torch.ones_like(energy),
             create_graph=self.training,
+            retain_graph=True,
         )[0]
     
     def calculate_conservative_forceterms(self, energy_terms, reaction_path):
+        print("IN CALCULATING FORCE TERMS")
         self._forceterm_fxn = torch.vmap(
             lambda vec: torch.autograd.grad(
                 energy_terms.flatten(), 
                 reaction_path,
                 grad_outputs=vec,
-                create_graph=self.training
+                create_graph=self.training,
+                retain_graph=True
             )[0],
         )
         inp_vec = torch.eye(
