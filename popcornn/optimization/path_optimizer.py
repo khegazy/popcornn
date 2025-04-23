@@ -133,7 +133,20 @@ class PathOptimizer():
         if not path_integral.gradient_taken:
             path_integral.loss.backward()
             # (path_integral.integral**2).backward()
-        
+        #####  Find Transition State  ##### 
+        """
+        path.TS_search_orig(
+            path_integral.t,
+            path_integral.y[:,:,integrator.path_ode_energy_idx],
+            path_integral.y[:,:,integrator.path_ode_force_idx:],
+        )
+        """
+        path.TS_search(
+            path_integral.t,
+            path_integral.y[:,:,integrator.path_ode_energy_idx],
+            path_integral.y[:,:,integrator.path_ode_force_idx:],
+        )
+
         #############  Testing TS Loss ############
         # Evaluate TS loss functions
         if self.has_TS_loss and path.TS_time is not None:
@@ -166,22 +179,7 @@ class PathOptimizer():
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
         
-        ############# Testing ##############
-        # Find transition state time
-        """
-        path.TS_search_orig(
-            path_integral.t,
-            path_integral.y[:,:,integrator.path_ode_energy_idx],
-            path_integral.y[:,:,integrator.path_ode_force_idx:],
-        )
-        """
-        path.TS_search(
-            path,
-            path_integral.t,
-            path_integral.y[:,:,integrator.path_ode_energy_idx],
-            path_integral.y[:,:,integrator.path_ode_force_idx:],
-        )
-        ##############
+                ##############
         self.iteration = self.iteration + 1
         return path_integral
     
