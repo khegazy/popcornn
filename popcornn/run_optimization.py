@@ -101,6 +101,7 @@ def optimize_MEP(
     ##########################################
     #####  Optimize minimum energy path  ##### 
     ##########################################
+    path.train()
     for optim_idx in tqdm(range(num_optimizer_iterations)):
         path.neval = 0
         try:
@@ -136,6 +137,7 @@ def optimize_MEP(
         if optimizer.converged:
             print(f"Converged at step {optim_idx}")
             break
+    path.TS_search(path_integral.t)
 
     torch.cuda.empty_cache()
 
