@@ -135,11 +135,11 @@ class BasePath(torch.nn.Module):
         raise NotImplementedError()
 
     
-    def calculate_velocity(self, reaction_path, t):
+    def calculate_velocity(self, t, create_graph=True):
         return torch.autograd.functional.jacobian(
-            lambda t: torch.sum(reaction_path, axis=0),
+            lambda t: torch.sum(self.get_geometry(t), axis=0),
             t,
-            create_graph=self.training,
+            create_graph=create_graph,
             vectorize=True
         ).transpose(0, 1)[:, :, 0] 
     
@@ -211,11 +211,11 @@ class BasePath(torch.nn.Module):
             #     fxn, t, create_graph=self.training, vectorize=is_batched
             # )
             """
-            path_velocity = torch.autograd.functional.jacobian(
-                lambda t: torch.sum(self.get_geometry(t), axis=0), t, create_graph=self.training, vectorize=True
+            velocity = torch.autograd.functional.jacobian(
+                lambda t: torch.sum(self.get_geometry(t), axis=0), t, create_graph=True, vectorize=True
             ).transpose(0, 1)[:, :, 0]
             """
-            velocity = self.calculate_velocity(reaction_path, t)
+            velocity = self.calculate_velocity(t)
         else:
             velocity = None
 
@@ -271,18 +271,17 @@ class BasePath(torch.nn.Module):
         self.TS_time = torch.tensor([[self.TS_time]], device=self.device)
         self.orig_TS_time = torch.tensor([[self.TS_time]], device=self.device)
     
-    def TS_search(self, times, energies, forces, topk_E=7, topk_F=16, idx_shift=4, N_interp=10000):
+    def TS_search(self, times, energies=None, forces=None, topk_E=7, topk_F=16, idx_shift=4, N_interp=10000):
         # Calculate missing energies and forces
-        calc_energies = torch.any(torch.isnan(energies)) or energies is None
-        calc_forces = torch.any(torch.isnan(forces)) or forces is None
+        calc_energies = energies is None or torch.any(torch.isnan(energies))
+        calc_forces = forces is None or torch.any(torch.isnan(forces))
         if calc_energies or calc_forces:
             path_output = self.forward(times, return_energy=calc_energies, return_force=calc_forces)  #TODO: check the dimensions of time
             if calc_energies:
-                energies = path_output.path_energy
+                energies = path_output.energy
             if calc_forces:
-                forces = path_output.path_force
+                forces = path_output.force
         
-        print("INP TS SEARCH T", times.shape, energies.shape, forces.shape)
         if len(times.shape) == 3:
             # Remove repeated evaluations
             unique_mask = torch.all(times[0,1:] - times[0,:-1] > 1e-13, dim=-1)
@@ -313,7 +312,6 @@ class BasePath(torch.nn.Module):
             energies = energies.flatten()
         
         # Find highest energy points
-        print("top energies", energies.shape, topk_E)
         _, TS_idxs = torch.topk(energies, min(len(energies), topk_E))
 
         # Start at beginning of integration step
@@ -344,7 +342,7 @@ class BasePath(torch.nn.Module):
         self.TS_force_mag = torch.tensor([np.inf], device=self.device)
         for imin, imax in zip(idxs_min, idxs_max):
             t_interp = times[imin:imax].detach().cpu().numpy()
-            print(times.shape, t_interp.shape, energies[imin:imax].shape, forces[imin:imax].shape)
+            #print(times.shape, t_interp.shape, energies[imin:imax].shape, forces[imin:imax].shape)
             TS_F_interp = sp.interpolate.interp1d(
                 t_interp, forces[imin:imax].detach().cpu().numpy(), axis=0, kind='cubic'
             )
