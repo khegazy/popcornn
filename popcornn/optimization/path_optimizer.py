@@ -155,7 +155,6 @@ class PathOptimizer():
                 TS_time_loss = self.TS_time_metrics.ode_fxn(
                     path.TS_time, path
                 )[:,0]
-                print(path.TS_time, TS_time_loss)
                 TS_time_loss.backward()
             if self.has_TS_region_loss:
                 self.TS_region_metrics.update_ode_fxn_scales(

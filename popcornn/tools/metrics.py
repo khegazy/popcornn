@@ -295,7 +295,6 @@ class Metrics():
         assert self._ode_fxns is not None
         self.required_variables = defaultdict(lambda : False)
         for fxn in self._ode_fxns:
-            print("GETTING VARS", fxn.__name__, fxn(get_required_variables=True))
             for var in fxn(get_required_variables=True):
                 self.required_variables[f"requires_{var}"] = True
     
@@ -307,7 +306,6 @@ class Metrics():
         variables = {}
         for fxn in self._ode_fxns:
             scale = self._ode_fxn_scales[fxn.__name__]
-            print(fxn.__name__, path.training, list(self.required_variables.keys()), list(kwargs.keys()), list(variables.keys()))
             ode_loss, ode_variables = fxn(
                 t=t,
                 path=path,
@@ -316,12 +314,6 @@ class Metrics():
                 **kwargs
             )
             variables.update(ode_variables)
-            """
-            variables = [
-                out if out is not None else var\
-                    for var, out in zip(variables, ode_output[1:])
-            ]
-            """
             loss = loss + scale*ode_loss
         
         if self.save_energy_force:
@@ -330,8 +322,6 @@ class Metrics():
                 variables[name] if name in variables and variables[name] is not None else nans\
                     for name in ['energy', 'force']
             ]
-            for k, v in zip(["e","f"], keep_variables):
-                print(k, v.shape)
             
             return torch.concatenate([loss] + keep_variables, dim=-1)
         else:
@@ -415,8 +405,8 @@ class Metrics():
             
             # Calculate velocity if missing and required
             missing_velocity = requires_velocity and velocity is None
-            if not evaluate_path and missing_velocity and reaction_path:
-                velocity = path.calculate_velocity(reaction_path, t)
+            if not evaluate_path and missing_velocity:
+                velocity = path.calculate_velocity(t)
                 requires_velocity = False
 
             evaluate_path = evaluate_path or requires_velocity
@@ -663,7 +653,6 @@ class Metrics():
         #kwargs['requires_energy'] = True
         kwargs['fxn_name'] = self.E_mean.__name__
 
-        print("EM INP T",kwargs['t'].shape)
         variables = self._parse_input(**kwargs)
         mean_E = torch.mean(variables['energy'], dim=0, keepdim=True)
     
@@ -708,11 +697,7 @@ class Metrics():
         """
         kwargs['fxn_name'] = self.F_mag.__name__
 
-        print("FM train", kwargs['path'].training)
         variables = self._parse_input(**kwargs)
-        print("FM INP T",kwargs['t'].shape, variables['force'])
 
         #variables = {}
-        out = torch.linalg.norm(variables['force'], dim=-1, keepdim=True)
-        print("out", kwargs['t'], out)
-        return out, variables
+        return torch.linalg.norm(variables['force'], dim=-1, keepdim=True), variables
