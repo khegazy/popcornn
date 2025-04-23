@@ -185,7 +185,9 @@ class BasePath(torch.nn.Module):
         if self.transform is not None:
             reaction_path = self.transform(reaction_path)
         if return_energy or return_energyterms or return_force or return_forceterms:
-            potential_output = self.potential(reaction_path)
+            potential_output = self.potential(reaction_path) #TODO: Add return force here too
+
+
 
         missing_force = return_force and potential_output.force is None
         if missing_force:
@@ -276,7 +278,9 @@ class BasePath(torch.nn.Module):
         calc_energies = energies is None or torch.any(torch.isnan(energies))
         calc_forces = forces is None or torch.any(torch.isnan(forces))
         if calc_energies or calc_forces:
-            path_output = self.forward(times, return_energy=calc_energies, return_force=calc_forces)  #TODO: check the dimensions of time
+            path_output = self.forward(
+                times, return_energy=calc_energies, return_force=calc_forces
+            )  #TODO: check the dimensions of time
             if calc_energies:
                 energies = path_output.energy
             if calc_forces:

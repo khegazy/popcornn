@@ -130,6 +130,7 @@ class PathOptimizer():
             t_init=t_init,
             t_final=t_final,
         )
+        #print("POST OP T", path_integral.t.shape)
         if not path_integral.gradient_taken:
             path_integral.loss.backward()
             # (path_integral.integral**2).backward()
