@@ -307,7 +307,7 @@ class Metrics():
         variables = {}
         for fxn in self._ode_fxns:
             scale = self._ode_fxn_scales[fxn.__name__]
-            print(fxn.__name__, list(self.required_variables.keys()), list(kwargs.keys()), list(variables.keys()))
+            print(fxn.__name__, path.training, list(self.required_variables.keys()), list(kwargs.keys()), list(variables.keys()))
             ode_loss, ode_variables = fxn(
                 t=t,
                 path=path,
@@ -373,16 +373,17 @@ class Metrics():
             requires_forceterms=False,
             fxn_name=None
             ):
-        
+        """
         print("PARSING")
         print("T", t.shape, t)
         if times is not None:
             print("times", times.shape)
         print(energy, requires_energy)
         print(force, requires_force)
+        """
         # Do input and previous times match
-        if times is not None:
-            print(times.shape, t.shape, times.shape == t.shape)
+        #if times is not None:
+        #    print(times.shape, t.shape, times.shape == t.shape)
         time_match = times is not None\
             and (times.shape == t.shape and torch.allclose(times, t, atol=1e-10))
 
@@ -430,6 +431,7 @@ class Metrics():
                 return_force=requires_force,
                 return_forceterms=requires_forceterms
             )
+            #print("EVALUATING PATH!!!!!!!!!!!!!!!!!!!!!", pth_out.energy, pth_out.force)
         return {
             'times' : times if not evaluate_path else pth_out.times,
             'reaction_path' : reaction_path if not evaluate_path else pth_out.reaction_path,
@@ -706,8 +708,9 @@ class Metrics():
         """
         kwargs['fxn_name'] = self.F_mag.__name__
 
-        print("FM INP T",kwargs['t'].shape, kwargs)
+        print("FM train", kwargs['path'].training)
         variables = self._parse_input(**kwargs)
+        print("FM INP T",kwargs['t'].shape, variables['force'])
 
         #variables = {}
         out = torch.linalg.norm(variables['force'], dim=-1, keepdim=True)

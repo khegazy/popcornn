@@ -271,40 +271,54 @@ class BasePath(torch.nn.Module):
         self.TS_time = torch.tensor([[self.TS_time]], device=self.device)
         self.orig_TS_time = torch.tensor([[self.TS_time]], device=self.device)
     
-    def TS_search(self, path, times, energies, forces, topk_E=7, topk_F=16, idx_shift=4, N_interp=10000):
+    def TS_search(self, times, energies, forces, topk_E=7, topk_F=16, idx_shift=4, N_interp=10000):
         # Calculate missing energies and forces
         calc_energies = torch.any(torch.isnan(energies)) or energies is None
         calc_forces = torch.any(torch.isnan(forces)) or forces is None
         if calc_energies or calc_forces:
-            path_output = path(times, return_energy=calc_energies, return_force=calc_forces)  #TODO: check the dimensions of time
+            path_output = self.forward(times, return_energy=calc_energies, return_force=calc_forces)  #TODO: check the dimensions of time
             if calc_energies:
                 energies = path_output.path_energy
             if calc_forces:
                 forces = path_output.path_force
         
-        # Remove repeated evaluations
-        unique_mask = torch.all(times[0,1:] - times[0,:-1] > 1e-13, dim=-1)
-        unique_mask = torch.concatenate([unique_mask, torch.tensor([True], device=self.device)])
-        times = times[:,unique_mask]
-        energies = energies[:,unique_mask]
-        forces = forces[:,unique_mask]
+        print("INP TS SEARCH T", times.shape, energies.shape, forces.shape)
+        if len(times.shape) == 3:
+            # Remove repeated evaluations
+            unique_mask = torch.all(times[0,1:] - times[0,:-1] > 1e-13, dim=-1)
+            unique_mask = torch.concatenate([unique_mask, torch.tensor([True], device=self.device)])
+            times = times[:,unique_mask]
+            energies = energies[:,unique_mask]
+            forces = forces[:,unique_mask]
 
-        if torch.all(torch.abs(times[:-1,-1] - times[1:,0]) < 1e-13):
-            times = times[:,:-1]
-            energies = energies[:,:-1]
-            forces = forces[:,:-1]
+            if torch.all(torch.abs(times[:-1,-1] - times[1:,0]) < 1e-13):
+                times = times[:,:-1]
+                energies = energies[:,:-1]
+                forces = forces[:,:-1]
+
+            N_S = times.shape[0] 
+            energies = energies.flatten()
+            times = times[:,:,0].flatten()
+            forces = torch.flatten(forces, start_dim=0, end_dim=1)
+            if N_S > 3:
+                N_C = N_S
+            else:
+                N_C = 1
+                times = times[1:-1]
+                energies = energies[1:-1]
+                forces = forces[1:-1]
+        else:
+            N_C = 1
+            idx_shift = idx_shift*5
+            energies = energies.flatten()
         
         # Find highest energy points
-        N_C = times.shape[-2]
-        energies = energies.flatten()
-        forces = torch.flatten(forces, start_dim=0, end_dim=1)
-        times = times[:,:,0].flatten()
-        _, TS_idxs = torch.topk(energies, topk_E)
+        print("top energies", energies.shape, topk_E)
+        _, TS_idxs = torch.topk(energies, min(len(energies), topk_E))
+
+        # Start at beginning of integration step
         TS_idxs = (TS_idxs//N_C)*N_C
         TS_idxs = torch.unique(TS_idxs, sorted=False)
-        if torch.any(TS_idxs % N_C > 0):
-            print("WTF", TS_idxs)
-            asdf
 
         # Get time and energy range
         """
@@ -330,7 +344,7 @@ class BasePath(torch.nn.Module):
         self.TS_force_mag = torch.tensor([np.inf], device=self.device)
         for imin, imax in zip(idxs_min, idxs_max):
             t_interp = times[imin:imax].detach().cpu().numpy()
-            #print(t_interp.shape, energies[imin:imax].shape, forces[imin:imax].shape)
+            print(times.shape, t_interp.shape, energies[imin:imax].shape, forces[imin:imax].shape)
             TS_F_interp = sp.interpolate.interp1d(
                 t_interp, forces[imin:imax].detach().cpu().numpy(), axis=0, kind='cubic'
             )
