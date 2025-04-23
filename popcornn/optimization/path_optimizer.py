@@ -154,7 +154,7 @@ class PathOptimizer():
             if self.has_TS_time_loss:
                 self.TS_time_metrics.update_ode_fxn_scales(**TS_time_loss_scales)
                 TS_time_loss = self.TS_time_metrics.ode_fxn(
-                    path.TS_time, path
+                    torch.tensor([[path.TS_time]]), path
                 )[:,0]
                 TS_time_loss.backward()
             if self.has_TS_region_loss:
@@ -162,7 +162,7 @@ class PathOptimizer():
                     **TS_region_loss_scales
                 )
                 TS_region_loss = self.TS_region_metrics.ode_fxn(
-                    path.TS_region, path
+                    path.TS_region[:,None], path
                 )[:,0]
                 TS_region_loss.backward()
         ###########################################

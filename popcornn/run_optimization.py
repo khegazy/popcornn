@@ -115,7 +115,7 @@ def optimize_MEP(
             times = path_integral.t.flatten()
             ts_time = path.TS_time
             path_output = path(times, return_velocity=True, return_energy=True, return_force=True)
-            ts_output = path(ts_time, return_velocity=True, return_energy=True, return_force=True)
+            ts_output = path(torch.tensor([ts_time]), return_velocity=True, return_energy=True, return_force=True)
 
             output = OptimizationOutput(
                 times=times.tolist(),
@@ -145,7 +145,7 @@ def optimize_MEP(
     time = torch.linspace(path.t_init.item(), path.t_final.item(), num_record_points)
     ts_time = path.TS_time
     path_output = path(time, return_velocity=True, return_energy=True, return_force=True)
-    ts_output = path(ts_time, return_velocity=True, return_energy=True, return_force=True)
+    ts_output = path(torch.tensor([ts_time]), return_velocity=True, return_energy=True, return_force=True)
     if issubclass(images.dtype, Atoms):
         images, ts_images = output_to_atoms(path_output, images), output_to_atoms(ts_output, images)
         return images, ts_images[0]

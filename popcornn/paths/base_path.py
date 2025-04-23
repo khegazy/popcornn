@@ -2,9 +2,10 @@ import torch
 import numpy as np
 import scipy as sp
 from dataclasses import dataclass
+from einops import rearrange
 from popcornn.tools import pair_displacement, wrap_points
 from popcornn.tools import Images
-from popcornn.potentials.base_potential import BasePotential
+from popcornn.potentials.base_potential import BasePotential, PotentialOutput
 from typing import Callable, Any
 from ase import Atoms
 from ase.io import read
@@ -94,6 +95,7 @@ class BasePath(torch.nn.Module):
         self.initial_point = images.points[0].to(device)
         self.final_point = images.points[-1].to(device)
         self.vec = images.vec.to(device)
+        self._inp_reshaped = None
         if images.pbc is not None and images.pbc.any():
             def transform(points):
                 return wrap_points(points, images.cell)
@@ -170,10 +172,7 @@ class BasePath(torch.nn.Module):
         PathOutput
             An instance of the PathOutput class containing the computed path, potential, velocity, force, and times.
         """
-        if t is None:
-            t = torch.linspace(self.t_init.item(), self.t_final.item(), 101)
-        while len(t.shape) < 2:
-            t = torch.unsqueeze(t, -1)
+        t = self._reshape_in(t)
         t = t.to(torch.float64).to(self.device)
 
         self.neval += t.numel()
@@ -181,11 +180,17 @@ class BasePath(torch.nn.Module):
         # if self.neval > 1e5:
         #     raise ValueError("Too many evaluations!")
 
+        print("WHATs WANTED", return_energy, return_force, return_velocity, return_energyterms, return_forceterms)
+        print("INPUT T TO GET GEO", t.shape)
         reaction_path = self.get_geometry(t)
         if self.transform is not None:
             reaction_path = self.transform(reaction_path)
         if return_energy or return_energyterms or return_force or return_forceterms:
             potential_output = self.potential(reaction_path) #TODO: Add return force here too
+            #print(potential_output)
+            #print("ENERGY EVAL SHAPE", potential_output.energy.shape, t.shape)
+        else:
+            potential_output = PotentialOutput()
 
 
 
@@ -225,17 +230,44 @@ class BasePath(torch.nn.Module):
         if return_energy or return_force or return_forceterms:
             del potential_output
         """
-        
         return PathOutput(
-            times=t,
-            reaction_path=reaction_path,
-            velocity=velocity,
-            energy=potential_output.energy,
-            energyterms=potential_output.energy_terms,
-            force=potential_output.force,
-            forceterms=potential_output.force_terms,
+            times=self._reshape_out(t),
+            reaction_path=self._reshape_out(reaction_path),
+            velocity=self._reshape_out(velocity),
+            energy=self._reshape_out(potential_output.energy),
+            energyterms=self._reshape_out(potential_output.energy_terms),
+            force=self._reshape_out(potential_output.force),
+            forceterms=self._reshape_out(potential_output.force_terms),
         )
     
+    def _reshape_in(self, t):
+        if t is None:
+            t = torch.linspace(self.t_init.item(), self.t_final.item(), 101)
+        
+        if len(t.shape) == 3:
+            self._inp_reshaped = True
+            self._inp_shape = t.shape
+            t = rearrange(t, 'b c t -> (b c) t')
+        elif len(t.shape) == 2:
+            self._inp_reshaped = False
+            B, C, = None, None
+        elif len(t.shape) == 1:
+            self._inp_reshaped = False
+            B, C, = None, None
+            t = torch.unsqueeze(t, -1)
+        else:
+            raise ValueError(f"Input path time must be of dimensions [B, C, T], [B, T], or [B] where T is the time dimsion and is generally 1: instead got {t.shape}")
+
+        return t
+
+    def _reshape_out(self, result):
+        if self._inp_reshaped is None:
+            raise RuntimeError("Must call _reshape_in() before _reshape_out()")
+        if self._inp_reshaped and result is not None:
+            B, C, _ = self._inp_shape
+            return rearrange(result, '(b c) d -> b c d', b=B, c=C)
+        return result
+
     def TS_search_orig(self, times, energies, forces, idx_shift=5, N_interp=5000):
         TS_idx = torch.argmax(energies.view(-1)).item()
         N_C = times.shape[-2]
@@ -285,11 +317,18 @@ class BasePath(torch.nn.Module):
                 energies = path_output.energy
             if calc_forces:
                 forces = path_output.force
+            print("CALC E F", times.shape)
+            if energies is not None:
+                print("\tE", energies.shape)
+            if forces is not None:
+                print("\tF", forces.shape)
         
         if len(times.shape) == 3:
             # Remove repeated evaluations
             unique_mask = torch.all(times[0,1:] - times[0,:-1] > 1e-13, dim=-1)
             unique_mask = torch.concatenate([unique_mask, torch.tensor([True], device=self.device)])
+            print(times.shape, energies.shape, forces.shape)
+            print(unique_mask.shape, unique_mask)
             times = times[:,unique_mask]
             energies = energies[:,unique_mask]
             forces = forces[:,unique_mask]
