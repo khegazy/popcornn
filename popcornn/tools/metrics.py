@@ -301,7 +301,23 @@ class Metrics():
     def add_required_variable(self, variable_name):
         self.required_variables[variable_name] = True
 
+    def _get_cuda_memory(self, prefix):
+        mem_info = torch.cuda.mem_get_info(self.device)
+        # Total memory on the GPU
+        total_gpu = mem_info[1]/1024**3
+        # Memory that is free outside of the PyTorch cache
+        free_gpu = mem_info[0]/1024**3
+        # Memory reserved for the PyTorch cache
+        torch_cache = torch.cuda.memory_reserved(self.device)/1024**3
+        # Cache memory being used by tensors
+        torch_cache_used = torch.cuda.memory_allocated(self.device)/1024**3
+        # Total free amount of memory that can be used
+        total_free = free_gpu + (torch_cache - torch_cache_used)
+        
+        print(prefix+"MEM", total_gpu, total_free, free_gpu, torch_cache, torch_cache_used)
+    
     def _parallel_ode_fxn(self, t, path, **kwargs):
+        #self._get_cuda_memory("ODEINIT")
         loss = 0
         variables = {}
         for fxn in self._ode_fxns:
@@ -323,10 +339,11 @@ class Metrics():
                     for name in ['energy', 'force']
             ]
             
-            return torch.concatenate([loss] + keep_variables, dim=-1)
-        else:
-            return loss
+            loss = torch.concatenate([loss] + keep_variables, dim=-1)
 
+        del variables
+        #self._get_cuda_memory("ODEFINL")
+        return loss
 
     def _serial_ode_fxn(self, t, path, **kwargs):
         loss = 0
@@ -363,7 +380,7 @@ class Metrics():
             requires_forceterms=False,
             fxn_name=None
             ):
-        
+        #self._get_cuda_memory("PRSINIT")
         # Do input and previous times match
         time_match = times is not None\
             and (times.shape == t.shape and torch.allclose(times, t, atol=1e-10))
@@ -412,6 +429,7 @@ class Metrics():
                 return_force=requires_force,
                 return_forceterms=requires_forceterms
             )
+        #self._get_cuda_memory("PRSFINL")
         return {
             'times' : times if not evaluate_path else pth_out.times,
             'reaction_path' : reaction_path if not evaluate_path else pth_out.reaction_path,
@@ -554,7 +572,7 @@ class Metrics():
         projection = torch.einsum(
             'bki,bi->bk',
             variables['forceterms'],
-            variables['path_velocity']
+            variables['velocity']
         )
         Egeo = torch.linalg.norm(projection, dim=-1, keepdim=True)
         return Egeo, variables
