@@ -30,6 +30,7 @@ class ODEintegrator(Metrics):
             path_ode_names=None,
             path_ode_scales=torch.ones(1),
             path_ode_energy_idx=1,
+            path_ode_force_idx=2,
             process=None,
             max_batch=None,
             is_multiprocess=False,
@@ -44,6 +45,7 @@ class ODEintegrator(Metrics):
         self.process = process
         self.N_integrals = 0
         self.path_ode_energy_idx = path_ode_energy_idx
+        self.path_ode_force_idx = path_ode_force_idx
         
         self.method = method
         self.rtol = rtol

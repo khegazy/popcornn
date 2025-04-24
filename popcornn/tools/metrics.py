@@ -289,16 +289,25 @@ class Metrics():
 
     def _parallel_ode_fxn(self, t, path, **kwargs):
         loss = 0
-        variables = [torch.tensor([[torch.nan]], device=self.device) for i in range(3)]
+        variables = {}
         for fxn in self._ode_fxns:
             scale = self._ode_fxn_scales[fxn.__name__]
-            ode_output = fxn(path=path, t=t, **kwargs)
+            ode_loss, ode_variables = fxn(path=path, t=t, **kwargs, **variables)
+            variables.update(ode_variables)
+            """
             variables = [
                 out if out is not None else var\
                     for var, out in zip(variables, ode_output[1:])
             ]
-            loss = loss + scale*ode_output[0]
-        return torch.concatenate([loss] + variables, dim=-1)
+            """
+            loss = loss + scale*ode_loss
+        nans = torch.stack([torch.tensor([torch.nan], device=self.device)]*len(loss))
+        keep_variables = [
+            variables[name] if name in variables and variables[name] is not None else nans\
+                for name in ['energy', 'force']
+        ]
+        
+        return torch.concatenate([loss] + keep_variables, dim=-1)
 
 
     def _serial_ode_fxn(self, t, path, **kwargs):
@@ -322,7 +331,7 @@ class Metrics():
             self,
             geo_val=None,
             velocity=None,
-            pes_val=None,
+            energy=None,
             force=None,
             path=None,
             t=None,
@@ -335,10 +344,10 @@ class Metrics():
             ):
         inp_velocity = velocity is not None or not requires_velocity
         inp_force = force is not None or not requires_force
-        use_input = geo_val is not None and pes_val is not None
+        use_input = geo_val is not None and energy is not None
         use_input = use_input and inp_velocity and inp_force
         if use_input:
-            return geo_val, velocity, pes_val, force
+            return geo_val, velocity, energy, force
         
         if path_output is not None and path is not None:
             raise ValueError("Cannot call metric functions with both path != None and path_output != None")
@@ -372,6 +381,7 @@ class Metrics():
 
     def E_geo(self, **kwargs):
         kwargs['requires_forceterms'] = True
+        kwargs['requires_force'] = True
         kwargs['requires_energy'] = True
         kwargs['requires_velocity'] = True
         kwargs['fxn_name'] = self.E_vre.__name__
@@ -379,7 +389,12 @@ class Metrics():
         path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
         
         Egeo = torch.linalg.norm(torch.einsum('bki,bi->bk', path_forceterms, path_velocity), dim=-1, keepdim=True)
-        return Egeo, path_energy
+
+        variables = {
+            "energy" : path_energy,
+            "force" : path_force,
+        }
+        return Egeo, variables
 
     def E_vre(self, **kwargs):
         kwargs['requires_force'] = True
@@ -390,7 +405,12 @@ class Metrics():
         path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
         
         Evre = torch.linalg.norm(path_force, dim=-1, keepdim=True) * torch.linalg.norm(path_velocity, dim=-1, keepdim=True)
-        return Evre, path_energy, path_force, path_velocity
+        variables = {
+            "energy" : path_energy,
+            "force" : path_force,
+            "velocity" : path_velocity
+        }
+        return Evre, variables
 
     def E_pvre(self, **kwargs):
         kwargs['requires_force'] = True
@@ -403,7 +423,12 @@ class Metrics():
         Epvre = torch.abs(torch.sum(path_velocity*path_force, dim=-1, keepdim=True))
         # Epvre = torch.abs(torch.sum(torch.einsum('bki,bi->bk', path_force, path_velocity), dim=-1, keepdim=True))
 
-        return Epvre, path_energy #, path_force, path_velocity
+        variables = {
+            "energy" : path_energy,
+            "force" : path_force,
+            "velocity" : path_velocity
+        }
+        return Epvre, variables
 
     def E_pvre_vre(self, **kwargs):
         kwargs['requires_force'] = True
@@ -445,7 +470,8 @@ class Metrics():
 
         path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
 
-        return path_energy, path_energy, path_force, path_velocity
+        variables = {"energy" : path_energy}
+        return path_energy, variables
 
 
     def E_mean(self, **kwargs):
@@ -454,7 +480,10 @@ class Metrics():
 
         path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
         mean_E = torch.mean(path_energy, dim=0, keepdim=True)
-        return mean_E, mean_E, path_force, path_velocity
+    
+        variables = {}
+        return mean_E, variables
+
 
 
 
@@ -470,7 +499,13 @@ class Metrics():
         e_vre = self.E_vre(
             geo_val=path_geometry, velocity=path_velocity, pes_val=path_energy, force=path_force
         )
-        return e_vre - e_pvre, path_energy, path_force, path_velocity
+        
+        variables = { 
+            "energy" : path_energy,
+            "force" : path_force,
+            "velocity" : path_velocity
+        }
+        return e_vre - e_pvre, variables
 
     
     def F_mag(self, **kwargs):
@@ -480,4 +515,5 @@ class Metrics():
 
         path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
 
-        return torch.linalg.norm(path_force, dim=-1, keepdim=True), path_energy, path_force, path_velocity
+        variables = {}
+        return torch.linalg.norm(path_force, dim=-1, keepdim=True), variables
