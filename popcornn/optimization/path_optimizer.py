@@ -8,12 +8,6 @@ from popcornn.tools.scheduler import get_schedulers, get_lr_scheduler
 
 from popcornn.tools import Metrics
 
-OPTIMIZER_DICT = {
-    "sgd" : optim.SGD,
-    "adagrad" : optim.Adagrad,
-    "adam" : optim.Adam,
-}
-
 
 class PathOptimizer():
     def __init__(
@@ -64,21 +58,32 @@ class PathOptimizer():
         self.TS_time_loss_schedulers = get_schedulers(TS_time_loss_schedulers)
         self.TS_region_loss_schedulers = get_schedulers(TS_region_loss_schedulers)
         
-
         #####  Initialize optimizer  #####
-        #name = name.lower()
-        assert optimizer is not None, "Must specify optimizer parameters (dict) with key 'optimizer'"
-        assert 'name' in optimizer, f"Must specify name of optimizer: {list(OPTIMIZER_DICT.keys())}"
-        opt_name = optimizer.pop('name').lower()
-        self.optimizer = OPTIMIZER_DICT[opt_name](path.parameters(), **optimizer)
-
+        if optimizer is not None:
+            self.set_optimizer(**optimizer)
+        else:
+            raise ValueError("Must specify optimizer parameters (dict) with key 'optimizer'")
 
         #####  Initialize learning rate scheduler  #####
         if lr_scheduler is not None:
-            self.lr_scheduler = get_lr_scheduler(self.optimizer, lr_scheduler)
+            self.lr_scheduler = self.set_lr_scheduler(**lr_scheduler)
         else:
             self.lr_scheduler = None
         self.converged = False
+
+    def set_optimizer(self, name, **config):
+        """
+        Set the optimizer for the path optimizer.
+        """
+        optimizer_class = getattr(optim, name)
+        self.optimizer = optimizer_class(self.path.parameters(), **config)
+
+    def set_lr_scheduler(self, name, **config):
+        """
+        Set the learning rate scheduler for the optimizer.
+        """
+        scheduler_class = getattr(lr_scheduler, name)
+        self.lr_scheduler = scheduler_class(self.optimizer, **config)
 
 
     """

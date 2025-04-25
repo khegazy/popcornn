@@ -47,17 +47,6 @@ SCHEDULER_DICT = {
     # 'increase_on_plateau' : IncreaseOnPlateau 
 }
 
-LR_SCHEDULER_DICT = {
-    "step" : lr_scheduler.StepLR,
-    "linear" : lr_scheduler.LinearLR,
-    "multi_step" : lr_scheduler.MultiStepLR,
-    "exponential" : lr_scheduler.ExponentialLR,
-    "cosine" : lr_scheduler.CosineAnnealingLR,
-    "cosine_restart" : lr_scheduler.CosineAnnealingWarmRestarts,
-    "one_cycle" : lr_scheduler.OneCycleLR,
-    "reduce_on_plateau" : lr_scheduler.ReduceLROnPlateau,
-}
-
 def get_schedulers(scheduler_params):
     schedulers = {}
     if scheduler_params is None:
@@ -70,10 +59,3 @@ def get_schedulers(scheduler_params):
         sched_name = param_dict.pop('name').lower()
         schedulers[name] = SCHEDULER_DICT[sched_name](**param_dict)
     return schedulers
-
-def get_lr_scheduler(optimizer, param_dict):
-    assert 'name' in param_dict, f"Must specify name of scheduler: {list(LR_SCHEDULER_DICT.keys())}"
-    assert param_dict['name'].lower() in LR_SCHEDULER_DICT,\
-        f"Cannot find scheduler {param_dict['name']}, options are {list(LR_SCHEDULER_DICT.keys())}"
-    sched_name = param_dict.pop('name').lower()
-    return LR_SCHEDULER_DICT[sched_name](optimizer, **param_dict)
