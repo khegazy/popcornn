@@ -16,25 +16,6 @@ from popcornn.tools import ODEintegrator
 from popcornn.potentials import get_potential
 
 
-@dataclass
-class OptimizationOutput():
-    path_time: list
-    path_geometry: list
-    path_energy: list
-    path_velocity: list
-    path_force: list
-    path_loss: list
-    path_integral: float
-    path_ts_time: list
-    path_ts_geometry: list
-    path_ts_energy: list
-    path_ts_velocity: list
-    path_ts_force: list
-
-    def save(self, file):
-        with open(file, 'w') as f:
-            json.dump(self.__dict__, f)
-
 class Popcornn:
     """
     Wrapper class for Popcornn optimization.
@@ -43,64 +24,82 @@ class Popcornn:
             self, 
             images: list[Atoms],
             path_params: dict[str, Any] = {},
-            device: str = 'cuda',
-            seed: int = 42,
+            num_record_points: int = 101,
+            output_dir: str | None = None,
+            device: str | None = None,
+            seed: int | None = None,
     ):
-        print("Images", images)
-        print("Potential Params", potential_params)
-        print("Path Params", path_params)
-        print("Integrator Params", integrator_params)
-        print("Optimizer Params", optimizer_params)
+        """
+        Initialize the Popcornn class.
 
-        torch.manual_seed(seed)
-        torch.cuda.empty_cache()
+        Args:
+            images (list[Atoms]): List of ASE Atoms objects representing the images.
+            path_params (dict[str, Any]): Parameters for the path prediction method.
+            num_record_points (int): Number of points to record along the path when returning and saving the optimized path.
+            output_dir (str | None): Directory to save the output files. If None, no files will be saved.
+            device (str | None): Device to use for optimization. If None, will use 'cuda' if available, otherwise 'cpu'.
+            seed (int | None): Random seed for reproducibility. If None, no seed is set.
+        """
+        # Set device
+        if device is None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if device == 'cuda':
+            torch.cuda.empty_cache()
+        self.device = device
+
+        # Set random seed
+        if seed is not None:
+            torch.manual_seed(seed)
 
         # Process images
-        self.images = process_images(images)
+        self.images = process_images(images, device=self.device)
 
         # Get path prediction method
-        self.path = get_path(potential=self.potential, images=self.images, **deepcopy(path_params), device=device)
+        self.path = get_path(images=self.images, **path_params, device=self.device)
 
         # Randomly initialize the path, otherwise a straight line
         if len(images) > 2:
             self.path = initialize_path(
                 path=self.path, 
-                times=torch.linspace(self.path.t_init.item(), self.path.t_final.item(), len(self.images), device=device), 
-                init_points=self.images.points.to(device),
+                times=torch.linspace(self.path.t_init.item(), self.path.t_final.item(), len(self.images), device=self.device), 
+                init_points=self.images.points,
             )
+
+        # Create output directories
+        if output_dir is not None:
+            self.output_dir = output_dir
+            os.makedirs(output_dir, exist_ok=True)
+        self.num_record_points = num_record_points
 
     
     def run(
-            params_list: list[dict], 
-            output_dir: str | None = None,
-            num_record_points: int = 101,
-        ):
+            self,
+            *opt_params: list[dict], 
+    ):
         """
         Run the optimization.
         
         Args:
-            params_list (list[dict]): 
+            opt_params (list[dict]): 
                 List of dictionaries containing the parameters for each optimization run.
                 Each dictionary should contain the following keys:
                 - potential_params: Parameters for the potential.
                 - integrator_params: Parameters for the loss integrator.
                 - optimizer_params: Parameters for the path optimizer.
                 - num_optimizer_iterations: Number of optimization iterations.
-            output_dir (str | None):
-                Directory to save the output files. If None, no files will be saved.
             num_record_points (int): 
                 Number of points to record along the path when returning and saving the optimized path.
         """
-        # Create output directories
-        if output_dir is not None:
-            os.makedirs(output_dir, exist_ok=True)
-
         # Optimize the path
-        for i, params in enumerate(params_list):
+        for i, params in enumerate(opt_params):
+            if self.output_dir is not None:
+                output_dir = f"{self.output_dir}/opt_{i}"
+            else:
+                output_dir = None
+
             path_output, ts_output = self._optimize(
                 **params, 
-                output_dir=f"{output_dir}/opt_{i}" if output_dir is not None else None, 
-                num_record_points=num_record_points,
+                output_dir=output_dir,
             )
         
         # Return the optimized path
@@ -113,7 +112,6 @@ class Popcornn:
             optimizer_params: dict[str, Any] = {},
             num_optimizer_iterations: int = 1000,
             output_dir: str | None = None,
-            num_record_points: int = 101,
     ):
         """
         Optimize the minimum energy path.
@@ -123,14 +121,14 @@ class Popcornn:
             os.makedirs(output_dir, exist_ok=True)
 
         # Get potential energy function
-        potential = get_potential(images=self.images, **deepcopy(potential_params), device=device)
+        potential = get_potential(images=self.images, **potential_params, device=self.device)
         self.path.set_potential(potential)
 
         # Path optimization tools
-        integrator = ODEintegrator(**deepcopy(integrator_params), device=device)
+        integrator = ODEintegrator(**integrator_params, device=self.device)
 
         # Gradient descent path optimizer
-        optimizer = PathOptimizer(path=self.path, **deepcopy(optimizer_params), device=device)
+        optimizer = PathOptimizer(path=self.path, **optimizer_params, device=self.device)
 
         # Create output directories
         if output_dir is not None:
@@ -177,7 +175,7 @@ class Popcornn:
                 print(f"Converged at step {optim_idx}")
                 break
             
-        time = torch.linspace(self.path.t_init.item(), self.path.t_final.item(), num_record_points, device=self.path.device)
+        time = torch.linspace(self.path.t_init.item(), self.path.t_final.item(), self.num_record_points, device=self.device)
         ts_time = self.path.TS_time
         path_output = self.path(time, return_velocity=True, return_energy=True, return_force=True)
         ts_output = self.path(ts_time, return_velocity=True, return_energy=True, return_force=True)
