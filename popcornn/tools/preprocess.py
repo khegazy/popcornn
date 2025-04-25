@@ -24,9 +24,28 @@ class Images():
     tags: torch.Tensor = None
 
     def __len__(self):
+        """
+        Return the number of images.
+        """
         return len(self.points)
 
-def process_images(raw_images):
+    def to(self, device):
+        """
+        Move the images to the specified device.
+        """
+        self.points = self.points.to(device)
+        self.vec = self.vec.to(device)
+        if self.numbers is not None:
+            self.numbers = self.numbers.to(device)
+        if self.pbc is not None:
+            self.pbc = self.pbc.to(device)
+        if self.cell is not None:
+            self.cell = self.cell.to(device)
+        if self.tags is not None:
+            self.tags = self.tags.to(device)
+        return self
+
+def process_images(raw_images, device):
     """
     Process the images.
     """
@@ -80,6 +99,7 @@ def process_images(raw_images):
     else:
         raise ValueError(f"Cannot handle data type {dtype}.")
     
+    processed_images = processed_images.to(device)
     return processed_images
 
         

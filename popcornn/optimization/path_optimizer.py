@@ -59,6 +59,7 @@ class PathOptimizer():
         self.TS_region_loss_schedulers = get_schedulers(TS_region_loss_schedulers)
         
         #####  Initialize optimizer  #####
+        self.path = path
         if optimizer is not None:
             self.set_optimizer(**optimizer)
         else:
@@ -75,6 +76,7 @@ class PathOptimizer():
         """
         Set the optimizer for the path optimizer.
         """
+        name = {key.lower(): key for key in dir(optim) if not key.startswith('_')}.get(name.lower())
         optimizer_class = getattr(optim, name)
         self.optimizer = optimizer_class(self.path.parameters(), **config)
 
@@ -82,6 +84,7 @@ class PathOptimizer():
         """
         Set the learning rate scheduler for the optimizer.
         """
+        name = {key.lower(): key for key in dir(lr_scheduler) if not key.startswith('_')}.get(name.lower())
         scheduler_class = getattr(lr_scheduler, name)
         self.lr_scheduler = scheduler_class(self.optimizer, **config)
 

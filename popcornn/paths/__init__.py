@@ -16,11 +16,10 @@ path_dict = {
     "bezier" : Bezier,
 }
 
-def get_path(name, potential, images, device='cuda', **config):
-    print(config)
+def get_path(name, **config):
     name = name.lower()
     if name not in path_dict:
         raise ValueError(f"Cannot get path {name}, can only handle paths {path_dict.keys()}")
-    path = path_dict[name](potential=potential, images=images, device=device, **config)
+    path = path_dict[name](**config)
     
     return path 
