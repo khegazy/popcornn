@@ -26,10 +26,10 @@ class PathOutput():
         The potential energy along the path.
     path_force : torch.Tensor, optional
         The force along the path (default is None).
-    times : torch.Tensor
-        The times at which the path was evaluated.
+    time : torch.Tensor
+        The time at which the path was evaluated.
     """
-    times: torch.Tensor
+    time: torch.Tensor
     reaction_path: torch.Tensor
     velocity: torch.Tensor = None
     energy: torch.Tensor = None
@@ -56,11 +56,11 @@ class BasePath(torch.nn.Module):
     geometric_path(time, y, *args) -> torch.Tensor:
         Compute the geometric path at the given time.
 
-    get_path(times=None, return_velocity=False, return_force=False) -> PathOutput:
-        Get the path for the given times.
+    get_path(time=None, return_velocity=False, return_force=False) -> PathOutput:
+        Get the path for the given time.
 
     forward(t, return_velocity=False, return_force=False) -> PathOutput:
-        Compute the path output for the given times.
+        Compute the path output for the given time.
     """
     initial_point: torch.Tensor
     final_point: torch.Tensor
@@ -145,10 +145,26 @@ class BasePath(torch.nn.Module):
             vectorize=True
         ).transpose(0, 1)[:, :, 0] 
     
+    def _check_output(
+            self,
+            potential_output,
+            return_energy: bool,
+            return_energyterms: bool,
+            return_force: bool,
+            return_forceterms: bool,
+        ):
+        if return_energy and potential_output.energy is None:
+            raise ValueError(f"Potential {self.potential.name} cannot calculate energy")
+        if return_energyterms and potential_output.energyterms is None:
+            raise ValueError(f"Potential {self.potential.name} cannot calculate energyterms")
+        if return_force and potential_output.force is None:
+            raise ValueError(f"Potential {self.potential.name} cannot calculate force")
+        if return_forceterms and potential_output.forceterms is None:
+            raise ValueError(f"Potential {self.potential.name} cannot calculate forceterms")
     
     def forward(
             self,
-            t : torch.Tensor = None,
+            time : torch.Tensor = None,
             return_velocity: bool = False,
             return_energy: bool = False,
             return_energyterms: bool = False,
@@ -170,45 +186,31 @@ class BasePath(torch.nn.Module):
         Returns:
         --------
         PathOutput
-            An instance of the PathOutput class containing the computed path, potential, velocity, force, and times.
+            An instance of the PathOutput class containing the computed path, potential, velocity, force, and time.
         """
-        t = self._reshape_in(t)
-        t = t.to(torch.float64).to(self.device)
+        time = self._reshape_in(time)
+        time = time.to(torch.float64).to(self.device)
 
-        self.neval += t.numel()
-        # print(time)
+        self.neval += time.numel()
         # if self.neval > 1e5:
         #     raise ValueError("Too many evaluations!")
 
-        print("WHATs WANTED", return_energy, return_force, return_velocity, return_energyterms, return_forceterms)
-        print("INPUT T TO GET GEO", t.shape)
-        reaction_path = self.get_geometry(t)
+        reaction_path = self.get_geometry(time)
         if self.transform is not None:
             reaction_path = self.transform(reaction_path)
         if return_energy or return_energyterms or return_force or return_forceterms:
             potential_output = self.potential(reaction_path) #TODO: Add return force here too
-            #print(potential_output)
-            #print("ENERGY EVAL SHAPE", potential_output.energy.shape, t.shape)
+            self._check_output(
+                potential_output,
+                return_energy=return_energy,
+                return_energyterms=return_energyterms,
+                return_force=return_force,
+                return_forceterms=return_forceterms
+            )
         else:
             potential_output = PotentialOutput()
 
 
-
-        missing_force = return_force and potential_output.force is None
-        if missing_force:
-            if self.potential.is_conservative:
-                potential_output.force = self.potential.calculate_conservative_force(
-                    potential_output.energy, reaction_path
-                )
-            else:
-                raise RuntimeError("Non-conservative potentials must provide force when 'return_force' is True")
-        missing_forceterms = return_forceterms and potential_output.force_terms is None
-        if missing_forceterms:
-            if self.potential.is_conservative:
-                potential_output.force_terms = self.potential.calculate_conservative_forceterms(
-                    potential_output.energy_terms, reaction_path
-                )
-        
         if return_velocity:
             # if is_batched:
             #     fxn = lambda t: torch.sum(self.geometric_path(t), axis=0)
@@ -222,7 +224,7 @@ class BasePath(torch.nn.Module):
                 lambda t: torch.sum(self.get_geometry(t), axis=0), t, create_graph=True, vectorize=True
             ).transpose(0, 1)[:, :, 0]
             """
-            velocity = self.calculate_velocity(t)
+            velocity = self.calculate_velocity(time)
         else:
             velocity = None
 
@@ -230,8 +232,9 @@ class BasePath(torch.nn.Module):
         if return_energy or return_force or return_forceterms:
             del potential_output
         """
+
         return PathOutput(
-            times=self._reshape_out(t),
+            time=self._reshape_out(time),
             reaction_path=self._reshape_out(reaction_path),
             velocity=self._reshape_out(velocity),
             energy=self._reshape_out(potential_output.energy),
@@ -240,25 +243,25 @@ class BasePath(torch.nn.Module):
             forceterms=self._reshape_out(potential_output.force_terms),
         )
     
-    def _reshape_in(self, t):
-        if t is None:
-            t = torch.linspace(self.t_init.item(), self.t_final.item(), 101)
+    def _reshape_in(self, time):
+        if time is None:
+            time = torch.linspace(self.t_init.item(), self.t_final.item(), 101)
         
-        if len(t.shape) == 3:
+        if len(time.shape) == 3:
             self._inp_reshaped = True
-            self._inp_shape = t.shape
-            t = rearrange(t, 'b c t -> (b c) t')
-        elif len(t.shape) == 2:
+            self._inp_shape = time.shape
+            time = rearrange(time, 'b c t -> (b c) t')
+        elif len(time.shape) == 2:
             self._inp_reshaped = False
             B, C, = None, None
-        elif len(t.shape) == 1:
+        elif len(time.shape) == 1:
             self._inp_reshaped = False
             B, C, = None, None
-            t = torch.unsqueeze(t, -1)
+            time = torch.unsqueeze(time, -1)
         else:
-            raise ValueError(f"Input path time must be of dimensions [B, C, T], [B, T], or [B] where T is the time dimsion and is generally 1: instead got {t.shape}")
+            raise ValueError(f"Input path time must be of dimensions [B, C, T], [B, T], or [B] where T is the time dimsion and is generally 1: instead got {time.shape}")
 
-        return t
+        return time
 
     def _reshape_out(self, result):
         if self._inp_reshaped is None:
@@ -268,14 +271,14 @@ class BasePath(torch.nn.Module):
             return rearrange(result, '(b c) d -> b c d', b=B, c=C)
         return result
 
-    def TS_search_orig(self, times, energies, forces, idx_shift=5, N_interp=5000):
+    def TS_search_orig(self, time, energies, forces, idx_shift=5, N_interp=5000):
         TS_idx = torch.argmax(energies.view(-1)).item()
-        N_C = times.shape[-2]
+        N_C = time.shape[-2]
         idx_min = np.max([0, TS_idx-(idx_shift*N_C)])
         idx_max = np.min(
-            [len(times[:,:,0].view(-1)), TS_idx+(idx_shift*N_C)]
+            [len(time[:,:,0].view(-1)), TS_idx+(idx_shift*N_C)]
         )
-        t_interp = times[:,:,0].view(-1)[idx_min:idx_max].detach().cpu().numpy()
+        t_interp = time[:,:,0].view(-1)[idx_min:idx_max].detach().cpu().numpy()
         E_interp = energies.view(-1)[idx_min:idx_max].detach().cpu().numpy()
         FM_interp = torch.linalg.norm(forces, dim=-1).view(-1)[idx_min:idx_max].detach().cpu().numpy()
         #print("\tEs: ", E_interp)
@@ -305,48 +308,48 @@ class BasePath(torch.nn.Module):
         self.TS_time = torch.tensor([[self.TS_time]], device=self.device)
         self.orig_TS_time = torch.tensor([[self.TS_time]], device=self.device)
     
-    def TS_search(self, times, energies=None, forces=None, topk_E=7, topk_F=16, idx_shift=4, N_interp=10000):
+    def TS_search(self, time, energies=None, forces=None, topk_E=7, topk_F=16, idx_shift=4, N_interp=10000):
         # Calculate missing energies and forces
         calc_energies = energies is None or torch.any(torch.isnan(energies))
         calc_forces = forces is None or torch.any(torch.isnan(forces))
         if calc_energies or calc_forces:
             path_output = self.forward(
-                times, return_energy=calc_energies, return_force=calc_forces
+                time, return_energy=calc_energies, return_force=calc_forces
             )  #TODO: check the dimensions of time
             if calc_energies:
                 energies = path_output.energy
             if calc_forces:
                 forces = path_output.force
-            print("CALC E F", times.shape)
+            print("CALC E F", time.shape)
             if energies is not None:
                 print("\tE", energies.shape)
             if forces is not None:
                 print("\tF", forces.shape)
         
-        if len(times.shape) == 3:
+        if len(time.shape) == 3:
             # Remove repeated evaluations
-            unique_mask = torch.all(times[0,1:] - times[0,:-1] > 1e-13, dim=-1)
+            unique_mask = torch.all(time[0,1:] - time[0,:-1] > 1e-13, dim=-1)
             unique_mask = torch.concatenate([unique_mask, torch.tensor([True], device=self.device)])
-            print(times.shape, energies.shape, forces.shape)
+            print(time.shape, energies.shape, forces.shape)
             print(unique_mask.shape, unique_mask)
-            times = times[:,unique_mask]
+            time = time[:,unique_mask]
             energies = energies[:,unique_mask]
             forces = forces[:,unique_mask]
 
-            if torch.all(torch.abs(times[:-1,-1] - times[1:,0]) < 1e-13):
-                times = times[:,:-1]
+            if torch.all(torch.abs(time[:-1,-1] - time[1:,0]) < 1e-13):
+                time = time[:,:-1]
                 energies = energies[:,:-1]
                 forces = forces[:,:-1]
 
-            N_S = times.shape[0] 
+            N_S = time.shape[0] 
             energies = energies.flatten()
-            times = times[:,:,0].flatten()
+            time = time[:,:,0].flatten()
             forces = torch.flatten(forces, start_dim=0, end_dim=1)
             if N_S > 3:
                 N_C = N_S
             else:
                 N_C = 1
-                times = times[1:-1]
+                time = time[1:-1]
                 energies = energies[1:-1]
                 forces = forces[1:-1]
         else:
@@ -384,8 +387,8 @@ class BasePath(torch.nn.Module):
         interp_magFs = []
         self.TS_force_mag = torch.tensor([np.inf], device=self.device)
         for imin, imax in zip(idxs_min, idxs_max):
-            t_interp = times[imin:imax].detach().cpu().numpy()
-            #print(times.shape, t_interp.shape, energies[imin:imax].shape, forces[imin:imax].shape)
+            t_interp = time[imin:imax].detach().cpu().numpy()
+            #print(time.shape, t_interp.shape, energies[imin:imax].shape, forces[imin:imax].shape)
             TS_F_interp = sp.interpolate.interp1d(
                 t_interp, forces[imin:imax].detach().cpu().numpy(), axis=0, kind='cubic'
             )
@@ -419,7 +422,7 @@ class BasePath(torch.nn.Module):
             #interp_Es.append(TS_E_interp(TS_search))
             #interp_Fs.append(TS_F_interp(TS_search))
             #interp_magFs.append(np.linalg.norm(interp_Fs[-1], ord=2, axis=-1).flatten())
-            #print("TS times", TS_search[0], TS_search[-1])
+            #print("TS time", TS_search[0], TS_search[-1])
         #print("NEW METHOD", self.TS_time, self.TS_energy, self.TS_force_mag)
         #print("OLD METHOD", self.orig_TS_time, self.orig_TS_energy, orig_FM)
         #if torch.abs(self.TS_time - self.orig_TS_time).flatten()/self.orig_TS_time > 1e-2:
@@ -434,7 +437,7 @@ class BasePath(torch.nn.Module):
         idx0 = TS_idx//N_interp
         idx1 = TS_idx % N_interp
         self.TS_time = torch.tensor(interp_ts[idx0, idx1], device=self.device)
-        print("TS times", interp_ts[:,0], interp_ts[:,-1])
+        print("TS time", interp_ts[:,0], interp_ts[:,-1])
         print("SELECTED TS time", self.TS_time)
         if torch.abs(self.TS_time - self.orig_TS_time).flatten()/self.orig_TS_time > 1e-3:
             asdfas
@@ -447,7 +450,7 @@ class BasePath(torch.nn.Module):
 
 
         """
-        t_interp = times[:(2*N_C + 1)*idx_shift].detach().cpu().numpy()
+        t_interp = time[:(2*N_C + 1)*idx_shift].detach().cpu().numpy()
         F_interp = np.stack(
             [
                 forces[idxs_min[i]:idxs_max[i]].detach().cpu().numpy()\
@@ -481,10 +484,10 @@ class BasePath(torch.nn.Module):
         
 
         #TS_idxs = np.argpartition(TS_E_search.flatten(), -1*topk_F)[-1*topk_F:]
-        #TS_times = TS_search[TS_idxs % N_interp]
+        #TS_time = TS_search[TS_idxs % N_interp]
 
-        #TS_times = torch.tensor(TS_times) + times[idxs_min[TS_idxs//N_interp]]
-        #path_output = path(TS_times, return_energy=True, return_force=True)
+        #TS_time = torch.tensor(TS_time) + time[idxs_min[TS_idxs//N_interp]]
+        #path_output = path(TS_time, return_energy=True, return_force=True)
         #TS_idx = torch.argmin(
         #    torch.linalg.vector_norm(path_output.path_force, ord=2, dim=-1)
         #)
@@ -492,8 +495,8 @@ class BasePath(torch.nn.Module):
         idx0 = TS_idx//N_interp
         idx1 = TS_idx % N_interp
         self.TS_time = TS_search[idx1]
-        self.TS_time = torch.tensor(self.TS_time, device=self.device) + times[idxs_min[idx0]]
-        print("TS times", TS_search[0] + times[idxs_min], TS_search[-1] + times[idxs_min])
+        self.TS_time = torch.tensor(self.TS_time, device=self.device) + time[idxs_min[idx0]]
+        print("TS time", TS_search[0] + time[idxs_min], TS_search[-1] + time[idxs_min])
         print("SELECTED TS time", self.TS_time)
         self.TS_energy = torch.tensor(TS_E_search[idx0, idx1], device=self.device)
         self.TS_force = torch.tensor(TS_F_search[idx0, idx1], device=self.device)
