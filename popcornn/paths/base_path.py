@@ -30,7 +30,7 @@ class PathOutput():
         The times at which the path was evaluated.
     """
     times: torch.Tensor
-    reaction_path: torch.Tensor
+    geometry: torch.Tensor
     velocity: torch.Tensor = None
     energy: torch.Tensor = None
     energyterms: torch.Tensor = None
@@ -182,11 +182,11 @@ class BasePath(torch.nn.Module):
 
         print("WHATs WANTED", return_energy, return_force, return_velocity, return_energyterms, return_forceterms)
         print("INPUT T TO GET GEO", t.shape)
-        reaction_path = self.get_geometry(t)
+        geometry = self.get_geometry(t)
         if self.transform is not None:
-            reaction_path = self.transform(reaction_path)
+            geometry = self.transform(geometry)
         if return_energy or return_energyterms or return_force or return_forceterms:
-            potential_output = self.potential(reaction_path) #TODO: Add return force here too
+            potential_output = self.potential(geometry) #TODO: Add return force here too
             #print(potential_output)
             #print("ENERGY EVAL SHAPE", potential_output.energy.shape, t.shape)
         else:
@@ -198,7 +198,7 @@ class BasePath(torch.nn.Module):
         if missing_force:
             if self.potential.is_conservative:
                 potential_output.force = self.potential.calculate_conservative_force(
-                    potential_output.energy, reaction_path
+                    potential_output.energy, geometry
                 )
             else:
                 raise RuntimeError("Non-conservative potentials must provide force when 'return_force' is True")
@@ -206,7 +206,7 @@ class BasePath(torch.nn.Module):
         if missing_forceterms:
             if self.potential.is_conservative:
                 potential_output.force_terms = self.potential.calculate_conservative_forceterms(
-                    potential_output.energy_terms, reaction_path
+                    potential_output.energy_terms, geometry
                 )
         
         if return_velocity:
@@ -232,7 +232,7 @@ class BasePath(torch.nn.Module):
         """
         return PathOutput(
             times=self._reshape_out(t),
-            reaction_path=self._reshape_out(reaction_path),
+            geometry=self._reshape_out(geometry),
             velocity=self._reshape_out(velocity),
             energy=self._reshape_out(potential_output.energy),
             energyterms=self._reshape_out(potential_output.energy_terms),

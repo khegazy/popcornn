@@ -86,7 +86,7 @@ def loss_init(
     torch.Tensor
         Loss value.
     """
-    preds = path(times).reaction_path
+    preds = path(times).geometry
     assert preds.shape == points.shape, f"Shapes do not match: {preds.shape} != {points.shape}"
     disp = points - preds
     if path.transform is not None:
