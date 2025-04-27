@@ -18,18 +18,18 @@ from popcornn.potentials import get_potential
 
 @dataclass
 class OptimizationOutput():
-    path_time: list
-    path_geometry: list
-    path_energy: list
-    path_velocity: list
-    path_force: list
-    path_loss: list
-    path_integral: float
-    path_ts_time: list
-    path_ts_geometry: list
-    path_ts_energy: list
-    path_ts_velocity: list
-    path_ts_force: list
+    time: list
+    reaction_path: list
+    energy: list
+    velocity: list
+    force: list
+    loss: list
+    integral: float
+    ts_time: list
+    ts_structure: list
+    ts_energy: list
+    ts_velocity: list
+    ts_force: list
 
     def save(self, file):
         with open(file, 'w') as f:
@@ -38,13 +38,14 @@ class OptimizationOutput():
 
 def optimize_MEP(
         images: list[Atoms],
-        output_dir: str | None = None,
         potential_params: dict[str, Any] = {},
         path_params: dict[str, Any] = {},
         integrator_params: dict[str, Any] = {},
         optimizer_params: dict[str, Any] = {},
         num_optimizer_iterations: int = 1001,
         num_record_points: int = 101,
+        save_optimization_freq: int = 10,
+        optimization_dir: str | None = "./logs",
         device: str = 'cuda',
 ):
     """
@@ -65,15 +66,8 @@ def optimize_MEP(
     torch.manual_seed(42)
 
     # Create output directories
-    if output_dir is not None:
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        log_dir = os.path.join(output_dir, "logs")
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
-        plot_dir = os.path.join(output_dir, "plots")
-        if not os.path.exists(plot_dir):
-            os.makedirs(plot_dir)
+    if save_optimization_freq is not None:
+        os.makedirs(optimization_dir, exist_ok=True)
 
     #####  Process images  #####
     images = process_images(images)
@@ -110,27 +104,33 @@ def optimize_MEP(
             print("ValueError", e)
             raise e
 
-        if output_dir is not None:
-            time = path_integral.t.flatten()
-            ts_time = path.TS_time
-            path_output = path(time, return_velocity=True, return_energy=True, return_force=True)
-            ts_output = path(ts_time, return_velocity=True, return_energy=True, return_force=True)
+        if save_optimization_freq is not None:
+            if optim_idx % save_optimization_freq == 0:
+                time = path_integral.t.flatten()
+                ts_time = path.TS_time
+                path_output = path(time, return_velocity=True, return_energy=True, return_force=True)
+                ts_output = path(ts_time, return_velocity=True, return_energy=True, return_force=True)
 
-            output = OptimizationOutput(
-                path_time=time.tolist(),
-                path_geometry=path_output.path_geometry.tolist(),
-                path_energy=path_output.path_energy.tolist(),
-                path_velocity=path_output.path_velocity.tolist(),
-                path_force=path_output.path_force.tolist(),
-                path_loss=path_integral.y.tolist(),
-                path_integral=path_integral.integral.item(),
-                path_ts_time=ts_time.tolist(),
-                path_ts_geometry=ts_output.path_geometry.tolist(),
-                path_ts_energy=ts_output.path_energy.tolist(),
-                path_ts_velocity=ts_output.path_velocity.tolist(),
-                path_ts_force=ts_output.path_force.tolist(),
-            )
-            output.save(os.path.join(log_dir, f"output_{optim_idx}.json"))            
+                optimization_output = OptimizationOutput(
+                    time=time.tolist(),
+                    reaction_path=path_output.path_geometry.tolist(),
+                    energy=path_output.path_energy.tolist(),
+                    velocity=path_output.path_velocity.tolist(),
+                    force=path_output.path_force.tolist(),
+                    loss=path_integral.y.tolist(),
+                    integral=path_integral.integral.item(),
+                    ts_time=ts_time.tolist(),
+                    ts_structure=ts_output.path_geometry.tolist(),
+                    ts_energy=ts_output.path_energy.tolist(),
+                    ts_velocity=ts_output.path_velocity.tolist(),
+                    ts_force=ts_output.path_force.tolist(),
+                )
+                
+                optimization_output.save(
+                    os.path.join(
+                        optimization_dir, f"optimization_step-{optim_idx}.json"
+                    )
+                )            
 
 
         if optimizer.converged:
@@ -144,23 +144,24 @@ def optimize_MEP(
     ts_time = path.TS_time
     path_output = path(time, return_velocity=True, return_energy=True, return_force=True)
     ts_output = path(ts_time, return_velocity=True, return_energy=True, return_force=True)
+    optimization_results = OptimizationOutput(
+        time=time.tolist(),
+        reaction_path=path_output.path_geometry.tolist(),
+        energy=path_output.path_energy.tolist(),
+        velocity=path_output.path_velocity.tolist(),
+        force=path_output.path_force.tolist(),
+        loss=path_integral.y.tolist(),
+        integral=path_integral.integral.item(),
+        ts_time=ts_time.tolist(),
+        ts_structure=ts_output.path_geometry.tolist(),
+        ts_energy=ts_output.path_energy.tolist(),
+        ts_velocity=ts_output.path_velocity.tolist(),
+        ts_force=ts_output.path_force.tolist(),
+    )
+ 
     if issubclass(images.dtype, Atoms):
         images, ts_images = output_to_atoms(path_output, images), output_to_atoms(ts_output, images)
-        return images, ts_images[0]
+        return images, ts_images[0], optimization_results
     else:
-        # return OptimizationOutput(
-        #     path_time=time.tolist(),
-        #     path_geometry=path_output.path_geometry.tolist(),
-        #     path_energy=path_output.path_energy.tolist(),
-        #     path_velocity=path_output.path_velocity.tolist(),
-        #     path_force=path_output.path_force.tolist(),
-        #     path_loss=path_integral.y.tolist(),
-        #     path_integral=path_integral.integral.item(),
-        #     path_ts_time=ts_time.tolist(),
-        #     path_ts_geometry=ts_output.path_geometry.tolist(),
-        #     path_ts_energy=ts_output.path_energy.tolist(),
-        #     path_ts_velocity=ts_output.path_velocity.tolist(),
-        #     path_ts_force=ts_output.path_force.tolist(),
-        # )
-        return path_output, ts_output
+        return path_output, ts_output, optimization_results
 
