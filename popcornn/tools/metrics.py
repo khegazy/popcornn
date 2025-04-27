@@ -367,7 +367,7 @@ class Metrics():
             t,
             path,
             times=None,
-            reaction_path=None,
+            geometry=None,
             velocity=None,
             energy=None,
             energyterms=None,
@@ -397,16 +397,16 @@ class Metrics():
             if path.potential.is_conservative:
                 # Calculate force if missing and required
                 missing_force = requires_force and force is None
-                if missing_force and energy and reaction_path:
+                if missing_force and energy and geometry:
                     force = path.potential.calculate_conservative_force(
-                        energy, reaction_path
+                        energy, geometry
                     )
                     requires_force = False
                 # Calculate forceterms if missing and required
                 missing_forceterms = requires_forceterms and forceterms is None
-                if missing_forceterms and energyterms and reaction_path:
+                if missing_forceterms and energyterms and geometry:
                     forceterms = path.potential.calculate_conservative_forceterms(
-                        energyterms, reaction_path
+                        energyterms, geometry
                     )
                     requires_forceterms = False
             evaluate_path = requires_force or requires_forceterms
@@ -432,7 +432,7 @@ class Metrics():
         #self._get_cuda_memory("PRSFINL")
         return {
             'times' : times if not evaluate_path else pth_out.times,
-            'reaction_path' : reaction_path if not evaluate_path else pth_out.reaction_path,
+            'geometry' : geometry if not evaluate_path else pth_out.geometry,
             'velocity' : velocity if not evaluate_path else pth_out.velocity,
             'energy' : energy if not evaluate_path else pth_out.energy,
             'energyterms' : energyterms if not evaluate_path else pth_out.energyterms,
