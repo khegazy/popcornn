@@ -26,7 +26,7 @@ class NewtonNetPotential(BasePotential):
         data = self.data_formatter(points)
         pred = self.model(data.z, data.disp, data.edge_index, data.batch)
         self.n_eval += 1
-        energy_terms = pred.energy
+        energy = pred.energy
         force = pred.gradient_force
         # energy_terms = energy_terms.view(-1, self.n_atoms)
         # return PotentialOutput(energy_terms=energy_terms)
@@ -50,8 +50,8 @@ class NewtonNetPotential(BasePotential):
         n_data = pos.numel() // (n_atoms * 3)
         z = self.numbers.repeat(n_data)
         pos = pos.view(n_data * n_atoms, 3)
-        lattice = torch.ones(1, device=self.device) * torch.inf
+        cell = self.cell.repeat(n_data, 1, 1)
         batch = torch.arange(n_data, device=self.device).repeat_interleave(n_atoms)
-        data = Data(pos=pos, z=z, lattice=lattice, batch=batch)
+        data = Data(pos=pos, z=z, cell=cell, batch=batch)
         
         return self.transform(data)
