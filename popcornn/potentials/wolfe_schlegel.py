@@ -9,9 +9,14 @@ class WolfeSchlegel(BasePotential):
     
     def forward(self, points):
         # points = self.point_transform(points)
-        points = torch.movedim(points, -1, 0)
-        x = points[0]
-        y = points[1]
+        #points = torch.movedim(points, -1, 0)
+        x = points[:,0]
+        y = points[:,1]
         energy = 10*(x**4 + y**4 - 2*x**2 - 4*y**2\
             + x*y + 0.2*x + 0.1*y)
-        return PotentialOutput(energy=energy.unsqueeze(-1))
+        energy = energy.unsqueeze(-1)
+        force = self.calculate_conservative_force(energy, points)
+        return PotentialOutput(
+            energy=energy,
+            force=force
+        )
