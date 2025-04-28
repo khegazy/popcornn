@@ -18,7 +18,7 @@ class PathOutput():
 
     Attributes:
     -----------
-    reaction_path : torch.Tensor
+    position : torch.Tensor
         The coordinates along the path.
     path_velocity : torch.Tensor, optional
         The velocity along the path (default is None).
@@ -30,7 +30,7 @@ class PathOutput():
         The time at which the path was evaluated.
     """
     time: torch.Tensor
-    reaction_path: torch.Tensor
+    position: torch.Tensor
     velocity: torch.Tensor = None
     energy: torch.Tensor = None
     energyterms: torch.Tensor = None
@@ -195,11 +195,11 @@ class BasePath(torch.nn.Module):
         # if self.neval > 1e5:
         #     raise ValueError("Too many evaluations!")
 
-        reaction_path = self.get_geometry(time)
+        position = self.get_geometry(time)
         if self.transform is not None:
-            reaction_path = self.transform(reaction_path)
+            position = self.transform(position)
         if return_energy or return_energyterms or return_force or return_forceterms:
-            potential_output = self.potential(reaction_path) #TODO: Add return force here too
+            potential_output = self.potential(position) #TODO: Add return force here too
             self._check_output(
                 potential_output,
                 return_energy=return_energy,
@@ -235,7 +235,7 @@ class BasePath(torch.nn.Module):
 
         return PathOutput(
             time=self._reshape_out(time),
-            reaction_path=self._reshape_out(reaction_path),
+            position=self._reshape_out(position),
             velocity=self._reshape_out(velocity),
             energy=self._reshape_out(potential_output.energy),
             energyterms=self._reshape_out(potential_output.energy_terms),

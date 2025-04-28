@@ -352,7 +352,7 @@ class Metrics():
             eval_time,
             path,
             time=None,
-            reaction_path=None,
+            position=None,
             velocity=None,
             energy=None,
             energyterms=None,
@@ -412,7 +412,7 @@ class Metrics():
             
         return {
             'time' : time,
-            'reaction_path' : reaction_path,
+            'position' : position,
             'velocity' : velocity,
             'energy' : energy,
             'energyterms' : energyterms,

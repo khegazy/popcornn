@@ -19,7 +19,7 @@ from popcornn.potentials import get_potential
 @dataclass
 class OptimizationOutput():
     times: list
-    reaction_path: list
+    position: list
     energy: list
     velocity: list
     force: list
@@ -119,14 +119,14 @@ def optimize_MEP(
 
             output = OptimizationOutput(
                 times=times.tolist(),
-                reaction_path=path_output.reaction_path.tolist(),
+                position=path_output.position.tolist(),
                 energy=path_output.energy.tolist(),
                 velocity=path_output.velocity.tolist(),
                 force=path_output.force.tolist(),
                 loss=path_integral.y.tolist(),
                 integral=path_integral.integral.item(),
                 ts_time=ts_time.tolist(),
-                ts_geometry=ts_output.reaction_path.tolist(),
+                ts_geometry=ts_output.position.tolist(),
                 ts_energy=ts_output.energy.tolist(),
                 ts_velocity=ts_output.velocity.tolist(),
                 ts_force=ts_output.force.tolist(),
