@@ -1,3 +1,4 @@
+
 import torch
 
 from .base_potential import BasePotential, PotentialOutput
@@ -6,7 +7,7 @@ class WolfeSchlegel(BasePotential):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.minima = torch.tensor([[-1.166, 1.477], [-1.0, -1.5], [1.133, -1.486]])
-    
+
     def forward(self, points):
         # points = self.point_transform(points)
         #points = torch.movedim(points, -1, 0)

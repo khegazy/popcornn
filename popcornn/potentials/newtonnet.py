@@ -1,3 +1,4 @@
+
 import torch
 from torch_geometric.data import Data
 from newtonnet.utils.ase_interface import MLAseCalculator
@@ -21,7 +22,7 @@ class NewtonNetPotential(BasePotential):
         self.transform = RadiusGraph(self.model.embedding_layer.norm.r)
         self.n_eval = 0
 
-    
+
     def forward(self, points):
         data = self.data_formatter(points)
         pred = self.model(data.z, data.disp, data.edge_index, data.batch)
@@ -32,7 +33,7 @@ class NewtonNetPotential(BasePotential):
         # return PotentialOutput(energy_terms=energy_terms)
         force = force.view(*points.shape)
         return PotentialOutput(energy=energy, force=force)
-        
+
 
     def load_model(self, model_path):
         calc = MLAseCalculator(model_path, properties=['energy', 'forces'], device=self.device)
@@ -44,7 +45,7 @@ class NewtonNetPotential(BasePotential):
         model.requires_grad_(False)
         model.embedding_layer.requires_dr = False
         return model
-    
+
     def data_formatter(self, pos):
         n_atoms = self.n_atoms
         n_data = pos.numel() // (n_atoms * 3)
@@ -53,5 +54,5 @@ class NewtonNetPotential(BasePotential):
         cell = self.cell.repeat(n_data, 1, 1)
         batch = torch.arange(n_data, device=self.device).repeat_interleave(n_atoms)
         data = Data(pos=pos, z=z, cell=cell, batch=batch)
-        
+
         return self.transform(data)
