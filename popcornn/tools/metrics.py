@@ -352,7 +352,7 @@ class Metrics():
             eval_time,
             path,
             time=None,
-            geometry=None,
+            reaction_path=None,
             velocity=None,
             energy=None,
             energyterms=None,
@@ -400,15 +400,15 @@ class Metrics():
             # Calculate velocity if missing and required
             missing_velocity = requires_velocity and velocity is None
             if not evaluate_path and missing_velocity:
-                velocity = path.calculate_velocity(t)
+                velocity = path.calculate_velocity(eval_time)
                 requires_velocity = False
 
             evaluate_path = evaluate_path or requires_velocity
         
         pth_out = None
         if evaluate_path:
-            pth_out = path(
-                t,
+            path_output = path(
+                eval_time,
                 return_velocity=requires_velocity,
                 return_energy=requires_energy, 
                 return_energyterms=requires_energyterms, 
@@ -434,7 +434,7 @@ class Metrics():
                 requires_velocity = False
             
         return {
-            'times' : times if not evaluate_path else pth_out.times,
+            'times' : time if not evaluate_path else pth_out.times,
             'reaction_path' : reaction_path if not evaluate_path else pth_out.reaction_path,
             'velocity' : velocity if not evaluate_path else pth_out.velocity,
             'energy' : energy if not evaluate_path else pth_out.energy,
