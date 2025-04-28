@@ -372,41 +372,18 @@ class Metrics():
             )
 
         # Is energy missing and required 
-        missing_energy = requires_energy and energy is None
-        missing_energyterms = requires_energyterms and energyterms is None
-
-        # We must evaluate path if times do not match or energy is missing
-        evaluate_path = not time_match or missing_energy or missing_energyterms
+        requires_energy = requires_energy and energy is None
+        requires_energyterms = requires_energyterms and energyterms is None
+        missing_any_energy = requires_energy or requires_energyterms
         
-        if not evaluate_path:
-            # Calculate force and forceterms if possible
-            if path.potential.is_conservative:
-                # Calculate force if missing and required
-                missing_force = requires_force and force is None
-                if missing_force and energy and reaction_path:
-                    force = path.potential.calculate_conservative_force(
-                        energy, reaction_path
-                    )
-                    requires_force = False
-                # Calculate forceterms if missing and required
-                missing_forceterms = requires_forceterms and forceterms is None
-                if missing_forceterms and energyterms and reaction_path:
-                    forceterms = path.potential.calculate_conservative_forceterms(
-                        energyterms, reaction_path
-                    )
-                    requires_forceterms = False
-            evaluate_path = requires_force or requires_forceterms
-            
-            # Calculate velocity if missing and required
-            missing_velocity = requires_velocity and velocity is None
-            if not evaluate_path and missing_velocity:
-                velocity = path.calculate_velocity(eval_time)
-                requires_velocity = False
+        # Is force missing and required 
+        requires_force = requires_force and force is None
+        requires_forceterms = requires_forceterms and forceterms is None
+        missing_any_force = requires_force or requires_forceterms
 
-            evaluate_path = evaluate_path or requires_velocity
-        
-        pth_out = None
-        if evaluate_path:
+        # We must evaluate path if time do not match, or, force or energy is missing
+        path_output = None
+        if not time_match or missing_any_energy or missing_any_force:
             path_output = path(
                 eval_time,
                 return_velocity=requires_velocity,
@@ -434,13 +411,13 @@ class Metrics():
                 requires_velocity = False
             
         return {
-            'times' : time if not evaluate_path else pth_out.times,
-            'reaction_path' : reaction_path if not evaluate_path else pth_out.reaction_path,
-            'velocity' : velocity if not evaluate_path else pth_out.velocity,
-            'energy' : energy if not evaluate_path else pth_out.energy,
-            'energyterms' : energyterms if not evaluate_path else pth_out.energyterms,
-            'force' : force if not evaluate_path else pth_out.force,
-            'forceterms' : forceterms if not evaluate_path else pth_out.forceterms
+            'time' : time,
+            'reaction_path' : reaction_path,
+            'velocity' : velocity,
+            'energy' : energy,
+            'energyterms' : energyterms,
+            'force' : force,
+            'forceterms' : forceterms
         }
 
 
