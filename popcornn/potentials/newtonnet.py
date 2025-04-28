@@ -51,8 +51,8 @@ class NewtonNetPotential(BasePotential):
         n_data = pos.numel() // (n_atoms * 3)
         z = self.numbers.repeat(n_data)
         pos = pos.view(n_data * n_atoms, 3)
-        cell = self.cell.repeat(n_data, 1, 1)
+        cell = torch.zeros((n_data, 3, 3), device=self.device)
         batch = torch.arange(n_data, device=self.device).repeat_interleave(n_atoms)
         data = Data(pos=pos, z=z, cell=cell, batch=batch)
-
+        
         return self.transform(data)
