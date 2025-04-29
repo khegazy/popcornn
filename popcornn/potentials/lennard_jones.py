@@ -23,15 +23,15 @@ class LennardJones(BasePotential):
             self.set_r0(self.numbers)
         points_3d = points.view(-1, self.n_atoms, 3)
         r = torch.norm(points_3d[:, self.ind[0]] - points_3d[:, self.ind[1]], dim=-1)
-        energy_terms = (self.r0 / r) ** 12 - 2 * (self.r0 / r) ** 6
-        energy = energy_terms.sum(dim=-1, keepdim=True)
+        energyterms = (self.r0 / r) ** 12 - 2 * (self.r0 / r) ** 6
+        energy = energyterms.sum(dim=-1, keepdim=True)
         # return PotentialOutput(energy=energy)
 
         force = torch.vmap(
             lambda vec: torch.autograd.grad(
-                energy_terms.flatten(), points, grad_outputs=vec, create_graph=True, retain_graph=True
+                energyterms.flatten(), points, grad_outputs=vec, create_graph=True, retain_graph=True
             )[0],
-        )(torch.eye(energy_terms.shape[1], device=self.device).repeat(1, energy_terms.shape[0])).transpose(0, 1)
+        )(torch.eye(energyterms.shape[1], device=self.device).repeat(1, energyterms.shape[0])).transpose(0, 1)
         return PotentialOutput(energy=energy, force=force)
     
     def set_r0(self, numbers):
