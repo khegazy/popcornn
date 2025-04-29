@@ -254,6 +254,9 @@ def get_loss_fxn(name, **kwargs):
 
 
 class Metrics():
+    ode_fxn_names = [
+        "E_geo", "E_pvre", "E_vre", "F_mag"
+    ]
     def __init__(self, device):
         self.device = device
         self.ode_fxn = None
@@ -420,6 +423,7 @@ class Metrics():
 
         path_geometry, path_velocity, path_energy, path_force, path_forceterms = self._parse_input(**kwargs)
 
+        print(path_velocity.shape, path_force.shape)
         Epvre = torch.abs(torch.sum(path_velocity*path_force, dim=-1, keepdim=True))
         # Epvre = torch.abs(torch.sum(torch.einsum('bki,bi->bk', path_force, path_velocity), dim=-1, keepdim=True))
 
