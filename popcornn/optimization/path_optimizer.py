@@ -189,7 +189,6 @@ class PathOptimizer():
         if self.lr_scheduler is not None:
             if isinstance(self.lr_scheduler, lr_scheduler.ReduceLROnPlateau):
                 self.lr_scheduler.step(path_integral.loss.item())
-                print(self.lr_scheduler.get_last_lr(), path_integral.loss.item())
                 if all([last_lr <= min_lr for last_lr, min_lr in zip(self.lr_scheduler.get_last_lr(), self.lr_scheduler.min_lrs)]):
                     self.converged = True
             else:
