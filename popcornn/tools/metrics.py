@@ -324,7 +324,6 @@ class Metrics():
                 variables[name] if name in variables and variables[name] is not None else nans\
                     for name in ['energy', 'force']
             ]
-            
             loss = torch.concatenate([loss] + keep_variables, dim=-1)
 
         del variables
@@ -402,7 +401,7 @@ class Metrics():
             force = force if path_output.force is None\
                 else path_output.force
             forceterms = forceterms if path_output.forceterms is None\
-                else path_output.force_terms
+                else path_output.forceterms
 
         else:
            # Calculate velocity if missing and required
