@@ -13,12 +13,6 @@ opt_params:
   - potential_params:
       potential: repel
     integrator_params: 
-      method: dopri5
-      rtol: 1.0e-5
-      atol: 1.0e-5
-      computation: parallel
-      sample_type: uniform
-      path_loss_name: integral
       path_ode_names: E_geo
     optimizer_params:
       optimizer:
@@ -32,12 +26,6 @@ opt_params:
       potential: newtonnet
       model_path: t1x
     integrator_params: 
-      method: dopri5
-      rtol: 1.0e-5
-      atol: 1.0e-5
-      computation: parallel
-      sample_type: uniform
-      path_loss_name: integral
       path_ode_names: E_pvre
     optimizer_params:
       optimizer:

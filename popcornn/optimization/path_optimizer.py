@@ -4,7 +4,7 @@ from torch import optim
 from torch.optim import lr_scheduler
 from torch.nn.functional import interpolate
 from popcornn.tools import scheduler
-from popcornn.tools.scheduler import get_schedulers, get_lr_scheduler
+from popcornn.tools.scheduler import get_schedulers
 
 from popcornn.tools import Metrics
 
@@ -67,7 +67,7 @@ class PathOptimizer():
 
         #####  Initialize learning rate scheduler  #####
         if lr_scheduler is not None:
-            self.lr_scheduler = self.set_lr_scheduler(**lr_scheduler)
+            self.set_lr_scheduler(**lr_scheduler)
         else:
             self.lr_scheduler = None
         self.converged = False
@@ -76,7 +76,8 @@ class PathOptimizer():
         """
         Set the optimizer for the path optimizer.
         """
-        name = {key.lower(): key for key in dir(optim) if not key.startswith('_')}.get(name.lower())
+        optimizer_dict = {key.lower(): key for key in dir(optim) if not key.startswith('_')}
+        name = optimizer_dict[name.lower()]
         optimizer_class = getattr(optim, name)
         self.optimizer = optimizer_class(self.path.parameters(), **config)
 
@@ -84,7 +85,8 @@ class PathOptimizer():
         """
         Set the learning rate scheduler for the optimizer.
         """
-        name = {key.lower(): key for key in dir(lr_scheduler) if not key.startswith('_')}.get(name.lower())
+        scheduler_dict = {key.lower(): key for key in dir(lr_scheduler) if not key.startswith('_')}
+        name = scheduler_dict[name.lower()]
         scheduler_class = getattr(lr_scheduler, name)
         self.lr_scheduler = scheduler_class(self.optimizer, **config)
 
@@ -171,7 +173,13 @@ class PathOptimizer():
         for name, sched in self.TS_region_loss_schedulers.items():
             sched.step()
         if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
+            if isinstance(self.lr_scheduler, lr_scheduler.ReduceLROnPlateau):
+                self.lr_scheduler.step(path_integral.loss.item())
+                print(self.lr_scheduler.get_last_lr(), path_integral.loss.item())
+                if all([last_lr <= min_lr for last_lr, min_lr in zip(self.lr_scheduler.get_last_lr(), self.lr_scheduler.min_lrs)]):
+                    self.converged = True
+            else:
+                self.lr_scheduler.step()
         
         ############# Testing ##############
         # Find transition state time

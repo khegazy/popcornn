@@ -66,9 +66,9 @@ class Popcornn:
             )
 
         # Create output directories
-        if output_dir is not None:
-            self.output_dir = output_dir
-            os.makedirs(output_dir, exist_ok=True)
+        self.output_dir = output_dir
+        if self.output_dir is not None:
+            os.makedirs(self.output_dir, exist_ok=True)
         self.num_record_points = num_record_points
 
     
@@ -179,8 +179,8 @@ class Popcornn:
         ts_time = self.path.TS_time
         path_output = self.path(time, return_velocity=True, return_energy=True, return_force=True)
         ts_output = self.path(ts_time, return_velocity=True, return_energy=True, return_force=True)
-        if issubclass(images.dtype, Atoms):
-            images, ts_images = output_to_atoms(path_output, images), output_to_atoms(ts_output, images)
+        if issubclass(self.images.dtype, Atoms):
+            images, ts_images = output_to_atoms(path_output, self.images), output_to_atoms(ts_output, self.images)
             return images, ts_images[0]
         else:
             return path_output, ts_output

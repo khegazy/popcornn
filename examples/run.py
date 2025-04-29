@@ -14,8 +14,8 @@ if __name__ == "__main__":
     config = import_run_config(args.config)
     
     # Run the optimization
-    mep = Popcornn(**config['init_params'])
-    final_images, ts_image = mep.run(*config['opt_params'])
+    mep = Popcornn(**config.get('init_params', {}))  # Initialize Popcornn with parameter dictionary
+    final_images, ts_image = mep.run(*config.get('opt_params', []))  # Run the optimization with a list of parameter dictionaries
     
     # Write the final images
     if isinstance(final_images, list) and isinstance(final_images[0], Atoms):
