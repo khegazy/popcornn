@@ -27,10 +27,10 @@ class NewtonNetPotential(BasePotential):
         data = self.data_formatter(points)
         pred = self.model(data.z, data.disp, data.edge_index, data.batch)
         self.n_eval += 1
-        energy = pred.energy
+        energy = pred.energy.unsqueeze(-1)
         force = pred.gradient_force
-        # energy_terms = energy_terms.view(-1, self.n_atoms)
-        # return PotentialOutput(energy_terms=energy_terms)
+        # energyterms = energyterms.view(-1, self.n_atoms)
+        # return PotentialOutput(energyterms=energyterms)
         force = force.view(*points.shape)
         return PotentialOutput(energy=energy, force=force)
 
