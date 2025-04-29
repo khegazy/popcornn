@@ -101,7 +101,7 @@ def optimize_MEP(
     ##########################################
     #####  Optimize minimum energy path  ##### 
     ##########################################
-    path.train()
+    #path.train()
     for optim_idx in tqdm(range(num_optimizer_iterations)):
         path.neval = 0
         try:
