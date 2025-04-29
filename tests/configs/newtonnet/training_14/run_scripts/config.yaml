@@ -1,0 +1,74 @@
+general:
+  # device: [cuda:0, cuda:1, cuda:2, cuda:3]
+  device: cuda
+  output: /global/home/users/ericyuan/scratch/20230603_NewNewtonNet/20240818_t1x #20230913_OC20
+  precision: double
+  seed: 0
+
+data:
+  # train_root: /global/home/users/ericyuan/scratch/Data/Transition1x/data
+  train_root: /global/home/users/ericyuan/scratch/Data/Transition1x/comp_split_50/train
+  val_root: /global/home/users/ericyuan/scratch/Data/Transition1x/comp_split_50/val
+  test_root: /global/home/users/ericyuan/scratch/Data/Transition1x/comp_split_50/test
+  # test_root: /global/home/users/ericyuan/scratch/Data/rMD17/splits/rmd17_aspirin/split_01/test
+  train_size: 964474
+  val_size: 5000
+  test_size: 5000
+  stats_size: 5000
+  train_batch_size: 100
+  val_batch_size: 500
+  test_batch_size: 500
+  cutoff: 5.0
+  force_reload: False
+  in_memory: True
+
+model:
+  # pretrained_model: null
+  pretrained_model: 
+    path: 20240818_ani1x/training_16/models/best_model.pt
+    freeze_encoder: False
+    freeze_decoder: False
+    freeze_scaler: False
+  representation:
+    cutoff_network: poly
+    radial_network: bessel
+    n_basis: 20
+  n_features: 128
+  n_interactions: 3
+  activation: swish
+  layer_norm: False
+  # infer_properties: ['energy']
+  infer_properties: ['energy', 'gradient_force']
+
+training:
+  wandb:
+    project: NewtonNet_T1x
+    name: null
+  fit_scalers:
+    fit_scale: True
+    fit_shift: True
+  loss: 
+    energy:
+      weight: 1.0
+      mode: mse
+    gradient_force:
+      weight: 50.0
+      mode: mse
+  optimizer: 
+    adam:
+      lr: 1.0e-4
+      weight_decay: 0.0
+  lr_scheduler: 
+    plateau:
+      patience: 15
+      factor: 0.7
+      min_lr: 1.0e-6
+    # cosine:
+    #   T_max: 1001
+  epochs: 10001
+  clip_grad: 0.0
+  checkpoint:
+    check_val: 1
+    check_test: 10
+    check_log: 10
+
