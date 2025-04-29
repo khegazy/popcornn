@@ -170,8 +170,6 @@ class Popcornn:
                         }, 
                         file,
                     )
-                if optim_idx > 5:
-                    break #DEBUG 
 
             # Check for convergence
             if optimizer.converged:
