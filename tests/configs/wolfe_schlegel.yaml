@@ -76,3 +76,5 @@ optimizer_params:
 device: cpu
 
 num_optimizer_iterations: 100
+
+output_dir: output
