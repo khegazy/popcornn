@@ -163,14 +163,15 @@ class BasePath(torch.nn.Module):
             return_force: bool,
             return_forceterms: bool,
         ):
+        name = type(self.potential).__name__
         if return_energy and potential_output.energy is None:
-            raise ValueError(f"Potential {self.potential.name} cannot calculate energy")
+            raise ValueError(f"Potential {name} cannot calculate energy")
         if return_energyterms and potential_output.energyterms is None:
-            raise ValueError(f"Potential {self.potential.name} cannot calculate energyterms")
+            raise ValueError(f"Potential {name} cannot calculate energyterms")
         if return_force and potential_output.force is None:
-            raise ValueError(f"Potential {self.potential.name} cannot calculate force")
+            raise ValueError(f"Potential {name} cannot calculate force")
         if return_forceterms and potential_output.forceterms is None:
-            raise ValueError(f"Potential {self.potential.name} cannot calculate forceterms")
+            raise ValueError(f"Potential {name} cannot calculate forceterms")
     
     def forward(
             self,
@@ -248,9 +249,9 @@ class BasePath(torch.nn.Module):
             position=self._reshape_out(position),
             velocity=self._reshape_out(velocity),
             energy=self._reshape_out(potential_output.energy),
-            energyterms=self._reshape_out(potential_output.energy_terms),
+            energyterms=self._reshape_out(potential_output.energyterms),
             force=self._reshape_out(potential_output.force),
-            forceterms=self._reshape_out(potential_output.force_terms),
+            forceterms=self._reshape_out(potential_output.forceterms),
         )
     
     def _reshape_in(self, time):
@@ -340,8 +341,6 @@ class BasePath(torch.nn.Module):
             # Remove repeated evaluations
             unique_mask = torch.all(time[0,1:] - time[0,:-1] > 1e-13, dim=-1)
             unique_mask = torch.concatenate([unique_mask, torch.tensor([True], device=self.device)])
-            print(time.shape, energies.shape, forces.shape)
-            print(unique_mask.shape, unique_mask)
             time = time[:,unique_mask]
             energies = energies[:,unique_mask]
             forces = forces[:,unique_mask]
