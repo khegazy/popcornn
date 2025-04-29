@@ -92,6 +92,7 @@ class Popcornn:
         """
         # Optimize the path
         for i, params in enumerate(opt_params):
+            print("OPT LOOP", i, params)
             if self.output_dir is not None:
                 output_dir = f"{self.output_dir}/opt_{i}"
             else:
@@ -149,26 +150,28 @@ class Popcornn:
                 time = path_integral.t.flatten()
                 ts_time = self.path.TS_time
                 path_output = self.path(time, return_velocity=True, return_energy=True, return_force=True)
-                ts_output = self.path(ts_time, return_velocity=True, return_energy=True, return_force=True)
+                ts_output = self.path(torch.tensor([ts_time]), return_velocity=True, return_energy=True, return_force=True)
                 
                 with open(os.path.join(log_dir, f"output_{optim_idx}.json"), 'w') as file:
                     json.dump(
                         {
                             "path_time": time.tolist(),
-                            "path_geometry": path_output.path_geometry.tolist(),
-                            "path_energy": path_output.path_energy.tolist(),
-                            "path_velocity": path_output.path_velocity.tolist(),
-                            "path_force": path_output.path_force.tolist(),
+                            "path_geometry": path_output.position.tolist(),
+                            "path_energy": path_output.energy.tolist(),
+                            "path_velocity": path_output.velocity.tolist(),
+                            "path_force": path_output.force.tolist(),
                             "path_loss": path_integral.y.tolist(),
                             "path_integral": path_integral.integral.item(),
                             "path_ts_time": ts_time.tolist(),
-                            "path_ts_geometry": ts_output.path_geometry.tolist(),
-                            "path_ts_energy": ts_output.path_energy.tolist(),
-                            "path_ts_velocity": ts_output.path_velocity.tolist(),
-                            "path_ts_force": ts_output.path_force.tolist(),
+                            "path_ts_geometry": ts_output.position.tolist(),
+                            "path_ts_energy": ts_output.energy.tolist(),
+                            "path_ts_velocity": ts_output.velocity.tolist(),
+                            "path_ts_force": ts_output.force.tolist(),
                         }, 
                         file,
-                    ) 
+                    )
+                if optim_idx > 5:
+                    break #DEBUG 
 
             # Check for convergence
             if optimizer.converged:
@@ -178,7 +181,7 @@ class Popcornn:
         time = torch.linspace(self.path.t_init.item(), self.path.t_final.item(), self.num_record_points, device=self.device)
         ts_time = self.path.TS_time
         path_output = self.path(time, return_velocity=True, return_energy=True, return_force=True)
-        ts_output = self.path(ts_time, return_velocity=True, return_energy=True, return_force=True)
+        ts_output = self.path(torch.tensor([ts_time]), return_velocity=True, return_energy=True, return_force=True)
         if issubclass(self.images.dtype, Atoms):
             images, ts_images = output_to_atoms(path_output, self.images), output_to_atoms(ts_output, self.images)
             return images, ts_images[0]
