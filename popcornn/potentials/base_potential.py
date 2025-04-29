@@ -22,8 +22,9 @@ class PotentialOutput():
 
 
 class BasePotential(nn.Module):
-    def __init__(self, images, device='cpu', add_azimuthal_dof=False, add_translation_dof=False, **kwargs) -> None:
+    def __init__(self, images, is_conservative=True, device='cpu', add_azimuthal_dof=False, add_translation_dof=False, **kwargs) -> None:
         super().__init__()
+        self.is_conservative = is_conservative
         self.numbers = images.numbers.to(device) if images.numbers is not None else None
         self.n_atoms = len(images.numbers) if images.numbers is not None else None
         self.pbc = images.pbc.to(device) if images.pbc is not None else None
@@ -40,12 +41,28 @@ class BasePotential(nn.Module):
         
         # Put model in eval mode
         self.eval()
-        
-    def forward(
-            self,
-            points: torch.Tensor
-    ) -> PotentialOutput:
-        raise NotImplementedError
+    
+    def calculate_conservative_force(self, energy, position, create_graph=True):
+        return -torch.autograd.grad(
+            energy,
+            position,
+            grad_outputs=torch.ones_like(energy),
+            create_graph=create_graph,
+        )[0]
+    
+    def calculate_conservative_forceterms(self, energy_terms, position, create_graph=True):
+        self._forceterm_fxn = torch.vmap(
+            lambda vec: torch.autograd.grad(
+                energy_terms.flatten(), 
+                position,
+                grad_outputs=vec,
+                create_graph=create_graph,
+            )[0],
+        )
+        inp_vec = torch.eye(
+            energy_terms.shape[1], device=self.device
+        ).repeat(1, energy_terms.shape[0])
+        return -1*self._forceterm_fxn(inp_vec).transpose(0, 1)
 
     def point_transform(self, point, do_identity=False):
         if self.point_option == 0 or do_identity:
@@ -73,3 +90,9 @@ class BasePotential(nn.Module):
             point[1:-1]
         ])
         return torch.transpose(point, 0, -1)
+
+    def forward(
+            self,
+            points: torch.Tensor
+    ) -> PotentialOutput:
+        raise NotImplementedError

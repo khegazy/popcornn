@@ -18,18 +18,18 @@ from popcornn.potentials import get_potential
 
 @dataclass
 class OptimizationOutput():
-    path_time: list
-    path_geometry: list
-    path_energy: list
-    path_velocity: list
-    path_force: list
-    path_loss: list
-    path_integral: float
-    path_ts_time: list
-    path_ts_geometry: list
-    path_ts_energy: list
-    path_ts_velocity: list
-    path_ts_force: list
+    times: list
+    position: list
+    energy: list
+    velocity: list
+    force: list
+    loss: list
+    integral: float
+    ts_time: list
+    ts_geometry: list
+    ts_energy: list
+    ts_velocity: list
+    ts_force: list
 
     def save(self, file):
         with open(file, 'w') as f:
@@ -101,6 +101,7 @@ def optimize_MEP(
     ##########################################
     #####  Optimize minimum energy path  ##### 
     ##########################################
+    path.train()
     for optim_idx in tqdm(range(num_optimizer_iterations)):
         path.neval = 0
         try:
@@ -111,24 +112,24 @@ def optimize_MEP(
             raise e
 
         if output_dir is not None:
-            time = path_integral.t.flatten()
+            times = path_integral.t.flatten()
             ts_time = path.TS_time
-            path_output = path(time, return_velocity=True, return_energy=True, return_force=True)
-            ts_output = path(ts_time, return_velocity=True, return_energy=True, return_force=True)
+            path_output = path(times, return_velocity=True, return_energy=True, return_force=True)
+            ts_output = path(torch.tensor([ts_time]), return_velocity=True, return_energy=True, return_force=True)
 
             output = OptimizationOutput(
-                path_time=time.tolist(),
-                path_geometry=path_output.path_geometry.tolist(),
-                path_energy=path_output.path_energy.tolist(),
-                path_velocity=path_output.path_velocity.tolist(),
-                path_force=path_output.path_force.tolist(),
-                path_loss=path_integral.y.tolist(),
-                path_integral=path_integral.integral.item(),
-                path_ts_time=ts_time.tolist(),
-                path_ts_geometry=ts_output.path_geometry.tolist(),
-                path_ts_energy=ts_output.path_energy.tolist(),
-                path_ts_velocity=ts_output.path_velocity.tolist(),
-                path_ts_force=ts_output.path_force.tolist(),
+                times=times.tolist(),
+                position=path_output.position.tolist(),
+                energy=path_output.energy.tolist(),
+                velocity=path_output.velocity.tolist(),
+                force=path_output.force.tolist(),
+                loss=path_integral.y.tolist(),
+                integral=path_integral.integral.item(),
+                ts_time=ts_time.tolist(),
+                ts_geometry=ts_output.position.tolist(),
+                ts_energy=ts_output.energy.tolist(),
+                ts_velocity=ts_output.velocity.tolist(),
+                ts_force=ts_output.force.tolist(),
             )
             output.save(os.path.join(log_dir, f"output_{optim_idx}.json"))            
 
@@ -136,6 +137,7 @@ def optimize_MEP(
         if optimizer.converged:
             print(f"Converged at step {optim_idx}")
             break
+    path.TS_search(path_integral.t)
 
     torch.cuda.empty_cache()
 
@@ -143,7 +145,7 @@ def optimize_MEP(
     time = torch.linspace(path.t_init.item(), path.t_final.item(), num_record_points)
     ts_time = path.TS_time
     path_output = path(time, return_velocity=True, return_energy=True, return_force=True)
-    ts_output = path(ts_time, return_velocity=True, return_energy=True, return_force=True)
+    ts_output = path(torch.tensor([ts_time]), return_velocity=True, return_energy=True, return_force=True)
     if issubclass(images.dtype, Atoms):
         images, ts_images = output_to_atoms(path_output, images), output_to_atoms(ts_output, images)
         return images, ts_images[0]

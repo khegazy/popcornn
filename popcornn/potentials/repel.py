@@ -41,9 +41,10 @@ class RepelPotential(BasePotential):
             (torch.exp(-self.alpha * (r - self.r0) / self.r0) + self.beta * self.r0 / r)
             # * torch.sigmoid((self.r_max - r) / self.skin)
         )
-        return PotentialOutput(energy_terms=energy_terms)
-        # energy = energy_terms.sum(dim=-1, keepdim=True)
-        # return PotentialOutput(energy=energy)
+        return PotentialOutput(
+            energy=energy_terms.sum(dim=-1, keepdim=True),
+            energy_terms=energy_terms
+        )
 
         # force = torch.vmap(
         #     lambda vec: torch.autograd.grad(

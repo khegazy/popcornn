@@ -1,3 +1,4 @@
+
 import torch
 from torch_geometric.data import Data
 from newtonnet.utils.ase_interface import MLAseCalculator
@@ -21,30 +22,30 @@ class NewtonNetPotential(BasePotential):
         self.transform = RadiusGraph(self.model.embedding_layer.norm.r)
         self.n_eval = 0
 
-    
+
     def forward(self, points):
         data = self.data_formatter(points)
         pred = self.model(data.z, data.disp, data.edge_index, data.batch)
         self.n_eval += 1
-        energy_terms = pred.energy
-        # force = pred.gradient_force
-        energy_terms = energy_terms.view(-1, self.n_atoms)
-        return PotentialOutput(energy_terms=energy_terms)
-        # force = force.view(*points.shape)
-        # return PotentialOutput(energy=energy, force=force)
-        
+        energy = pred.energy
+        force = pred.gradient_force
+        # energy_terms = energy_terms.view(-1, self.n_atoms)
+        # return PotentialOutput(energy_terms=energy_terms)
+        force = force.view(*points.shape)
+        return PotentialOutput(energy=energy, force=force)
+
 
     def load_model(self, model_path):
-        calc = MLAseCalculator(model_path, properties=['energy'], device=self.device)
+        calc = MLAseCalculator(model_path, properties=['energy', 'forces'], device=self.device)
         model = calc.models[0]
-        model.aggregators[0] = NullAggregator()
+        # model.aggregators[0] = NullAggregator()
         model.eval()
         # model.output_layers[1].create_graph = True
         model.to(torch.float64)
         model.requires_grad_(False)
         model.embedding_layer.requires_dr = False
         return model
-    
+
     def data_formatter(self, pos):
         n_atoms = self.n_atoms
         n_data = pos.numel() // (n_atoms * 3)
