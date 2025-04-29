@@ -1,0 +1,26 @@
+images: configs/6445.xyz
+potential_params:
+  potential: repel
+path_params: 
+  name: mlp
+  n_embed: 16
+  depth: 3
+  activation: gelu
+integrator_params: 
+  method: dopri5
+  rtol: 1.0e-5
+  atol: 1.0e-5
+  computation: parallel
+  sample_type: uniform
+  path_loss_name: integral
+  path_ode_names: E_geo
+optimizer_params:
+  optimizer:
+    name: adam
+    lr: 1.0e-3
+  lr_scheduler:
+    name: cosine
+    T_max: 1000
+num_optimizer_iterations: 1000
+num_record_points: 20
+# output_dir: output

@@ -1,0 +1,76 @@
+inv_gauss:
+    cos_cos :
+        weight:
+            value: 1.0
+            name: cosine
+            start_factor: 1000.0
+            end_factor: 0.0
+            total_iters: 101
+        variance:
+            value: 1.0
+            name: cosine
+            start_factor: 4.0
+            end_factor: 0.1
+            total_iters: 101
+
+
+inv_poly:
+    cos_cos :
+        weight:
+            value: 1.0
+            name: cosine
+            start_factor: 1000.0
+            end_factor: 0.0
+            total_iters: 101
+        order:
+            value: 1.0
+            name: cosine
+            start_factor: 0.10
+            end_factor: 10.0
+            total_iters: 101
+ 
+
+
+inv_sine-gauss:
+    cos_cos :
+        weight:
+            value: 1.0
+            name: cosine
+            start_factor: 1000.0
+            end_factor: 0.0
+            total_iters: 101
+        variance:
+            value: 1.0
+            name: cosine
+            start_factor: 0.50
+            end_factor: 0.1
+            total_iters: 101
+    cos_lin :
+        weight:
+            value: 1.0
+            name: cosine
+            start_factor: 1000.0
+            end_factor: 0.0
+            total_iters: 101
+        variance:
+            value: 1.0
+            name: linear
+            start_factor: 5.0
+            end_factor: 0.1
+            total_iters: 101
+
+inv_sine:
+    cos :
+        weight:
+            value: 1.0
+            name: cosine
+            start_factor: 1000.0
+            end_factor: 0.0
+            total_iters: 101
+    lin :
+        weight:
+            value: 1.0
+            name: linear
+            start_factor: 1.0
+            end_factor: 0.0
+            total_iters: 101
