@@ -53,7 +53,7 @@ def output_to_atoms(output, ref_images):
     """
     images = []
     n_atoms = len(ref_images.numbers)
-    for positions, energy, velocities, forces in zip(output.geometry, output.energy, output.velocity, output.force):
+    for positions, energy, velocities, forces in zip(output.position, output.energy, output.velocity, output.force):
         atoms = ase.Atoms(
             numbers=ref_images.numbers.detach().cpu().numpy(),
             positions=positions.detach().cpu().numpy().reshape(n_atoms, 3),
