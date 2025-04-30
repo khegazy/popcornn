@@ -1,0 +1,30 @@
+init_params:
+  images: configs/xyz/hard.xyz
+  path_params: 
+    name: mlp
+    n_embed: 1
+    depth: 2
+    activation: gelu
+  num_record_points: 101
+  output_dir: output
+  seed: 0
+opt_params:  
+  - potential_params:
+      potential: harmonic
+    integrator_params: 
+      path_ode_names:
+        - E_pvre
+        - E_geo
+      path_ode_scales:
+        - 1.0
+        - 0.1
+      rtol: 1.0e-5
+      atol: 1.0e-6
+    optimizer_params:
+      optimizer:
+        name: adam
+        lr: 1.0e-1
+      # lr_scheduler:
+      #   name: cosine
+      #   T_max: 1000
+    num_optimizer_iterations: 500

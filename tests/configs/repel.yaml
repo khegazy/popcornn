@@ -1,23 +1,27 @@
 init_params:
-  images: [[1.133, -1.486], [-1.166, 1.477]]
+  images: configs/xyz/hard.xyz
   path_params: 
     name: mlp
-    n_embed: 4
+    n_embed: 1
     depth: 2
     activation: gelu
   num_record_points: 101
-  seed: 2025
+  output_dir: output
+  seed: 0
 opt_params:  
   - potential_params:
-      potential: wolfe_schlegel
-    integrator_params:
+      potential: repel
+    integrator_params: 
       path_ode_names:
         - E_pvre
-      method : dopri5
+        - E_geo
+      path_ode_scales:
+        - 0.1
+        - 1.0
       rtol: 1.0e-5
       atol: 1.0e-6
     optimizer_params:
       optimizer:
         name: adam
-        lr: 1.0e-3
-    num_optimizer_iterations: 1000
+        lr: 1.0e-1
+    num_optimizer_iterations: 750
