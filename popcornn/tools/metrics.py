@@ -257,14 +257,16 @@ def get_loss_fxn(name, **kwargs):
 
 
 class Metrics():
+    ode_fxn_names = ['E_pvre', 'E_vre', 'E_pvre_mag', 'E', 'E_mean', 'F_mag']
     def __init__(self, device, save_energy_force=False):
         self.save_energy_force = save_energy_force
         self.device = device
-        self.ode_fxn = None
         self._ode_fxn_scales = None
         self._ode_fxns = None
 
     def create_ode_fxn(self, is_parallel, fxn_names, fxn_scales=1.0):
+        self.is_parallel = is_parallel
+
         # Parse and check input
         assert fxn_names is not None or len(fxn_names) != 0
         if isinstance(fxn_names, str):
@@ -273,22 +275,24 @@ class Metrics():
             fxn_scales = [fxn_scales]
         assert len(fxn_names) == len(fxn_scales), f"The number of metric function names {fxn_names} does not match the number of scales {fxn_scales}"
 
-        for fname in fxn_names:
+        for idx, fname in enumerate(fxn_names):
             if fname not in dir(self):
                 metric_fxns = [
                     attr for attr in dir(Metrics)\
                         if attr[0] != '_' and callable(getattr(Metrics, attr))
                 ]
                 raise ValueError(f"Can only integrate metric functions, either add a new function to the Metrics class or use one of the following:\n\t{metric_fxns}")
+            if fname in fxn_names[idx+1:]:
+                raise ValueError(f"Cannot use the same metric function twice in the same class instantiation: {fname}")
         self._ode_fxns = [getattr(self, fname) for fname in fxn_names]
         self._ode_fxn_scales = {
             fxn.__name__ : scale for fxn, scale in zip(self._ode_fxns, fxn_scales)
         }
 
-        if is_parallel:
-            self.ode_fxn = self._parallel_ode_fxn
-        else:
-            self.ode_fxn = self._serial_ode_fxn
+        #if is_parallel:
+        #    self.ode_fxn = self._parallel_ode_fxn
+        #else:
+        #    self.ode_fxn = self._serial_ode_fxn
         
         self._get_required_variables()
 
@@ -302,8 +306,8 @@ class Metrics():
     
     def add_required_variable(self, variable_name):
         self.required_variables[variable_name] = True
-
-    def _parallel_ode_fxn(self, eval_time, path, **kwargs):
+    
+    def _parallel_ode_fxn(self, eval_time, path, **kwargs): # TODO REMOVE
         loss = 0
         variables = {}
         for fxn in self._ode_fxns:
@@ -329,12 +333,56 @@ class Metrics():
         del variables
         return loss
 
-    def _serial_ode_fxn(self, time, path, **kwargs):
+    def ode_fxn(self, eval_time, path, **kwargs):
         loss = 0
+        eval_time = eval_time if self.is_parallel else eval_time.reshape(1, -1)
+        for fxn in self._ode_fxns:
+            scale = self._ode_fxn_scales[fxn.__name__]
+            ode_loss, ode_variables = fxn(
+                eval_time=eval_time,
+                path=path,
+                **self.required_variables,
+                **kwargs
+            )
+            kwargs.update(ode_variables)
+            loss = loss + scale*ode_loss
+        
+        if self.save_energy_force:
+            nans = torch.tensor(
+                [torch.nan,]*len(kwargs['time']),
+                device=self.device
+            )
+            if self.is_parallel:
+                nans = nans.unsqueeze(-1)
+            
+            keep_variables = [
+                kwargs[name] if name in kwargs and kwargs[name] is not None else nans\
+                    for name in ['energy', 'force']
+            ]
+            
+            loss = torch.concatenate([loss] + keep_variables, dim=-1)
+        #elif not self.is_parallel:
+        #    loss = loss[0]
+
+        #del variables
+        return loss
+
+    def _serial_ode_fxn(self, eval_time, path, **kwargs): #TODO REMOVE
+        loss = 0
+        variables = {}
         time = time.reshape(1, -1)
         for fxn in self._ode_fxns:
             scale = self._ode_fxn_scales[fxn.__name__]
-            loss = loss + scale*fxn(path=path, time=time, **kwargs)[0]
+            ode_loss, ode_variables = fxn(
+                eval_time=eval_time,
+                path=path,
+                **self.required_variables,
+                **variables,
+                **kwargs
+            )[0]
+            #    path=path, eval_time=eval_time, **kwargs)[0]
+            variables.update(ode_variables)
+            loss = loss + scale*ode_loss
         print("Combine other variables, see _parallel_ode_fxn")
         raise NotImplementedError
         return loss
@@ -470,7 +518,7 @@ class Metrics():
 
     def E(self, get_required_variables=False, **kwargs):
         if get_required_variables:
-            return ('energy') 
+            return ('energy',) 
         variables = self._parse_input(**kwargs)
         
         return variables['energy'], variables
