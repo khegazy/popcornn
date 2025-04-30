@@ -7,7 +7,7 @@ init_params:
     activation: gelu
   num_record_points: 101
   output_dir: output
-  seed: 0
+  seed: 2025
 opt_params:  
   - potential_params:
       potential: morse
