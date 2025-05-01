@@ -22,20 +22,20 @@ class Linear(SchedulerBase):
     def __init__(self, start_value, end_value, last_step, **kwargs):
         self.start_value = start_value
         self.end_value = end_value
-        self.delta_value = self.end_value - self.start_value
-        self.last_step = last_step
+        self.last_step = last_step - 1
+        self.delta_value = (self.end_value - self.start_value) / self.last_step
         super().__init__(**kwargs)
     
     def _get_closed_form(self):
         step = min(self.current_step, self.last_step)
-        update = (self.start_value + self.delta_value * step / self.last_step)
+        update = self.start_value + self.delta_value * step
         return self.value * update 
     
 class Cosine(SchedulerBase):
     def __init__(self, start_value, end_value, last_step, **kwargs):
         self.start_value = start_value
         self.end_value = end_value
-        self.last_step = last_step
+        self.last_step = last_step - 1
         super().__init__(**kwargs)
     
     def _get_closed_form(self):
