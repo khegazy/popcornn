@@ -28,7 +28,7 @@ class ODEintegrator(Metrics):
             path_loss_name=None,
             path_loss_params={},
             path_ode_names=None,
-            path_ode_scales=torch.ones(1),
+            path_ode_scales=None,
             path_ode_energy_idx=1,
             path_ode_force_idx=2,
             process=None,
