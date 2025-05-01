@@ -74,7 +74,8 @@ class Popcornn:
     
     def run(
             self,
-            *opt_params: list[dict], 
+            *opt_params: list[dict],
+            output_ase_atoms: bool = True
     ):
         """
         Run the optimization.
@@ -100,6 +101,7 @@ class Popcornn:
             path_output, ts_output = self._optimize(
                 **params, 
                 output_dir=output_dir,
+                output_ase_atoms=output_ase_atoms
             )
         
         # Return the optimized path
@@ -112,6 +114,7 @@ class Popcornn:
             optimizer_params: dict[str, Any] = {},
             num_optimizer_iterations: int = 1000,
             output_dir: str | None = None,
+            output_ase_atoms: bool = True
     ):
         """
         Optimize the minimum energy path.
@@ -179,7 +182,7 @@ class Popcornn:
         ts_time = self.path.TS_time
         path_output = self.path(time, return_velocity=True, return_energy=True, return_force=True)
         ts_output = self.path(torch.tensor([ts_time]), return_velocity=True, return_energy=True, return_force=True)
-        if issubclass(self.images.dtype, Atoms):
+        if issubclass(self.images.dtype, Atoms) and output_ase_atoms:
             images, ts_images = output_to_atoms(path_output, self.images), output_to_atoms(ts_output, self.images)
             return images, ts_images[0]
         else:
