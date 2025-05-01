@@ -5,8 +5,8 @@ from popcornn.tools.scheduler import Linear
 from popcornn.tools.tests import test_popcornn_run
 
 
-def test_linear_scheuler():
-    N_steps = 10
+def test_linear_scheduler():
+    N_steps = 100
     start, end = 0.0, 1.0
     scheduler = Linear(start, end, N_steps)
     comparison = torch.linspace(start, end, N_steps)
