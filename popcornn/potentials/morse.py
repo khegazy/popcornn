@@ -27,14 +27,14 @@ class MorsePotential(BasePotential):
         energyterms = (1 - torch.exp(-self.alpha * (r - self.r0))) ** 2 - 1
         energy = torch.sum(energyterms, dim=-1, keepdim=True)
 
-        # return PotentialOutput(energy=energy)
-
-        force = torch.vmap(
-            lambda vec: torch.autograd.grad(
-                energyterms.flatten(), points, grad_outputs=vec, create_graph=True, retain_graph=True
-            )[0],
-        )(torch.eye(energyterms.shape[1], device=self.device).repeat(1, energyterms.shape[0])).transpose(0, 1)
-        return PotentialOutput(energy=energy, force=force)
+        force = self.calculate_conservative_force(energy, points)
+        forceterms = self.calculate_conservative_forceterms(energyterms, points)
+        return PotentialOutput(
+            energy=energy,
+            energyterms=energyterms,
+            force=force,
+            forceterms=forceterms
+        )
     
     def set_r0(self, numbers):
         """
