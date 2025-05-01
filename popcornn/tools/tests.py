@@ -4,18 +4,18 @@ import torch
 import numpy as np
 from popcornn import tools
 from popcornn import Popcornn
+from popcornn.tools.metrics import Metrics
+from popcornn.tools.integrator import ODEintegrator
+from popcornn.optimization.path_optimizer import PathOptimizer
 
-def potential_test(potential=None, save_results=False):
-    if potential is None:
-        return True
-
+def test_popcornn_run(name, config_path, benchmark_path, save_results=True):
     # Setup environment 
+    os.makedirs(benchmark_path, exist_ok=True)
     torch.manual_seed(2025)
     np.random.seed(2025)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     # Get config file
-    config_path = os.path.join("configs", f"{potential}.yaml")
     config = tools.import_run_config(config_path)
 
     # Run the optimization
@@ -30,7 +30,7 @@ def potential_test(potential=None, save_results=False):
     F_atol, F_rtol = 1e-4, 1e-5
 
     path_benchmark_filename = os.path.join(
-        "analytic_potentials", "benchmarks", f"{potential}_path.json"
+        benchmark_path, f"{name}_path.json"
     )
     if save_results:
         if path_output.energyterms is None:
@@ -55,17 +55,12 @@ def potential_test(potential=None, save_results=False):
     with open(path_benchmark_filename, 'r') as file:
         path_benchmark = json.load(file)
     
-    print("time info", torch.std_mean(path_output.time))
     time_test = torch.allclose(
         path_output.time.cpu().to(torch.float32),
         torch.tensor(path_benchmark['time']),
         atol=T_atol, rtol=T_rtol
     )
     assert time_test, "path output time does not match benchmark"
-    print("pos info", torch.std_mean(path_output.position))
-    print("V info", torch.std_mean(path_output.velocity))
-    print("F info", torch.std_mean(path_output.force))
-    print("E info", torch.std_mean(path_output.energy))
     position_test = torch.allclose(
         path_output.position.cpu().to(torch.float32),
         torch.tensor(path_benchmark['position']),
@@ -108,7 +103,7 @@ def potential_test(potential=None, save_results=False):
 
     # Compare TS output with benchmark
     ts_benchmark_filename = os.path.join(
-        "analytic_potentials", "benchmarks", f"{potential}_TS.json"
+        benchmark_path, f"{name}_TS.json"
     )
     if save_results:
         if ts_output.energyterms is None:
@@ -177,3 +172,77 @@ def potential_test(potential=None, save_results=False):
             atol=F_atol, rtol=F_rtol
         )
         assert forceterms_test, "path output forceterms does not match benchmark"
+    
+    return mep, path_output, ts_output
+
+
+def test_scheduler(path, config, schedule_fxn, device):
+    # Shortcuts
+    config = config['opt_params'][0]
+    scheduler_config = config['optimizer_params']['path_ode_schedulers']
+    fxn1_name = config['integrator_params']['path_ode_names'][0]
+    fxn2_name = config['integrator_params']['path_ode_names'][1]
+
+    # Run optimizer and get integration values with scheduler
+    integrator = ODEintegrator(
+        **config['integrator_params'], device=device
+    )
+    optimizer = PathOptimizer(
+        path=path,
+        **config['optimizer_params'],
+        device=device
+    )
+
+    time = None
+    scheduled_evals = []
+    for i in range(scheduler_config[fxn2_name]['last_step']):
+        path_integral = optimizer.optimization_step(
+            path, integrator, time=time, update_path=False 
+        )
+        scheduled_evals.append(
+            torch.flatten(path_integral.y, start_dim=0, end_dim=1)
+        )
+        time = torch.concatenate(
+            [path_integral.t[:,0,:], torch.tensor([[1]], device=device)],
+            dim=0
+        )
+    scheduled_evals = torch.stack(scheduled_evals)
+    
+    # Calculate function values and weight with scheduler
+    time = torch.flatten(path_integral.t, start_dim=0, end_dim=1)
+    metrics = Metrics(device=device)
+    fxn1 = getattr(metrics, fxn1_name)
+    fxn1_val, _ = fxn1(
+        eval_time=time,
+        path=path,
+        requires_energy=True,
+        requires_velocity=True,
+        requires_force=True,
+    )
+    fxn1_scheduled_vals = fxn1_val.unsqueeze(0)*schedule_fxn(
+        scheduler_config[fxn1_name]['start_value'],
+        scheduler_config[fxn1_name]['end_value'],
+        scheduler_config[fxn1_name]['last_step'],
+        device=device
+    ).unsqueeze(-1).unsqueeze(-1)
+    fxn2 = getattr(
+        metrics, fxn2_name
+    )
+    fxn2_val, _ = fxn2(
+        eval_time=time,
+        path=path,
+        requires_energy=True,
+        requires_velocity=True,
+        requires_force=True
+    )
+    fxn2_scheduled_vals = fxn2_val.unsqueeze(0)*schedule_fxn(
+        scheduler_config[fxn2_name]['start_value'],
+        scheduler_config[fxn2_name]['end_value'],
+        scheduler_config[fxn2_name]['last_step'],
+        device=device
+    ).unsqueeze(-1).unsqueeze(-1)
+    
+    compare_schedule = fxn1_scheduled_vals[:,:,0] + fxn2_scheduled_vals[:,:,0] 
+    assert torch.allclose(
+        scheduled_evals[:,:,0], compare_schedule, atol=1e-6, rtol=1e-4
+    )
