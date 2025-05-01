@@ -12,7 +12,7 @@ def test_linear_scheuler():
     comparison = torch.linspace(start, end, N_steps)
     for i in range(N_steps):
         assert np.allclose([scheduler.get_value()], [comparison[i]]),\
-            "Linear scheduler valued does not match expected"
+            "Linear scheduler value does not match expected"
         scheduler.step()
 
     benchmark_path = os.path.join(
