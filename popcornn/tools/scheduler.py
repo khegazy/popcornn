@@ -4,13 +4,13 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
 class SchedulerBase:
-    def __init__(self, value=1.0, last_epoch=-1):
+    def __init__(self, value=1.0, current_step=-1):
         self.value = value
-        self.last_epoch = last_epoch
-        self.last_epoch += 1
+        self.current_step = current_step
+        self.current_step += 1
 
     def step(self):
-        self.last_epoch += 1
+        self.current_step += 1
     
     def get_value(self):
         if hasattr(self, '_get_closed_form'):
@@ -19,25 +19,28 @@ class SchedulerBase:
             return self.value
 
 class Linear(SchedulerBase):
-    def __init__(self, start_factor, end_factor, total_iters, **kwargs):
-        self.start_factor = start_factor
-        self.end_factor = end_factor
-        self.total_iters = total_iters
+    def __init__(self, start_value, end_value, last_step, **kwargs):
+        self.start_value = start_value
+        self.end_value = end_value
+        self.delta_value = self.end_value - self.start_value
+        self.last_step = last_step
         super().__init__(**kwargs)
     
     def _get_closed_form(self):
-        return self.value * (self.start_factor + (self.end_factor - self.start_factor) * min(self.last_epoch, self.total_iters) / self.total_iters)
+        step = min(self.current_step, self.last_step)
+        update = (self.start_value + self.delta_value * step / self.last_step)
+        return self.value * update 
     
 class Cosine(SchedulerBase):
-    def __init__(self, start_factor, end_factor, total_iters, **kwargs):
-        self.start_factor = start_factor
-        self.end_factor = end_factor
-        self.total_iters = total_iters
+    def __init__(self, start_value, end_value, last_step, **kwargs):
+        self.start_value = start_value
+        self.end_value = end_value
+        self.last_step = last_step
         super().__init__(**kwargs)
     
     def _get_closed_form(self):
-        # return self.eta_min + (self.value - self.eta_min) * (1 + math.cos(math.pi * self.last_epoch / self.T_max)) / 2
-        return self.value * (self.end_factor + (self.start_factor - self.end_factor) * (1 + math.cos(math.pi * self.last_epoch / self.total_iters)) / 2)
+        # return self.eta_min + (self.value - self.eta_min) * (1 + math.cos(math.pi * self.current_step / self.T_max)) / 2
+        return self.value * (self.end_value + (self.start_value - self.end_value) * (1 + math.cos(math.pi * self.current_step / self.last_step)) / 2)
     
 
 SCHEDULER_DICT = {
