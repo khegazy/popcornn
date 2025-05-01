@@ -115,7 +115,9 @@ class PathOptimizer():
             path,
             integrator,
             t_init=torch.tensor([0.], dtype=torch.float64),
-            t_final=torch.tensor([1.], dtype=torch.float64)
+            t_final=torch.tensor([1.], dtype=torch.float64),
+            time=None,
+            update_path=True
         ):
         self.optimizer.zero_grad()
         t_init = t_init.to(torch.float64).to(self.device)
@@ -133,12 +135,13 @@ class PathOptimizer():
         TS_region_loss_scales = {
             name : schd.get_value() for name, schd in self.TS_region_loss_schedulers.items()
         }
-        path_integral = integrator.path_integral(
+        path_integral = integrator.integrate_path(
             path, #self.path_loss_name, self.path_loss_scales,
             ode_fxn_scales=ode_fxn_scales,
             loss_scales=path_loss_scales,
             t_init=t_init,
             t_final=t_final,
+            times=time
         )
         #print("POST OP T", path_integral.t.shape)
         if not path_integral.gradient_taken:
@@ -177,7 +180,8 @@ class PathOptimizer():
                 TS_region_loss.backward()
         ###########################################
 
-        self.optimizer.step()
+        if update_path:
+            self.optimizer.step()
         for name, sched in self.ode_fxn_schedulers.items():
             sched.step() 
         for name, sched in self.path_loss_schedulers.items():
