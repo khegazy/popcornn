@@ -20,8 +20,8 @@ class ODEintegrator(Metrics):
     def __init__(
             self,
             method='dopri5',
-            rtol=1e-7,
-            atol=1e-9,
+            rtol=1e-6,
+            atol=1e-7,
             computation='parallel',
             sample_type='uniform',
             remove_cut=0.1,
