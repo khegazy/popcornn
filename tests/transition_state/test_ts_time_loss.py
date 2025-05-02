@@ -12,4 +12,3 @@ def test_ts_time_loss():
             "configs", f"{name}.yaml"
         )
         mep, _, _ = popcornn_run_test(name, config_path, benchmark_path)
-test_ts_time_loss()
