@@ -90,25 +90,6 @@ class PathOptimizer():
         scheduler_class = getattr(lr_scheduler, name)
         self.lr_scheduler = scheduler_class(self.optimizer, **config)
 
-
-    """
-    def set_scheduler(self, name, **config):
-        name = name.lower()
-        if name not in scheduler_dict:
-            raise ValueError(f"Cannot handle scheduler type {name}, either add it to scheduler_dict or use {list(scheduler_dict.keys())}")
-        self.scheduler = scheduler_dict[name](self.optimizer, **config)
-
-    def set_loss_scheduler(self, **kwargs):
-        self.loss_scheduler = {}
-        for key, value in kwargs.items():
-            name = value.pop('name').lower()
-            if name not in loss_scheduler_dict:
-                raise ValueError(f"Cannot handle loss scheduler type {name}, either add it to loss_scheduler_dict or use {list(loss_scheduler_dict.keys())}")
-            if name == "reduce_on_plateau" or name == "increase_on_plateau":
-                self.loss_scheduler[key] = loss_scheduler_dict[name](lr_scheduler=self.scheduler, **value)
-            else:
-                self.loss_scheduler[key] = loss_scheduler_dict[name](**value)
-    """
     
     def optimization_step(
             self,
@@ -136,33 +117,26 @@ class PathOptimizer():
             name : schd.get_value() for name, schd in self.TS_region_loss_schedulers.items()
         }
         path_integral = integrator.integrate_path(
-            path, #self.path_loss_name, self.path_loss_scales,
+            path,
             ode_fxn_scales=ode_fxn_scales,
             loss_scales=path_loss_scales,
             t_init=t_init,
             t_final=t_final,
             times=time
         )
-        #print("POST OP T", path_integral.t.shape)
         if not path_integral.gradient_taken:
             path_integral.loss.backward()
             # (path_integral.integral**2).backward()
-        #####  Find Transition State  ##### 
-        """
-        path.TS_search_orig(
-            path_integral.t,
-            path_integral.y[:,:,integrator.path_ode_energy_idx],
-            path_integral.y[:,:,integrator.path_ode_force_idx:],
-        )
-        """
+        
+        #####  Transition State  #####
+        # Find transition state 
         path.TS_search(
             path_integral.t,
             path_integral.y[:,:,integrator.path_ode_energy_idx],
             path_integral.y[:,:,integrator.path_ode_force_idx:],
         )
 
-        #############  Testing TS Loss ############
-        # Evaluate TS loss functions
+        # Evaluate transition state losses
         if self.has_TS_loss and path.TS_time is not None:
             if self.has_TS_time_loss:
                 self.TS_time_metrics.update_ode_fxn_scales(**TS_time_loss_scales)
@@ -178,10 +152,12 @@ class PathOptimizer():
                     path.TS_region[:,None], path
                 )[:,0]
                 TS_region_loss.backward()
-        ###########################################
 
+        #####  Update Optimization  #####
+        # Path update step
         if update_path:
             self.optimizer.step()
+        # Update schedulers
         for name, sched in self.ode_fxn_schedulers.items():
             sched.step() 
         for name, sched in self.path_loss_schedulers.items():
@@ -197,13 +173,8 @@ class PathOptimizer():
                     self.converged = True
             else:
                 self.lr_scheduler.step()
-        
-
-                ##############
         self.iteration = self.iteration + 1
+        
         return path_integral
-    
-    def _TS_max_E(self):
-        raise NotImplementedError
 
     
