@@ -24,7 +24,7 @@ class EScAIPPotential(BasePotential):
             self.trainer.ema.copy_to()
         self.trainer.model.requires_grad_(False)
 
-    def forward(self, points):
+    def forward(self, positions):
         data = self.data_formatter(points)
         pred = self.trainer.model(data)
         for key in pred.keys():

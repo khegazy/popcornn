@@ -81,7 +81,7 @@ def wrap_points(
     Assume periodic boundary conditions for all dimensions.
     """
 
-    fractional = torch.linalg.solve(cell.T, points.view(*points.shape[:-1], -1, 3).transpose(-1, -2)).transpose(-1, -2)
+    fractional = torch.linalg.solve(cell.T, positions.view(*points.shape[:-1], -1, 3).transpose(-1, -2)).transpose(-1, -2)
 
     # fractional[..., :, self.pbc] %= 1.0
     fractional = (fractional + center) % 1.0 - center    # TODO: Modify this to handle partially true PBCs

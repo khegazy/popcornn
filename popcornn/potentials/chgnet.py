@@ -22,7 +22,7 @@ class CHGNetPotential(BasePotential):
         self.node_attrs = one_hot(self.atomic_numbers, num_classes=118)[:, self.model.atomic_numbers].double()
 
     
-    def forward(self, points):
+    def forward(self, positions):
         data = self.data_formatter(points)
         pred = self.model(data.to_dict(), compute_force=False)
         self.n_eval += 1

@@ -22,7 +22,7 @@ class OrbPotential(BasePotential):
         self.atomic_numbers_embedding = one_hot(self.atomic_numbers, num_classes=118).double()
 
     
-    def forward(self, points):
+    def forward(self, positions):
         data = self.data_formatter(points)
         pred = self.model.predict(data)
         # pred = self.model(data.to_dict(), training=True)

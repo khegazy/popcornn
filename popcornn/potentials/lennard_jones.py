@@ -18,7 +18,7 @@ class LennardJones(BasePotential):
         super().__init__(**kwargs)
         self.r0 = None
     
-    def forward(self, points):
+    def forward(self, positions):
         if self.r0 is None:
             self.set_r0(self.atomic_numbers)
         points_3d = points.view(-1, self.n_atoms, 3)
@@ -26,8 +26,8 @@ class LennardJones(BasePotential):
         energyterms = (self.r0 / r) ** 12 - 2 * (self.r0 / r) ** 6
         energy = torch.sum(energyterms, dim=-1, keepdim=True)
 
-        force = self.calculate_conservative_force(energy, points)
-        forceterms = self.calculate_conservative_forceterms(energyterms, points)
+        force = self.calculate_conservative_force(energy, positions)
+        forceterms = self.calculate_conservative_forceterms(energyterms, positions)
         return PotentialOutput(
             energy=energy,
             energyterms=energyterms,

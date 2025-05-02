@@ -20,7 +20,7 @@ class HarmonicPotential(BasePotential):
         self.skin = skin
         self.r0 = None
     
-    def forward(self, points):
+    def forward(self, positions):
         if self.r0 is None:
             self.set_r0(self.atomic_numbers)
         points_3d = points.view(-1, self.n_atoms, 3)
@@ -28,8 +28,8 @@ class HarmonicPotential(BasePotential):
         energyterms = (r - self.r0) ** 2 * torch.sigmoid((self.r_max - r) / self.skin)
         energy = torch.sum(energyterms, dim=-1, keepdim=True)
 
-        force = self.calculate_conservative_force(energy, points)
-        forceterms = self.calculate_conservative_forceterms(energyterms, points)
+        force = self.calculate_conservative_force(energy, positions)
+        forceterms = self.calculate_conservative_forceterms(energyterms, positions)
         return PotentialOutput(
             energy=energy,
             energyterms=energyterms,

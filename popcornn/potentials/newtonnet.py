@@ -23,7 +23,7 @@ class NewtonNetPotential(BasePotential):
         self.n_eval = 0
 
 
-    def forward(self, points):
+    def forward(self, positions):
         data = self.data_formatter(points)
         pred = self.model(data.z, data.disp, data.edge_index, data.batch)
         self.n_eval += 1

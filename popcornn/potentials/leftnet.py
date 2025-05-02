@@ -21,7 +21,7 @@ class LeftNetPotential(BasePotential):
         self.one_hots = one_hot(self.atomic_numbers, num_classes=118)[:, [1, 6, 7, 8, 0]].double()
 
     
-    def forward(self, points):
+    def forward(self, positions):
         data = self.data_formatter(points)
         if self.use_autograd:
             pred = self.model.forward_autograd(data)

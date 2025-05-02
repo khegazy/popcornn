@@ -16,8 +16,8 @@ class Images():
     -----------
     dtype: type
         The data type of the images.
-    points: torch.Tensor
-        The points of the images.
+    positions: torch.Tensor
+        The positions of the images.
     vec: torch.Tensor
         The vector representing the displacement between the first and last images.
     atomic_numbers: torch.Tensor, optional
@@ -79,20 +79,20 @@ def process_images(raw_images, device):
         raw_images = torch.tensor(raw_images, dtype=torch.float64)
         processed_images = Images(
             dtype=dtype,
-            points=raw_images,
+            positions=raw_images,
             vec=raw_images[-1] - raw_images[0],
         )
     elif dtype is list:
         raw_images = torch.tensor(raw_images, dtype=torch.float64)
         processed_images = Images(
             dtype=dtype,
-            points=raw_images,
+            positions=raw_images,
             vec=raw_images[-1] - raw_images[0],
         )
     elif dtype is torch.Tensor:
         processed_images = Images(
             dtype=dtype,
-            points=raw_images.float64(),
+            positions=raw_images.float64(),
             vec=(raw_images[-1] - raw_images[0]).float64(),
         )
     elif issubclass(dtype, ase.Atoms):
@@ -103,7 +103,7 @@ def process_images(raw_images, device):
         assert np.all(image.get_tags() == raw_images[0].get_tags() for image in raw_images), "All images must have the same tags."
         processed_images = Images(
             dtype=dtype,
-            points=torch.tensor([image.get_positions().flatten() for image in raw_images], dtype=torch.float64),
+            positions=torch.tensor([image.get_positions().flatten() for image in raw_images], dtype=torch.float64),
             vec=torch.tensor(pair_displacement(raw_images[0], raw_images[-1]).flatten(), dtype=torch.float64),
             atomic_numbers=torch.tensor(raw_images[0].get_atomic_numbers(), dtype=torch.int64),
             pbc=torch.tensor(raw_images[0].get_pbc(), dtype=torch.bool),

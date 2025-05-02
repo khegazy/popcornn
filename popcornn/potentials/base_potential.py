@@ -65,35 +65,8 @@ class BasePotential(nn.Module):
         ).repeat(1, energyterms.shape[0])
         return -1*self._forceterm_fxn(inp_vec).transpose(0, 1)
 
-    def point_transform(self, point, do_identity=False):
-        if self.point_option == 0 or do_identity:
-            return self.identity_transform(point)
-        elif self.point_option == 1:
-            return self.azimuthal_transform(point, self.point_arg)
-        elif self.point_option == 2:
-            return self.translation_transform(point)
-    
-    def identity_transform(self, points):
-        return points
-    
-    def azimuthal_transform(self, points, shift):
-        points = torch.transpose(points, 0, -1)
-        points = torch.concatenate([
-            torch.tensor([torch.sqrt(points[0]**2 + points[-1]**2)]) - shift,
-            points[1:-1]
-        ])
-        return torch.tranpose(points, 0, -1)
-    
-    def translation_transform(self, point):
-        point = torch.transpose(point, 0, -1)
-        point = torch.concatenate([
-            [point[0] + point[-1]],
-            point[1:-1]
-        ])
-        return torch.transpose(point, 0, -1)
-
     def forward(
             self,
-            points: torch.Tensor
+            positions: torch.Tensor
     ) -> PotentialOutput:
         raise NotImplementedError

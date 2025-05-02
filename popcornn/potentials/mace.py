@@ -21,14 +21,14 @@ class MacePotential(BasePotential):
         self.node_attrs = one_hot(self.atomic_numbers, num_classes=118)[:, self.model.atomic_numbers].double()
 
     
-    def forward(self, points):
+    def forward(self, positions):
         data = self.data_formatter(points)
         pred = self.model(data.to_dict(), compute_force=False)
         # pred = self.model(data.to_dict(), training=True)
         self.n_eval += 1
         energy = pred['energy'].view(*points.shape[:-1], 1)
         # force = pred['forces'].view(*points.shape)
-        force = self.calculate_conservative_force(energy, points)
+        force = self.calculate_conservative_force(energy, positions)
         # return PotentialOutput(energy=energy)
         force = force.view(*points.shape)
         return PotentialOutput(energy=energy, force=force)

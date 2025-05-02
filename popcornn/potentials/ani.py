@@ -18,12 +18,12 @@ class AniPotential(BasePotential):
         self.n_eval = 0
 
     
-    def forward(self, points):
+    def forward(self, positions):
         data = self.data_formatter(points)
         pred = self.model(data)
         self.n_eval += 1
         energy = pred.energies.view(*points.shape[:-1], 1) * HARTREE_TO_EV
-        force = self.calculate_conservative_force(energy, points)
+        force = self.calculate_conservative_force(energy, positions)
         return PotentialOutput(energy=energy, force=force)
         
 

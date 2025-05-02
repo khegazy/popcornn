@@ -31,7 +31,7 @@ class RepelPotential(BasePotential):
         self.beta = beta
         self.r0 = None
     
-    def forward(self, points):
+    def forward(self, positions):
         if self.r0 is None:
             self.set_r0(self.atomic_numbers)
             
@@ -45,17 +45,10 @@ class RepelPotential(BasePotential):
         return PotentialOutput(
             energy=energy,
             energyterms=energyterms,
-            force=self.calculate_conservative_force(energy, points),
-            forceterms=self.calculate_conservative_forceterms(energyterms, points)
+            force=self.calculate_conservative_force(energy, positions),
+            forceterms=self.calculate_conservative_forceterms(energyterms, positions)
         )
 
-        # force = torch.vmap(
-        #     lambda vec: torch.autograd.grad(
-        #         energyterms.flatten(), points, grad_outputs=vec, create_graph=True, retain_graph=True
-        #     )[0],
-        # )(torch.eye(energyterms.shape[1], device=self.device).repeat(1, energyterms.shape[0])).transpose(0, 1)
-        # return PotentialOutput(energy=energy, force=force)
-    
     def set_r0(self, atomic_numbers):
         """
         Set the r0_ij values for the potential

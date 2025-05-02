@@ -6,14 +6,14 @@ class Schwefel(BasePotential):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-    def forward(self, points):
+    def forward(self, positions):
         dim = points.shape[-1]
         offset = 418.9829 * dim
         sinusiods = points * torch.sin(torch.sqrt(torch.abs(points)))
         energyterms = offset - sinusiods
         energy = torch.sum(energyterms, dim=-1, keepdim=True)
-        force = self.calculate_conservative_force(energy, points)
-        forceterms = self.calculate_conservative_forceterms(energyterms, points)
+        force = self.calculate_conservative_force(energy, positions)
+        forceterms = self.calculate_conservative_forceterms(energyterms, positions)
 
         return PotentialOutput(
             energy=energy,
