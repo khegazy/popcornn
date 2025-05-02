@@ -89,7 +89,7 @@ def optimize_MEP(
         path = initialize_path(
             path=path, 
             times=torch.linspace(0, 1, len(images), device=device), 
-            init_points=images.points.to(device),
+            init_points=images.positions.to(device),
         )
 
     #####  Path optimization tools  #####

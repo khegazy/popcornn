@@ -38,6 +38,6 @@ class AniPotential(BasePotential):
     def data_formatter(self, pos):
         n_atoms = self.n_atoms
         n_data = pos.numel() // (n_atoms * 3)
-        z = self.numbers.repeat(n_data, 1)
+        z = self.atomic_numbers.repeat(n_data, 1)
         pos = pos.view(n_data, n_atoms, 3)
         return (z, pos)

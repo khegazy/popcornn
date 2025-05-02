@@ -25,8 +25,8 @@ class BasePotential(nn.Module):
     def __init__(self, images, is_conservative=True, device='cpu', add_azimuthal_dof=False, add_translation_dof=False, **kwargs) -> None:
         super().__init__()
         self.is_conservative = is_conservative
-        self.numbers = images.numbers.to(device) if images.numbers is not None else None
-        self.n_atoms = len(images.numbers) if images.numbers is not None else None
+        self.atomic_numbers = images.atomic_numbers.to(device) if images.atomic_numbers is not None else None
+        self.n_atoms = len(images.atomic_numbers) if images.atomic_numbers is not None else None
         self.pbc = images.pbc.to(device) if images.pbc is not None else None
         self.cell = images.cell.to(device) if images.cell is not None else None
         self.tag = images.tags.to(device) if images.tags is not None else None

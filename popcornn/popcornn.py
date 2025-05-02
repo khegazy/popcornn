@@ -62,7 +62,7 @@ class Popcornn:
             self.path = initialize_path(
                 path=self.path, 
                 times=torch.linspace(self.path.t_init.item(), self.path.t_final.item(), len(self.images), device=self.device), 
-                init_points=self.images.points,
+                init_points=self.images.positions,
             )
 
         # Create output directories

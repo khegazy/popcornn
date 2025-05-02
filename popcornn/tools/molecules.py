@@ -20,8 +20,8 @@ class Images():
         The points of the images.
     vec: torch.Tensor
         The vector representing the displacement between the first and last images.
-    numbers: torch.Tensor, optional
-        The atomic numbers of the images.
+    atomic_numbers: torch.Tensor, optional
+        The atomic atomic_numbers of the images.
     pbc: torch.Tensor, optional
         The periodic boundary conditions of the images.
     cell: torch.Tensor, optional
@@ -30,9 +30,9 @@ class Images():
         The tags of the atoms in the images.
     """
     dtype: type
-    points: torch.Tensor
+    positions: torch.Tensor
     vec: torch.Tensor
-    numbers: torch.Tensor = None
+    atomic_numbers: torch.Tensor = None
     pbc: torch.Tensor = None
     cell: torch.Tensor = None
     tags: torch.Tensor = None
@@ -41,16 +41,16 @@ class Images():
         """
         Return the number of images.
         """
-        return len(self.points)
+        return len(self.positions)
 
     def to(self, device):
         """
         Move the images to the specified device.
         """
-        self.points = self.points.to(device)
+        self.positions = self.positions.to(device)
         self.vec = self.vec.to(device)
-        if self.numbers is not None:
-            self.numbers = self.numbers.to(device)
+        if self.atomic_numbers is not None:
+            self.atomic_numbers = self.atomic_numbers.to(device)
         if self.pbc is not None:
             self.pbc = self.pbc.to(device)
         if self.cell is not None:
@@ -97,7 +97,7 @@ def process_images(raw_images, device):
         )
     elif issubclass(dtype, ase.Atoms):
         assert np.all(image.get_positions().shape == raw_images[0].get_positions().shape for image in raw_images), "All images must have the same shape."
-        assert np.all(image.get_atomic_numbers() == raw_images[0].get_atomic_numbers() for image in raw_images), "All images must have the same atomic numbers."
+        assert np.all(image.get_atomic_numbers() == raw_images[0].get_atomic_numbers() for image in raw_images), "All images must have the same atomic atomic_numbers."
         assert np.all(image.get_pbc() == raw_images[0].get_pbc() for image in raw_images), "All images must have the same pbc."
         assert np.all(image.get_cell() == raw_images[0].get_cell() for image in raw_images), "All images must have the same cell."
         assert np.all(image.get_tags() == raw_images[0].get_tags() for image in raw_images), "All images must have the same tags."
@@ -105,7 +105,7 @@ def process_images(raw_images, device):
             dtype=dtype,
             points=torch.tensor([image.get_positions().flatten() for image in raw_images], dtype=torch.float64),
             vec=torch.tensor(pair_displacement(raw_images[0], raw_images[-1]).flatten(), dtype=torch.float64),
-            numbers=torch.tensor(raw_images[0].get_atomic_numbers(), dtype=torch.int64),
+            atomic_numbers=torch.tensor(raw_images[0].get_atomic_numbers(), dtype=torch.int64),
             pbc=torch.tensor(raw_images[0].get_pbc(), dtype=torch.bool),
             cell=torch.tensor(raw_images[0].get_cell(), dtype=torch.float64),
             tags=torch.tensor(raw_images[0].get_tags(), dtype=torch.int64),

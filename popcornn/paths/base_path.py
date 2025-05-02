@@ -88,8 +88,8 @@ class BasePath(torch.nn.Module):
         self.neval = 0
         self.find_TS = find_TS
         self.potential = None
-        self.initial_point = images.points[0].to(device)
-        self.final_point = images.points[-1].to(device)
+        self.initial_point = images.positions[0].to(device)
+        self.final_point = images.positions[-1].to(device)
         self.vec = images.vec.to(device)
         self._inp_reshaped = None
         if images.pbc is not None and images.pbc.any():

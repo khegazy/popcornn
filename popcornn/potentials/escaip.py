@@ -35,7 +35,7 @@ class EScAIPPotential(BasePotential):
 
     def data_formatter(self, pos):
         pos: torch.Tensor = pos.float()
-        numbers: torch.Tensor = self.numbers
+        atomic_numbers: torch.Tensor = self.atomic_numbers
         cell: torch.Tensor = self.cell.float()
         pbc: torch.Tensor = self.pbc
         tags: torch.Tensor = self.tags
@@ -43,7 +43,7 @@ class EScAIPPotential(BasePotential):
         n_data: int = pos.shape[0]
         
         data = Data(
-            atomic_numbers=numbers.repeat(n_data), 
+            atomic_numbers=atomic_numbers.repeat(n_data), 
             pos=pos.view(n_data * n_atoms, 3), 
             cell=cell.repeat(n_data, 1, 1),
             batch=torch.arange(n_data, device=self.device).repeat_interleave(n_atoms),

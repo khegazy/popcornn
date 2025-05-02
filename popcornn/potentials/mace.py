@@ -18,7 +18,7 @@ class MacePotential(BasePotential):
         super().__init__(**kwargs)
         self.model = self.load_model(model_path)
         self.n_eval = 0
-        self.node_attrs = one_hot(self.numbers, num_classes=118)[:, self.model.atomic_numbers].double()
+        self.node_attrs = one_hot(self.atomic_numbers, num_classes=118)[:, self.model.atomic_numbers].double()
 
     
     def forward(self, points):

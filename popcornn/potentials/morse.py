@@ -21,7 +21,7 @@ class MorsePotential(BasePotential):
     
     def forward(self, points):
         if self.r0 is None:
-            self.set_r0(self.numbers)
+            self.set_r0(self.atomic_numbers)
         points_3d = points.view(-1, self.n_atoms, 3)
         r = torch.norm(points_3d[:, self.ind[0]] - points_3d[:, self.ind[1]], dim=-1)
         energyterms = (1 - torch.exp(-self.alpha * (r - self.r0))) ** 2 - 1
@@ -36,11 +36,11 @@ class MorsePotential(BasePotential):
             forceterms=forceterms
         )
     
-    def set_r0(self, numbers):
+    def set_r0(self, atomic_numbers):
         """
         Set the r0_ij values for the potential
         """
-        radii = torch.tensor([covalent_radii[n] for n in numbers], device=self.device)
+        radii = torch.tensor([covalent_radii[n] for n in atomic_numbers], device=self.device)
         r0 = radii.view(-1, 1) + radii.view(1, -1)
         self.ind = torch.triu_indices(r0.shape[0], r0.shape[1], offset=1, device=self.device)
         self.r0 = r0[None, self.ind[0], self.ind[1]]

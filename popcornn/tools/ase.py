@@ -52,10 +52,10 @@ def output_to_atoms(output, ref_images):
         List of Atoms objects.
     """
     images = []
-    n_atoms = len(ref_images.numbers)
+    n_atoms = len(ref_images.atomic_numbers)
     for positions, energy, velocities, forces in zip(output.position, output.energy, output.velocity, output.force):
         atoms = ase.Atoms(
-            numbers=ref_images.numbers.detach().cpu().numpy(),
+            atomic_numbers=ref_images.atomic_numbers.detach().cpu().numpy(),
             positions=positions.detach().cpu().numpy().reshape(n_atoms, 3),
             velocities=velocities.detach().cpu().numpy().reshape(n_atoms, 3),
             pbc=ref_images.pbc.detach().cpu().numpy(),
