@@ -110,12 +110,14 @@ class PathOptimizer():
             name : schd.get_value() for name, schd in self.path_loss_schedulers.items()
         }
         path_loss_scales['iteration'] = self.iteration,
-        TS_time_loss_scales = {
-            name : schd.get_value() for name, schd in self.TS_time_loss_schedulers.items()
-        }
-        TS_region_loss_scales = {
-            name : schd.get_value() for name, schd in self.TS_region_loss_schedulers.items()
-        }
+        
+        if path.find_TS:
+            TS_time_loss_scales = {
+                name : schd.get_value() for name, schd in self.TS_time_loss_schedulers.items()
+            }
+            TS_region_loss_scales = {
+                name : schd.get_value() for name, schd in self.TS_region_loss_schedulers.items()
+            }
         path_integral = integrator.integrate_path(
             path,
             ode_fxn_scales=ode_fxn_scales,
@@ -137,7 +139,7 @@ class PathOptimizer():
         )
 
         # Evaluate transition state losses
-        if self.has_TS_loss and path.TS_time is not None:
+        if self.has_TS_loss and path.TS_time is not None and path.find_TS:
             if self.has_TS_time_loss:
                 self.TS_time_metrics.update_ode_fxn_scales(**TS_time_loss_scales)
                 TS_time_loss = self.TS_time_metrics.ode_fxn(
@@ -161,11 +163,12 @@ class PathOptimizer():
         for name, sched in self.ode_fxn_schedulers.items():
             sched.step() 
         for name, sched in self.path_loss_schedulers.items():
-            sched.step() 
-        for name, sched in self.TS_time_loss_schedulers.items():
-            sched.step() 
-        for name, sched in self.TS_region_loss_schedulers.items():
             sched.step()
+        if path.find_TS:
+            for name, sched in self.TS_time_loss_schedulers.items():
+                sched.step() 
+            for name, sched in self.TS_region_loss_schedulers.items():
+                sched.step()
         if self.lr_scheduler is not None:
             if isinstance(self.lr_scheduler, lr_scheduler.ReduceLROnPlateau):
                 self.lr_scheduler.step(path_integral.loss.item())
