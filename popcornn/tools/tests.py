@@ -8,7 +8,8 @@ from popcornn.tools.metrics import Metrics
 from popcornn.tools.integrator import ODEintegrator
 from popcornn.optimization.path_optimizer import PathOptimizer
 
-def test_popcornn_run(name, config_path, benchmark_path, save_results=True):
+
+def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
     # Setup environment 
     os.makedirs(benchmark_path, exist_ok=True)
     torch.manual_seed(2025)
@@ -176,7 +177,7 @@ def test_popcornn_run(name, config_path, benchmark_path, save_results=True):
     return mep, path_output, ts_output
 
 
-def test_scheduler(path, config, schedule_fxn, device):
+def scheduler_test(path, config, schedule_fxn, device):
     # Shortcuts
     config = config['opt_params'][0]
     scheduler_config = config['optimizer_params']['path_ode_schedulers']
