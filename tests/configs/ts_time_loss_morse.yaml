@@ -1,0 +1,38 @@
+init_params:
+  images: configs/xyz/hard.xyz
+  path_params: 
+    name: mlp
+    n_embed: 1
+    depth: 2
+    activation: gelu
+  num_record_points: 101
+  output_dir: output
+  seed: 2025
+opt_params:  
+  - potential_params:
+      potential: morse
+    integrator_params: 
+      path_ode_names:
+        - E_pvre
+        - E_vre
+      path_ode_scales:
+        - 1.0
+        - 0.01
+      method : dopri5
+      rtol: 1.0e-5
+      atol: 1.0e-6
+    optimizer_params:
+      optimizer:
+        name: adam
+        lr: 1.0e-3
+      TS_time_loss_names: ['F_mag']
+      TS_time_loss_scales: [1.0]
+      TS_time_loss_scheduler:
+        F_mag:
+          value: 1.0
+          name: cosine
+          start_value: 0.0
+          end_value: 1.0
+          last_step: 300
+      
+    num_optimizer_iterations: 500
