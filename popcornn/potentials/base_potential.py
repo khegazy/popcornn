@@ -41,8 +41,9 @@ class BasePotential(nn.Module):
         
         # Put model in eval mode
         self.eval()
-    
-    def calculate_conservative_force(self, energy, position, create_graph=True):
+
+    @staticmethod 
+    def calculate_conservative_force(energy, position, create_graph=True):
         return -torch.autograd.grad(
             energy,
             position,
