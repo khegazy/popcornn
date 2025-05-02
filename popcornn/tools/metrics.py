@@ -263,7 +263,7 @@ def get_loss_fxn(name, **kwargs):
 
 
 class Metrics():
-    ode_fxn_names = ['E_pvre', 'E_vre', 'E_pvre_mag', 'E', 'E_mean', 'F_mag']
+    all_ode_fxn_names = ['E_pvre', 'E_vre', 'E_pvre_mag', 'E', 'E_mean', 'F_mag']
     def __init__(self, device, save_energy_force=False):
         self.save_energy_force = save_energy_force
         self.device = device
