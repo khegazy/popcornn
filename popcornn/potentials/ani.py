@@ -23,7 +23,8 @@ class AniPotential(BasePotential):
         pred = self.model(data)
         self.n_eval += 1
         energy = pred.energies.view(*points.shape[:-1], 1) * HARTREE_TO_EV
-        return PotentialOutput(energy=energy)
+        force = self.calculate_conservative_force(energy, points)
+        return PotentialOutput(energy=energy, force=force)
         
 
     def load_model(self, model_path):

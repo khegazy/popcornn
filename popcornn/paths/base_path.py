@@ -323,6 +323,17 @@ class BasePath(torch.nn.Module):
         # Calculate missing energies and forces
         calc_energies = energies is None or torch.any(torch.isnan(energies))
         calc_forces = forces is None or torch.any(torch.isnan(forces))
+        # Calculate energies and forces if too few time points
+        N_input_times = time.shape[0]
+        if len(time.shape) == 3:
+            N_input_times = N_input_times*(time.shape[1] - 1) - 2
+        if N_input_times < 6:
+            time = torch.reshape(time, (-1, time.shape[-1]))
+            time = torch.linspace(time[1,0], time[-2,0], 11)
+            calc_energies = True
+            calc_forces = True
+        
+        # Calculate energies and forces if necessary
         if calc_energies or calc_forces:
             path_output = self.forward(
                 time, return_energy=calc_energies, return_force=calc_forces
@@ -345,7 +356,7 @@ class BasePath(torch.nn.Module):
             energies = energies[:,unique_mask]
             forces = forces[:,unique_mask]
 
-            if torch.all(torch.abs(time[:-1,-1] - time[1:,0]) < 1e-13):
+            if len(time) > 1 and torch.all(torch.abs(time[:-1,-1] - time[1:,0]) < 1e-13):
                 time = time[:,:-1]
                 energies = energies[:,:-1]
                 forces = forces[:,:-1]

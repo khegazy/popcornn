@@ -28,9 +28,10 @@ class MacePotential(BasePotential):
         self.n_eval += 1
         energy = pred['energy'].view(*points.shape[:-1], 1)
         # force = pred['forces'].view(*points.shape)
-        return PotentialOutput(energy=energy)
-        # force = force.view(*points.shape)
-        # return PotentialOutput(energy=energy, force=force)
+        force = self.calculate_conservative_force(energy, points)
+        # return PotentialOutput(energy=energy)
+        force = force.view(*points.shape)
+        return PotentialOutput(energy=energy, force=force)
         
 
     def load_model(self, model_path):

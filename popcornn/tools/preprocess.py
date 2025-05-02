@@ -14,6 +14,20 @@ class Images():
 
     Attributes:
     -----------
+    dtype: type
+        The data type of the images.
+    points: torch.Tensor
+        The points of the images.
+    vec: torch.Tensor
+        The vector representing the displacement between the first and last images.
+    numbers: torch.Tensor, optional
+        The atomic numbers of the images.
+    pbc: torch.Tensor, optional
+        The periodic boundary conditions of the images.
+    cell: torch.Tensor, optional
+        The cell dimensions of the images.
+    tags: torch.Tensor, optional
+        The tags of the atoms in the images.
     """
     dtype: type
     points: torch.Tensor
