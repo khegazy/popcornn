@@ -5,7 +5,7 @@ from popcornn.tools.preprocess import Images
 from popcornn.potentials.base_potential import BasePotential
 from popcornn.paths.base_path import BasePath
 
-def test_transition_state_search():
+def test_ts_search():
     # Setup environment
     torch.manual_seed(2025)
     np.random.seed(2025)
