@@ -319,7 +319,7 @@ class BasePath(torch.nn.Module):
         self.TS_time = torch.tensor([[self.TS_time]], device=self.device)
         self.orig_TS_time = torch.tensor([[self.TS_time]], device=self.device)
     
-    def TS_search(self, time, energies=None, forces=None, topk_E=7, topk_F=16, idx_shift=4, N_interp=10000):
+    def TS_search(self, time, energies=None, forces=None, topk_E=7, topk_F=16, idx_shift=4, N_interp=100000):
         # Calculate missing energies and forces
         calc_energies = energies is None or torch.any(torch.isnan(energies))
         calc_forces = forces is None or torch.any(torch.isnan(forces))
@@ -365,7 +365,7 @@ class BasePath(torch.nn.Module):
             N_C = 1
             idx_shift = idx_shift*5
             energies = energies.flatten()
-        
+
         # Find highest energy points
         _, TS_idxs = torch.topk(energies, min(len(energies), topk_E))
 
@@ -389,13 +389,14 @@ class BasePath(torch.nn.Module):
         idxs_min[idxs_min<N_C] = N_C
         idxs_max = TS_idxs + idx_shift*(1 + N_C)
         idxs_max[idxs_max>=len(energies)] = len(energies) - N_C
+        idx_ranges = {(idxs_min[i].item(), idxs_max[i].item()) for i in range(len(idxs_min))}
         
         interp_ts = []
         interp_Es = []
         interp_Fs = []
         interp_magFs = []
         self.TS_force_mag = torch.tensor([np.inf], device=self.device)
-        for imin, imax in zip(idxs_min, idxs_max):
+        for imin, imax in idx_ranges:
             t_interp = time[imin:imax].detach().cpu().numpy()
             #print(time.shape, t_interp.shape, energies[imin:imax].shape, forces[imin:imax].shape)
             TS_F_interp = sp.interpolate.interp1d(
