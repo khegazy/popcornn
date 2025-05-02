@@ -128,8 +128,7 @@ class ODEintegrator(Metrics):
             t_final=torch.tensor([1], dtype=torch.float64),
             times=None,
         ):
-        # Check scale names
-
+        # Update loss parameters
         self.update_ode_fxn_scales(**ode_fxn_scales)
         self.loss_fxn.update_parameters(**loss_scales)
         
