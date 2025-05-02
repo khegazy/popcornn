@@ -1,19 +1,9 @@
 from .mlp import MLPpath
-from .mlp_dist import MLPDISTpath
-from .conv import CONVpath
-from .attention import Attentionpath
-from .b_spline import BSpline
-from .elastic_band import ElasticBand
-from .bezier import Bezier
+from .linear import LinearPath
 
 path_dict = {
-    "elastic_band" : ElasticBand,
     "mlp" : MLPpath,
-    "mlp_dist" : MLPDISTpath,
-    "conv" : CONVpath,
-    "attention" : Attentionpath,
-    "bspline" : BSpline,
-    "bezier" : Bezier,
+    "linear" : LinearPath,
 }
 
 def get_path(name, **config):
