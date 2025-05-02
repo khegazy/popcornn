@@ -327,9 +327,9 @@ class BasePath(torch.nn.Module):
         N_input_times = time.shape[0]
         if len(time.shape) == 3:
             N_input_times = N_input_times*(time.shape[1] - 1) - 2
-        if N_input_times < 6:
+        if N_input_times < 11:
             time = torch.reshape(time, (-1, time.shape[-1]))
-            time = torch.linspace(time[1,0], time[-2,0], 11)
+            time = torch.linspace(time[1,0], time[-2,0], 15)
             calc_energies = True
             calc_forces = True
         
