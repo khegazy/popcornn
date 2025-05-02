@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from popcornn import tools
 from popcornn.tools.scheduler import Cosine
-from popcornn.tools.tests import test_popcornn_run, test_scheduler
+from popcornn.tools.tests import popcornn_run_test, scheduler_test
 
 
 def test_cosine_scheduler():
@@ -31,8 +31,8 @@ def test_cosine_scheduler():
         config_path = os.path.join(
             "configs", f"{name}.yaml"
         )
-        mep, _, _ = test_popcornn_run(name, config_path, benchmark_path)
+        mep, _, _ = popcornn_run_test(name, config_path, benchmark_path)
 
         # Test scheduler effects match calculated scheduled weights
         config = tools.import_run_config(config_path)
-        test_scheduler(mep.path, config, schedule_fxn, mep.device)
+        scheduler_test(mep.path, config, schedule_fxn, mep.device)
