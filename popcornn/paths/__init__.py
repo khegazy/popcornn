@@ -1,5 +1,6 @@
 from .mlp import MLPpath
 from .linear import LinearPath
+from .base_path import Images
 
 path_dict = {
     "mlp" : MLPpath,

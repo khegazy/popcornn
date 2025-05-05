@@ -12,29 +12,82 @@ from ase.io import read
 
 
 @dataclass
+class Images():
+    """
+    Data class representing the images.
+
+    Attributes:
+    -----------
+    dtype: type
+        The data type of the images.
+    positions: torch.Tensor
+        The positions of the images.
+    vec: torch.Tensor
+        The vector representing the displacement between the first and last images.
+    atomic_numbers: torch.Tensor, optional
+        The atomic atomic_numbers of the images.
+    pbc: torch.Tensor, optional
+        The periodic boundary conditions of the images.
+    cell: torch.Tensor, optional
+        The cell dimensions of the images.
+    tags: torch.Tensor, optional
+        The tags of the atoms in the images.
+    """
+    dtype: type
+    positions: torch.Tensor
+    vec: torch.Tensor
+    atomic_numbers: torch.Tensor = None
+    pbc: torch.Tensor = None
+    cell: torch.Tensor = None
+    tags: torch.Tensor = None
+
+    def __len__(self):
+        """
+        Return the number of images.
+        """
+        return len(self.positions)
+
+    def to(self, device):
+        """
+        Move the images to the specified device.
+        """
+        self.positions = self.positions.to(device)
+        self.vec = self.vec.to(device)
+        if self.atomic_numbers is not None:
+            self.atomic_numbers = self.atomic_numbers.to(device)
+        if self.pbc is not None:
+            self.pbc = self.pbc.to(device)
+        if self.cell is not None:
+            self.cell = self.cell.to(device)
+        if self.tags is not None:
+            self.tags = self.tags.to(device)
+        return self
+
+
+@dataclass
 class PathOutput():
     """
     Data class representing the output of a path computation.
 
     Attributes:
     -----------
-    position : torch.Tensor
-        The coordinates along the path.
-    path_velocity : torch.Tensor, optional
-        The velocity along the path (default is None).
-    path_energy : torch.Tensor
-        The potential energy along the path.
-    path_force : torch.Tensor, optional
-        The force along the path (default is None).
     time : torch.Tensor
         The time at which the path was evaluated.
+    positions : torch.Tensor
+        The coordinates along the path.
+    velocities : torch.Tensor, optional
+        The velocity along the path (default is None).
+    energies : torch.Tensor
+        The potential energy along the path.
+    forces : torch.Tensor, optional
+        The force along the path (default is None).
     """
     time: torch.Tensor
-    position: torch.Tensor
-    velocity: torch.Tensor = None
-    energy: torch.Tensor = None
+    positions: torch.Tensor
+    velocities: torch.Tensor = None
+    energies: torch.Tensor = None
     energyterms: torch.Tensor = None
-    force: torch.Tensor = None
+    forces: torch.Tensor = None
     forceterms: torch.Tensor = None
 
 
@@ -44,9 +97,9 @@ class BasePath(torch.nn.Module):
 
     Attributes:
     -----------
-    initial_point : torch.Tensor
+    initial_position : torch.Tensor
         The initial point of the path.
-    final_point : torch.Tensor
+    final_position : torch.Tensor
         The final point of the path.
     potential : PotentialBase
         The potential function.
@@ -62,8 +115,8 @@ class BasePath(torch.nn.Module):
     forward(t, return_velocity=False, return_force=False) -> PathOutput:
         Compute the path output for the given time.
     """
-    initial_point: torch.Tensor
-    final_point: torch.Tensor
+    initial_position: torch.Tensor
+    final_position: torch.Tensor
 
     def __init__(
             self,
@@ -77,9 +130,9 @@ class BasePath(torch.nn.Module):
 
         Parameters:
         -----------
-        initial_point : torch.Tensor
+        initial_position : torch.Tensor
             The initial point of the path.
-        final_point : torch.Tensor
+        final_position : torch.Tensor
             The final point of the path.
         **kwargs : Any
             Additional keyword arguments.
@@ -88,8 +141,8 @@ class BasePath(torch.nn.Module):
         self.neval = 0
         self.find_TS = find_TS
         self.potential = None
-        self.initial_point = images.positions[0].to(device)
-        self.final_point = images.positions[-1].to(device)
+        self.initial_position = images.positions[0].to(device)
+        self.final_position = images.positions[-1].to(device)
         self.vec = images.vec.to(device)
         self._inp_reshaped = None
         if images.pbc is not None and images.pbc.any():

@@ -7,58 +7,6 @@ from dataclasses import dataclass
 from popcornn.tools.ase import pair_displacement
 
 
-@dataclass
-class Images():
-    """
-    Data class representing the images.
-
-    Attributes:
-    -----------
-    dtype: type
-        The data type of the images.
-    positions: torch.Tensor
-        The positions of the images.
-    vec: torch.Tensor
-        The vector representing the displacement between the first and last images.
-    atomic_numbers: torch.Tensor, optional
-        The atomic atomic_numbers of the images.
-    pbc: torch.Tensor, optional
-        The periodic boundary conditions of the images.
-    cell: torch.Tensor, optional
-        The cell dimensions of the images.
-    tags: torch.Tensor, optional
-        The tags of the atoms in the images.
-    """
-    dtype: type
-    positions: torch.Tensor
-    vec: torch.Tensor
-    atomic_numbers: torch.Tensor = None
-    pbc: torch.Tensor = None
-    cell: torch.Tensor = None
-    tags: torch.Tensor = None
-
-    def __len__(self):
-        """
-        Return the number of images.
-        """
-        return len(self.positions)
-
-    def to(self, device):
-        """
-        Move the images to the specified device.
-        """
-        self.positions = self.positions.to(device)
-        self.vec = self.vec.to(device)
-        if self.atomic_numbers is not None:
-            self.atomic_numbers = self.atomic_numbers.to(device)
-        if self.pbc is not None:
-            self.pbc = self.pbc.to(device)
-        if self.cell is not None:
-            self.cell = self.cell.to(device)
-        if self.tags is not None:
-            self.tags = self.tags.to(device)
-        return self
-
 def process_images(raw_images, device):
     """
     Process the images.
