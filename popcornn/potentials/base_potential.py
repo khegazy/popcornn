@@ -9,22 +9,21 @@ class PotentialOutput():
 
     Attributes:
     -----------
-    energy : torch.Tensor
-        The potential energy of the path.
-    force : torch.Tensor, optional
-        The force along the path.
+    energies : torch.Tensor
+        The potential energies of the path.
+    forces : torch.Tensor, optional
+        The forces along the path.
     """
-    energy: torch.Tensor = None
-    force: torch.Tensor = None
+    energies: torch.Tensor = None
+    forces: torch.Tensor = None
     energyterms: torch.Tensor = None
     forceterms: torch.Tensor = None
 
 
 
 class BasePotential(nn.Module):
-    def __init__(self, images, is_conservative=True, device='cpu', add_azimuthal_dof=False, add_translation_dof=False, **kwargs) -> None:
+    def __init__(self, images, device='cpu', add_azimuthal_dof=False, add_translation_dof=False, **kwargs) -> None:
         super().__init__()
-        self.is_conservative = is_conservative
         self.atomic_numbers = images.atomic_numbers.to(device) if images.atomic_numbers is not None else None
         self.n_atoms = len(images.atomic_numbers) if images.atomic_numbers is not None else None
         self.pbc = images.pbc.to(device) if images.pbc is not None else None
@@ -43,11 +42,11 @@ class BasePotential(nn.Module):
         self.eval()
 
     @staticmethod 
-    def calculate_conservative_force(energy, position, create_graph=True):
+    def calculate_conservative_forces(energies, position, create_graph=True):
         return -torch.autograd.grad(
-            energy,
+            energies,
             position,
-            grad_outputs=torch.ones_like(energy),
+            grad_outputs=torch.ones_like(energies),
             create_graph=create_graph,
         )[0]
     

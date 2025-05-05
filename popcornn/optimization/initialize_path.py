@@ -67,7 +67,7 @@ def randomly_initialize_path(
 def loss_init(
         path: torch.tensor,
         times: torch.tensor,
-        points: torch.tensor
+        positions: torch.tensor
 ) -> torch.Tensor:
     """
     Initialize the loss.
@@ -78,7 +78,7 @@ def loss_init(
         The path object.
     times : torch.Tensor
         Times.
-    points : torch.Tensor
+    positions : torch.Tensor
         Points.
 
     Returns:
@@ -86,9 +86,9 @@ def loss_init(
     torch.Tensor
         Loss value.
     """
-    preds = path(times).position
-    assert preds.shape == points.shape, f"Shapes do not match: {preds.shape} != {points.shape}"
-    disp = points - preds
+    preds = path(times).positions
+    assert preds.shape == positions.shape, f"Shapes do not match: {preds.shape} != {positions.shape}"
+    disp = positions - preds
     if path.transform is not None:
         disp = path.transform(disp, center=0.5)
     return torch.mean(disp ** 2)

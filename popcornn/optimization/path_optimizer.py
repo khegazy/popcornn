@@ -26,6 +26,7 @@ class PathOptimizer():
             device='cpu',
             **config
         ):
+        #TODO add find_TS boolean here and check with TS loss args
         super().__init__()
         
         self.device=device

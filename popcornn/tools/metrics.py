@@ -335,7 +335,7 @@ class Metrics():
             nans = torch.stack([torch.tensor([torch.nan], device=self.device)]*len(variables['time']))
             keep_variables = [
                 variables[name] if name in variables and variables[name] is not None else nans\
-                    for name in ['energy', 'force']
+                    for name in ['energies', 'forces']
             ]
             loss = torch.concatenate([loss] + keep_variables, dim=-1)
 
@@ -366,7 +366,7 @@ class Metrics():
             
             keep_variables = [
                 kwargs[name] if name in kwargs and kwargs[name] is not None else nans\
-                    for name in ['energy', 'force']
+                    for name in ['energies', 'forces']
             ]
             
             loss = torch.concatenate([loss] + keep_variables, dim=-1)
@@ -408,16 +408,16 @@ class Metrics():
             eval_time,
             path,
             time=None,
-            position=None,
-            velocity=None,
-            energy=None,
+            positions=None,
+            velocities=None,
+            energies=None,
             energyterms=None,
-            force=None,
+            forces=None,
             forceterms=None,
-            requires_velocity=False,
-            requires_energy=False,
+            requires_velocities=False,
+            requires_energies=False,
             requires_energyterms=False,
-            requires_force=False,
+            requires_forces=False,
             requires_forceterms=False,
         ):
         
@@ -427,65 +427,65 @@ class Metrics():
                  and torch.allclose(time, eval_time, atol=1e-10)
             )
 
-        # Is energy missing and required 
-        requires_energy = requires_energy and energy is None
+        # Is energies missing and required 
+        requires_energies = requires_energies and energies is None
         requires_energyterms = requires_energyterms and energyterms is None
-        missing_any_energy = requires_energy or requires_energyterms
+        missing_any_energy = requires_energies or requires_energyterms
         
-        # Is force missing and required 
-        requires_force = requires_force and force is None
+        # Is forces missing and required 
+        requires_forces = requires_forces and forces is None
         requires_forceterms = requires_forceterms and forceterms is None
-        missing_any_force = requires_force or requires_forceterms
+        missing_any_force = requires_forces or requires_forceterms
 
-        # We must evaluate path if time do not match, or, force or energy is missing
+        # We must evaluate path if time do not match, or, forces or energies is missing
         path_output = None
         if not time_match or missing_any_energy or missing_any_force:
             path_output = path(
                 eval_time,
-                return_velocity=requires_velocity,
-                return_energy=requires_energy, 
+                return_velocities=requires_velocities,
+                return_energies=requires_energies, 
                 return_energyterms=requires_energyterms, 
-                return_force=requires_force,
+                return_forces=requires_forces,
                 return_forceterms=requires_forceterms
             )
             time = eval_time
-            velocity = velocity if path_output.velocity is None\
-                else path_output.velocity
-            energy = energy if path_output.energy is None\
-                else path_output.energy
+            velocities = velocities if path_output.velocities is None\
+                else path_output.velocities
+            energies = energies if path_output.energies is None\
+                else path_output.energies
             energyterms = energyterms if path_output.energyterms is None\
                 else path_output.energyterms
-            force = force if path_output.force is None\
-                else path_output.force
+            forces = forces if path_output.forces is None\
+                else path_output.forces
             forceterms = forceterms if path_output.forceterms is None\
                 else path_output.forceterms
 
         else:
-           # Calculate velocity if missing and required
-            if requires_velocity and velocity is None:
-                velocity = path.calculate_velocity(time)
-                requires_velocity = False
+           # Calculate velocities if missing and required
+            if requires_velocities and velocities is None:
+                velocities = path.calculate_velocities(time)
+                requires_velocities = False
             
         return {
             'time' : time,
-            'position' : position,
-            'velocity' : velocity,
-            'energy' : energy,
+            'positions' : positions,
+            'velocities' : velocities,
+            'energies' : energies,
             'energyterms' : energyterms,
-            'force' : force,
+            'forces' : forces,
             'forceterms' : forceterms
         }
 
 
     def E_geo(self, get_required_variables=False, **kwargs):
         if get_required_variables:
-            return ('forceterms', 'velocity')
+            return ('forceterms', 'velocities')
         variables = self._parse_input(**kwargs)
         
         projection = torch.einsum(
             'bki,bi->bk',
             variables['forceterms'],
-            variables['velocity']
+            variables['velocities']
         )
         Egeo = torch.linalg.norm(projection, dim=-1, keepdim=True)
         return Egeo, variables
@@ -493,22 +493,22 @@ class Metrics():
 
     def E_vre(self, get_required_variables=False, **kwargs):
         if get_required_variables:
-            return ('force', 'velocity')
+            return ('forces', 'velocities')
         variables = self._parse_input(**kwargs)
         
-        F = torch.linalg.norm(variables['force'], dim=-1, keepdim=True)
-        V = torch.linalg.norm(variables['velocity'], dim=-1, keepdim=True)
+        F = torch.linalg.norm(variables['forces'], dim=-1, keepdim=True)
+        V = torch.linalg.norm(variables['velocities'], dim=-1, keepdim=True)
         Evre = F*V
         return Evre, variables
 
 
     def E_pvre(self, get_required_variables=False, **kwargs):
         if get_required_variables:
-            return ('force', 'velocity') 
+            return ('forces', 'velocities') 
         variables = self._parse_input(**kwargs)
-        #print(variables['force'].shape, variables['velocity'].shape)
+        #print(variables['forces'].shape, variables['velocities'].shape)
         overlap = torch.sum(
-            variables['velocity']*variables['force'],
+            variables['velocities']*variables['forces'],
             dim=-1,
             keepdim=True
         )
@@ -518,27 +518,27 @@ class Metrics():
 
     def E_pvre_mag(self, get_required_variables=False, **kwargs):
         if get_required_variables:
-            return ('force', 'velocity') 
+            return ('forces', 'velocities') 
         variables = self._parse_input(**kwargs)
         
-        Epvre_mag = torch.linalg.norm(variables['velocity']*variables['force'])
+        Epvre_mag = torch.linalg.norm(variables['velocities']*variables['forces'])
         return Epvre_mag, variables
 
 
     def E(self, get_required_variables=False, **kwargs):
         if get_required_variables:
-            return ('energy',) 
+            return ('energies',) 
         variables = self._parse_input(**kwargs)
         
-        return variables['energy'], variables
+        return variables['energies'], variables
       
 
     def E_mean(self, get_required_variables=False, **kwargs):
         if get_required_variables:
-            return ('energy',) 
+            return ('energies',) 
         variables = self._parse_input(**kwargs)
         
-        mean_E = torch.mean(variables['energy'], dim=0, keepdim=True)
+        mean_E = torch.mean(variables['energies'], dim=0, keepdim=True)
         return mean_E, variables
 
 
@@ -557,8 +557,8 @@ class Metrics():
     
     def F_mag(self, get_required_variables=False, **kwargs):
         if get_required_variables:
-            return ('force',)
+            return ('forces',)
         variables = self._parse_input(**kwargs)
 
-        Fmag = torch.linalg.norm(variables['force'], dim=-1, keepdim=True)
+        Fmag = torch.linalg.norm(variables['forces'], dim=-1, keepdim=True)
         return Fmag, variables

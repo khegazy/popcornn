@@ -23,18 +23,18 @@ class OrbPotential(BasePotential):
 
     
     def forward(self, positions):
-        data = self.data_formatter(points)
+        data = self.data_formatter(positions)
         pred = self.model.predict(data)
         # pred = self.model(data.to_dict(), training=True)
         self.n_eval += 1
         if self.use_autograd:
-            energy = pred['graph_pred'].view(*points.shape[:-1], 1)
-            return PotentialOutput(energy=energy)
+            energies = pred['graph_pred'].view(*positions.shape[:-1], 1)
+            return PotentialOutput(energies=energies)
         else:
-            energy = pred['graph_pred'].view(*points.shape[:-1], 1)
-            force = pred['node_pred'].view(*points.shape)
-            force = force.view(*points.shape)
-            return PotentialOutput(energy=energy, force=force)
+            energies = pred['graph_pred'].view(*positions.shape[:-1], 1)
+            forces = pred['node_pred'].view(*positions.shape)
+            forces = forces.view(*positions.shape)
+            return PotentialOutput(energies=energies, forces=forces)
         
 
     def load_model(self, model_path):

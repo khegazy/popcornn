@@ -44,11 +44,11 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
             json.dump(
                 {
                     "time" : path_output.time.tolist(),
-                    "position" : path_output.position.tolist(),
-                    "velocity" : path_output.velocity.tolist(),
-                    "energy" : path_output.energy.tolist(),
+                    "positions" : path_output.positions.tolist(),
+                    "velocities" : path_output.velocities.tolist(),
+                    "energies" : path_output.energies.tolist(),
                     "energyterms" : energyterms,
-                    "force" : path_output.force.tolist(),
+                    "forces" : path_output.forces.tolist(),
                     "forceterms" : forceterms,
                 },
                 file
@@ -63,19 +63,19 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
     )
     assert time_test, "path output time does not match benchmark"
     position_test = torch.allclose(
-        path_output.position.cpu().to(torch.float32),
+        path_output.positions.cpu().to(torch.float32),
         torch.tensor(path_benchmark['position']),
         atol=pos_atol, rtol=pos_rtol
     )
     assert position_test, "path output position does not match benchmark"
     velocity_test = torch.allclose(
-        path_output.velocity.cpu().to(torch.float32),
+        path_output.velocities.cpu().to(torch.float32),
         torch.tensor(path_benchmark['velocity']),
         atol=V_atol, rtol=V_rtol
     )
     assert velocity_test, "path output velocity does not match benchmark"
     energy_test = torch.allclose(
-        path_output.energy.cpu().to(torch.float32),
+        path_output.energies.cpu().to(torch.float32),
         torch.tensor(path_benchmark['energy']),
         atol=E_atol, rtol=E_rtol
     )
@@ -88,7 +88,7 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
         )
         assert energyterms_test, "path output energyterms does not match benchmark"
     force_test = torch.allclose(
-        path_output.force.cpu().to(torch.float32),
+        path_output.forces.cpu().to(torch.float32),
         torch.tensor(path_benchmark['force']),
         atol=F_atol, rtol=F_rtol
     )
@@ -117,11 +117,11 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
             json.dump(
                 {
                     "time" : ts_output.time.tolist(),
-                    "position" : ts_output.position.tolist(),
-                    "velocity" : ts_output.velocity.tolist(),
-                    "energy" : ts_output.energy.tolist(),
+                    "positions" : ts_output.positions.tolist(),
+                    "velocities" : ts_output.velocities.tolist(),
+                    "energies" : ts_output.energies.tolist(),
                     "energyterms" : energyterms,
-                    "force" : ts_output.force.tolist(),
+                    "forces" : ts_output.forces.tolist(),
                     "forceterms" : forceterms,
                 },
                 file
@@ -136,19 +136,19 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
     )
     assert time_test, "path output time does not match benchmark"
     position_test = torch.allclose(
-        ts_output.position.cpu().to(torch.float32),
+        ts_output.positions.cpu().to(torch.float32),
         torch.tensor(ts_benchmark['position']),
         atol=pos_atol, rtol=pos_rtol
     )
     assert position_test, "path output position does not match benchmark"
     velocity_test = torch.allclose(
-        ts_output.velocity.cpu().to(torch.float32),
+        ts_output.velocities.cpu().to(torch.float32),
         torch.tensor(ts_benchmark['velocity']),
         atol=V_atol, rtol=V_rtol
     )
     assert velocity_test, "path output velocity does not match benchmark"
     energy_test = torch.allclose(
-        ts_output.energy.cpu().to(torch.float32),
+        ts_output.energies.cpu().to(torch.float32),
         torch.tensor(ts_benchmark['energy']),
         atol=E_atol, rtol=E_rtol
     )
@@ -161,7 +161,7 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
         )
         assert energyterms_test, "path output energyterms does not match benchmark"
     force_test = torch.allclose(
-        ts_output.force.cpu().to(torch.float32),
+        ts_output.forces.cpu().to(torch.float32),
         torch.tensor(ts_benchmark['force']),
         atol=F_atol, rtol=F_rtol
     )
@@ -216,9 +216,9 @@ def scheduler_test(path, config, schedule_fxn, device):
     fxn1_val, _ = fxn1(
         eval_time=time,
         path=path,
-        requires_energy=True,
-        requires_velocity=True,
-        requires_force=True,
+        requires_energies=True,
+        requires_velocities=True,
+        requires_forces=True,
     )
     fxn1_scheduled_vals = fxn1_val.unsqueeze(0)*schedule_fxn(
         scheduler_config[fxn1_name]['start_value'],
@@ -232,9 +232,9 @@ def scheduler_test(path, config, schedule_fxn, device):
     fxn2_val, _ = fxn2(
         eval_time=time,
         path=path,
-        requires_energy=True,
-        requires_velocity=True,
-        requires_force=True
+        requires_energies=True,
+        requires_velocities=True,
+        requires_forces=True
     )
     fxn2_scheduled_vals = fxn2_val.unsqueeze(0)*schedule_fxn(
         scheduler_config[fxn2_name]['start_value'],

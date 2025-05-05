@@ -24,15 +24,15 @@ class NewtonNetPotential(BasePotential):
 
 
     def forward(self, positions):
-        data = self.data_formatter(points)
+        data = self.data_formatter(positions)
         pred = self.model(data.z, data.disp, data.edge_index, data.batch)
         self.n_eval += 1
-        energy = pred.energy.unsqueeze(-1)
-        force = pred.gradient_force
+        energies = pred.energy.unsqueeze(-1)
+        forces = pred.gradient_force
         # energyterms = energyterms.view(-1, self.n_atoms)
         # return PotentialOutput(energyterms=energyterms)
-        force = force.view(*points.shape)
-        return PotentialOutput(energy=energy, force=force)
+        forces = forces.view(*positions.shape)
+        return PotentialOutput(energies=energies, forces=forces)
 
 
     def load_model(self, model_path):

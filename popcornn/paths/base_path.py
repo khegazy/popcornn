@@ -22,7 +22,7 @@ class PathOutput():
     positions : torch.Tensor
         The coordinates along the path.
     velocities : torch.Tensor, optional
-        The velocity along the path (default is None).
+        The velocities along the path (default is None).
     energies : torch.Tensor
         The potential energy along the path.
     forces : torch.Tensor, optional
@@ -55,10 +55,10 @@ class BasePath(torch.nn.Module):
     geometric_path(time, y, *args) -> torch.Tensor:
         Compute the geometric path at the given time.
 
-    get_path(time=None, return_velocity=False, return_force=False) -> PathOutput:
+    get_path(time=None, return_velocities=False, return_forces=False) -> PathOutput:
         Get the path for the given time.
 
-    forward(t, return_velocity=False, return_force=False) -> PathOutput:
+    forward(t, return_velocities=False, return_forces=False) -> PathOutput:
         Compute the path output for the given time.
     """
     initial_position: torch.Tensor
@@ -146,7 +146,7 @@ class BasePath(torch.nn.Module):
         raise NotImplementedError()
 
     
-    def calculate_velocity(self, t, create_graph=True):
+    def calculate_velocities(self, t, create_graph=True):
         return torch.autograd.functional.jacobian(
             lambda t: torch.sum(self.get_geometry(t), axis=0),
             t,
@@ -157,46 +157,46 @@ class BasePath(torch.nn.Module):
     def _check_output(
             self,
             potential_output,
-            return_energy: bool,
+            return_energies: bool,
             return_energyterms: bool,
-            return_force: bool,
+            return_forces: bool,
             return_forceterms: bool,
         ):
         name = type(self.potential).__name__
-        if return_energy and potential_output.energy is None:
-            raise ValueError(f"Potential {name} cannot calculate energy")
+        if return_energies and potential_output.energies is None:
+            raise ValueError(f"Potential {name} cannot calculate energies")
         if return_energyterms and potential_output.energyterms is None:
             raise ValueError(f"Potential {name} cannot calculate energyterms")
-        if return_force and potential_output.force is None:
-            raise ValueError(f"Potential {name} cannot calculate force")
+        if return_forces and potential_output.forces is None:
+            raise ValueError(f"Potential {name} cannot calculate forces")
         if return_forceterms and potential_output.forceterms is None:
             raise ValueError(f"Potential {name} cannot calculate forceterms")
     
     def forward(
             self,
             time : torch.Tensor = None,
-            return_velocity: bool = False,
-            return_energy: bool = False,
+            return_velocities: bool = False,
+            return_energies: bool = False,
             return_energyterms: bool = False,
-            return_force: bool = False,
+            return_forces: bool = False,
             return_forceterms: bool = False,
     ) -> PathOutput:
         """
-        Forward pass to compute the path, potential, velocity, and force.
+        Forward pass to compute the path, potential, velocities, and force.
 
         Parameters:
         -----------
         t : torch.Tensor
             The time tensor at which to evaluate the path.
-        return_velocity : bool, optional
-            Whether to return velocity along the path (default is False).
-        return_force : bool, optional
+        return_velocities : bool, optional
+            Whether to return velocities along the path (default is False).
+        return_forces : bool, optional
             Whether to return force along the path (default is False).
 
         Returns:
         --------
         PathOutput
-            An instance of the PathOutput class containing the computed path, potential, velocity, force, and time.
+            An instance of the PathOutput class containing the computed path, potential, velocities, force, and time.
         """
         time = self._reshape_in(time)
         time = time.to(torch.float64).to(self.device)
@@ -205,51 +205,51 @@ class BasePath(torch.nn.Module):
         # if self.neval > 1e5:
         #     raise ValueError("Too many evaluations!")
 
-        position = self.get_geometry(time)
+        positions = self.get_geometry(time)
         if self.transform is not None:
-            position = self.transform(position)
-        if return_energy or return_energyterms or return_force or return_forceterms:
-            potential_output = self.potential(position) #TODO: Add return force here too
+            positions = self.transform(positions)
+        if return_energies or return_energyterms or return_forces or return_forceterms:
+            potential_output = self.potential(positions) #TODO: Add return force here too
             self._check_output(
                 potential_output,
-                return_energy=return_energy,
+                return_energies=return_energies,
                 return_energyterms=return_energyterms,
-                return_force=return_force,
+                return_forces=return_forces,
                 return_forceterms=return_forceterms
             )
         else:
             potential_output = PotentialOutput()
 
 
-        if return_velocity:
+        if return_velocities:
             # if is_batched:
             #     fxn = lambda t: torch.sum(self.geometric_path(t), axis=0)
             # else:
             #     fxn = lambda t: self.geometric_path(t)
-            # velocity = torch.autograd.functional.jacobian(
+            # velocities = torch.autograd.functional.jacobian(
             #     fxn, t, create_graph=self.training, vectorize=is_batched
             # )
             """
-            velocity = torch.autograd.functional.jacobian(
+            velocities = torch.autograd.functional.jacobian(
                 lambda t: torch.sum(self.get_geometry(t), axis=0), t, create_graph=True, vectorize=True
             ).transpose(0, 1)[:, :, 0]
             """
-            velocity = self.calculate_velocity(time)
+            velocities = self.calculate_velocities(time)
         else:
-            velocity = None
+            velocities = None
 
         """
-        if return_energy or return_force or return_forceterms:
+        if return_energies or return_forces or return_forceterms:
             del potential_output
         """
 
         return PathOutput(
             time=self._reshape_out(time),
-            position=self._reshape_out(position),
-            velocity=self._reshape_out(velocity),
-            energy=self._reshape_out(potential_output.energy),
+            positions=self._reshape_out(positions),
+            velocities=self._reshape_out(velocities),
+            energies=self._reshape_out(potential_output.energies),
             energyterms=self._reshape_out(potential_output.energyterms),
-            force=self._reshape_out(potential_output.force),
+            forces=self._reshape_out(potential_output.forces),
             forceterms=self._reshape_out(potential_output.forceterms),
         )
     
@@ -335,12 +335,12 @@ class BasePath(torch.nn.Module):
         # Calculate energies and forces if necessary
         if calc_energies or calc_forces:
             path_output = self.forward(
-                time, return_energy=calc_energies, return_force=calc_forces
+                time, return_energies=calc_energies, return_forces=calc_forces
             )  #TODO: check the dimensions of time
             if calc_energies:
-                energies = path_output.energy
+                energies = path_output.energies
             if calc_forces:
-                forces = path_output.force
+                forces = path_output.forces
             print("CALC E F", time.shape)
             if energies is not None:
                 print("\tE", energies.shape)
@@ -507,7 +507,7 @@ class BasePath(torch.nn.Module):
         #TS_time = TS_search[TS_idxs % N_interp]
 
         #TS_time = torch.tensor(TS_time) + time[idxs_min[TS_idxs//N_interp]]
-        #path_output = path(TS_time, return_energy=True, return_force=True)
+        #path_output = path(TS_time, return_energies=True, return_forces=True)
         #TS_idx = torch.argmin(
         #    torch.linalg.vector_norm(path_output.path_force, ord=2, dim=-1)
         #)

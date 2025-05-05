@@ -151,24 +151,24 @@ class Popcornn:
             if output_dir is not None:
                 time = path_integral.t.flatten()
                 ts_time = self.path.TS_time
-                path_output = self.path(time, return_velocity=True, return_energy=True, return_force=True)
-                ts_output = self.path(torch.tensor([ts_time]), return_velocity=True, return_energy=True, return_force=True)
+                path_output = self.path(time, return_velocities=True, return_energies=True, return_forces=True)
+                ts_output = self.path(torch.tensor([ts_time]), return_velocities=True, return_energies=True, return_forces=True)
                 
                 with open(os.path.join(log_dir, f"output_{optim_idx}.json"), 'w') as file:
                     json.dump(
                         {
-                            "path_time": time.tolist(),
-                            "path_geometry": path_output.position.tolist(),
-                            "path_energy": path_output.energy.tolist(),
-                            "path_velocity": path_output.velocity.tolist(),
-                            "path_force": path_output.force.tolist(),
-                            "path_loss": path_integral.y.tolist(),
-                            "path_integral": path_integral.integral.item(),
-                            "path_ts_time": ts_time.tolist(),
-                            "path_ts_geometry": ts_output.position.tolist(),
-                            "path_ts_energy": ts_output.energy.tolist(),
-                            "path_ts_velocity": ts_output.velocity.tolist(),
-                            "path_ts_force": ts_output.force.tolist(),
+                            "time": time.tolist(),
+                            "positions": path_output.positions.tolist(),
+                            "energies": path_output.energies.tolist(),
+                            "velocities": path_output.velocities.tolist(),
+                            "forces": path_output.forces.tolist(),
+                            "loss_evals": path_integral.y.tolist(),
+                            "integral": path_integral.integral.item(),
+                            "ts_time": ts_time.tolist(),
+                            "ts_positions": ts_output.positions.tolist(),
+                            "ts_energies": ts_output.energies.tolist(),
+                            "ts_velocities": ts_output.velocities.tolist(),
+                            "ts_forces": ts_output.forces.tolist(),
                         }, 
                         file,
                     )
@@ -180,8 +180,8 @@ class Popcornn:
             
         time = torch.linspace(self.path.t_init.item(), self.path.t_final.item(), self.num_record_points, device=self.device)
         ts_time = self.path.TS_time
-        path_output = self.path(time, return_velocity=True, return_energy=True, return_force=True)
-        ts_output = self.path(torch.tensor([ts_time]), return_velocity=True, return_energy=True, return_force=True)
+        path_output = self.path(time, return_velocities=True, return_energies=True, return_forces=True)
+        ts_output = self.path(torch.tensor([ts_time]), return_velocities=True, return_energies=True, return_forces=True)
         if issubclass(self.images.dtype, Atoms) and output_ase_atoms:
             images, ts_images = output_to_atoms(path_output, self.images), output_to_atoms(ts_output, self.images)
             return images, ts_images[0]

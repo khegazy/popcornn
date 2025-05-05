@@ -22,17 +22,17 @@ class MorsePotential(BasePotential):
     def forward(self, positions):
         if self.r0 is None:
             self.set_r0(self.atomic_numbers)
-        points_3d = points.view(-1, self.n_atoms, 3)
-        r = torch.norm(points_3d[:, self.ind[0]] - points_3d[:, self.ind[1]], dim=-1)
+        positions_3d = positions.view(-1, self.n_atoms, 3)
+        r = torch.norm(positions_3d[:, self.ind[0]] - positions_3d[:, self.ind[1]], dim=-1)
         energyterms = (1 - torch.exp(-self.alpha * (r - self.r0))) ** 2 - 1
-        energy = torch.sum(energyterms, dim=-1, keepdim=True)
+        energies = torch.sum(energyterms, dim=-1, keepdim=True)
 
-        force = self.calculate_conservative_force(energy, positions)
+        forces = self.calculate_conservative_forces(energies, positions)
         forceterms = self.calculate_conservative_forceterms(energyterms, positions)
         return PotentialOutput(
-            energy=energy,
+            energies=energies,
             energyterms=energyterms,
-            force=force,
+            forces=forces,
             forceterms=forceterms
         )
     

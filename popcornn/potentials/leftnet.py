@@ -22,18 +22,18 @@ class LeftNetPotential(BasePotential):
 
     
     def forward(self, positions):
-        data = self.data_formatter(points)
+        data = self.data_formatter(positions)
         if self.use_autograd:
             pred = self.model.forward_autograd(data)
         else:
             pred = self.model.forward(data)
         self.n_eval += 1
-        energy = pred[0]
-        force = pred[1]
-        energy = energy.view(*points.shape[:-1], 1)
-        # return PotentialOutput(energy=energy)
-        force = force.view(*points.shape)
-        return PotentialOutput(energy=energy, force=force)
+        energies = pred[0]
+        forces = pred[1]
+        energies = energies.view(*positions.shape[:-1], 1)
+        # return PotentialOutput(energies=energies)
+        forces = forces.view(*positions.shape)
+        return PotentialOutput(energies=energies, forces=forces)
         
 
     def load_model(self, model_path):

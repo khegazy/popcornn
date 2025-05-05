@@ -26,7 +26,7 @@ class logging():
             add_translation_dof=False
         ):
         print(f"Step {step} | Loss: {loss.item():.7}")
-        path_output = path.get_path(return_velocity=True, return_force=True)
+        path_output = path.get_path(return_velocities=True, return_forces=True)
         if geo_paths is not None:
             geo_paths.append(path_output.geometric_path)
         if pes_paths is not None:

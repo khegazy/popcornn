@@ -25,13 +25,13 @@ class EScAIPPotential(BasePotential):
         self.trainer.model.requires_grad_(False)
 
     def forward(self, positions):
-        data = self.data_formatter(points)
+        data = self.data_formatter(positions)
         pred = self.trainer.model(data)
         for key in pred.keys():
             pred[key] = self.trainer._denorm_preds(key, pred[key], data)
-        energy = pred['energy'].view(-1)
-        force = pred['forces'].view(*points.shape)
-        return PotentialOutput(energy=energy, force=force)
+        energies = pred['energy'].view(-1)
+        forces = pred['forces'].view(*positions.shape)
+        return PotentialOutput(energies=energies, forces=forces)
 
     def data_formatter(self, pos):
         pos: torch.Tensor = pos.float()

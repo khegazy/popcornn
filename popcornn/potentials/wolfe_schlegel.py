@@ -11,11 +11,11 @@ class WolfeSchlegel(BasePotential):
     def forward(self, positions):
         x = positions[:,0]
         y = positions[:,1]
-        energy = 10*(x**4 + y**4 - 2*x**2 - 4*y**2\
+        energies = 10*(x**4 + y**4 - 2*x**2 - 4*y**2\
             + x*y + 0.2*x + 0.1*y)
-        energy = energy.unsqueeze(-1)
-        force = self.calculate_conservative_force(energy, positions)
+        energies = energies.unsqueeze(-1)
+        forces = self.calculate_conservative_forces(energies, positions)
         return PotentialOutput(
-            energy=energy,
-            force=force
+            energies=energies,
+            forces=forces
         )

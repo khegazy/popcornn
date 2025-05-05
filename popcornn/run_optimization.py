@@ -114,15 +114,15 @@ def optimize_MEP(
         if output_dir is not None:
             times = path_integral.t.flatten()
             ts_time = path.TS_time
-            path_output = path(times, return_velocity=True, return_energy=True, return_force=True)
-            ts_output = path(torch.tensor([ts_time]), return_velocity=True, return_energy=True, return_force=True)
+            path_output = path(times, return_velocities=True, return_energies=True, return_forces=True)
+            ts_output = path(torch.tensor([ts_time]), return_velocities=True, return_energies=True, return_forces=True)
 
             output = OptimizationOutput(
                 times=times.tolist(),
-                position=path_output.position.tolist(),
-                energy=path_output.energy.tolist(),
-                velocity=path_output.velocity.tolist(),
-                force=path_output.force.tolist(),
+                position=path_output.positions.tolist(),
+                energy=path_output.energies.tolist(),
+                velocity=path_output.velocities.tolist(),
+                force=path_output.forces.tolist(),
                 loss=path_integral.y.tolist(),
                 integral=path_integral.integral.item(),
                 ts_time=ts_time.tolist(),
@@ -144,8 +144,8 @@ def optimize_MEP(
     #####  Save optimization output  #####
     time = torch.linspace(path.t_init.item(), path.t_final.item(), num_record_points)
     ts_time = path.TS_time
-    path_output = path(time, return_velocity=True, return_energy=True, return_force=True)
-    ts_output = path(torch.tensor([ts_time]), return_velocity=True, return_energy=True, return_force=True)
+    path_output = path(time, return_velocities=True, return_energies=True, return_forces=True)
+    ts_output = path(torch.tensor([ts_time]), return_velocities=True, return_energies=True, return_forces=True)
     if issubclass(images.dtype, Atoms):
         images, ts_images = output_to_atoms(path_output, images), output_to_atoms(ts_output, images)
         return images, ts_images[0]
