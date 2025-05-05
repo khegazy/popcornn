@@ -35,8 +35,8 @@ class MLPpath(BasePath):
 
         self.activation = activation_dict[activation]
         # input_sizes = [1] + [n_embed]*(depth - 1)
-        input_sizes = [1] + [self.final_point.shape[-1] * n_embed]*(depth - 1)
-        output_sizes = input_sizes[1:] + [self.final_point.shape[-1]]
+        input_sizes = [1] + [self.final_position.shape[-1] * n_embed]*(depth - 1)
+        output_sizes = input_sizes[1:] + [self.final_position.shape[-1]]
         self.layers = [
             nn.Linear(
                 input_sizes[i//2], output_sizes[i//2], dtype=torch.float64, bias=True

@@ -6,9 +6,9 @@ class MinimaUpdate():
         self.step_size = step_size
         self.n_steps = n_steps
 
-    def find_minima(self, initial_points=[]):
+    def find_minima(self, initial_positions=[]):
         self.minima = [
-            self.find_minimum(torch.tensor(point)) for point in initial_points
+            self.find_minimum(torch.tensor(point)) for point in initial_positions
         ]
         return self.minima
 

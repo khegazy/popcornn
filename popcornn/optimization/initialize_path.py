@@ -34,24 +34,24 @@ def randomly_initialize_path(
     times = torch.unsqueeze(torch.linspace(0, 1, n_points+2, device=path.device)[1:-1], -1)
     times.requires_grad = False
 
-    n_dims = len(path.initial_point)
+    n_dims = len(path.initial_position)
     rnd_dims = []
     for idx in range(n_dims):
         min_val = torch.min(
-            torch.tensor([path.initial_point[idx], path.final_point[idx]], device=path.device)
+            torch.tensor([path.initial_position[idx], path.final_position[idx]], device=path.device)
         ).item()
         max_val = torch.max(
-            torch.tensor([path.initial_point[idx], path.final_point[idx]], device=path.device)
+            torch.tensor([path.initial_position[idx], path.final_position[idx]], device=path.device)
         ).item()
         print("MIN MAX", min_val, max_val)
         # rnd_vals = rnd.uniform(size=(n_points, 1), low=min_val, high=max_val)
         rnd_vals = torch.rand(n_points, 1, device=path.device) * (max_val - min_val) + min_val
         if order_points or idx == 0:
-            # if path.initial_point[idx] > path.final_point[idx]:
+            # if path.initial_position[idx] > path.final_position[idx]:
             #     rnd_dims.append(-1*np.sort(-1*rnd_vals, axis=0))
             # else:
             #     rnd_dims.append(np.sort(rnd_vals, axis=0))
-            descending = path.initial_point[idx] > path.final_point[idx]
+            descending = path.initial_position[idx] > path.final_position[idx]
             rnd_dims.append(torch.sort(rnd_vals, axis=0, descending=descending.item()).values)
         else:
             rnd_dims.append(rnd_vals)
