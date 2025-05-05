@@ -1,7 +1,4 @@
 import numpy as np
-from torch.optim import lr_scheduler
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-
 
 class SchedulerBase:
     def __init__(self, value=1.0, current_step=-1):
@@ -41,7 +38,6 @@ class Cosine(SchedulerBase):
         super().__init__(**kwargs)
     
     def _get_closed_form(self):
-        # return self.eta_min + (self.value - self.eta_min) * (1 + math.cos(math.pi * self.current_step / self.T_max)) / 2
         step = min(self.current_step, self.last_step)
         return self.value * (self.end_value - self.delta * (1 + np.cos(step * self.freq )) / 2)
     
@@ -49,8 +45,6 @@ class Cosine(SchedulerBase):
 SCHEDULER_DICT = {
     'linear' : Linear,
     'cosine' : Cosine,
-    # 'reduce_on_plateau' : ReduceOnPlateau,
-    # 'increase_on_plateau' : IncreaseOnPlateau 
 }
 
 def get_schedulers(scheduler_params):
