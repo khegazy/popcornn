@@ -10,14 +10,14 @@ class Schwefel(BasePotential):
         dim = positions.shape[-1]
         offset = 418.9829 * dim
         sinusiods = positions * torch.sin(torch.sqrt(torch.abs(positions)))
-        energyterms = offset - sinusiods
-        energies = torch.sum(energyterms, dim=-1, keepdim=True)
+        energies_decomposed = offset - sinusiods
+        energies = torch.sum(energies_decomposed, dim=-1, keepdim=True)
         forces = self.calculate_conservative_forces(energies, positions)
-        forceterms = self.calculate_conservative_forceterms(energyterms, positions)
+        forces_decomposed = self.calculate_conservative_forces_decomposed(energies_decomposed, positions)
 
         return PotentialOutput(
             energies=energies,
-            energyterms=energyterms,
+            energies_decomposed=energies_decomposed,
             forces=forces,
-            forceterms=forceterms
+            forces_decomposed=forces_decomposed
         )

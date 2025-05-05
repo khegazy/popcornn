@@ -32,9 +32,9 @@ class PathOutput():
     positions: torch.Tensor
     velocities: torch.Tensor = None
     energies: torch.Tensor = None
-    energyterms: torch.Tensor = None
+    energies_decomposed: torch.Tensor = None
     forces: torch.Tensor = None
-    forceterms: torch.Tensor = None
+    forces_decomposed: torch.Tensor = None
 
 
 class BasePath(torch.nn.Module):
@@ -158,28 +158,28 @@ class BasePath(torch.nn.Module):
             self,
             potential_output,
             return_energies: bool,
-            return_energyterms: bool,
+            return_energies_decomposed: bool,
             return_forces: bool,
-            return_forceterms: bool,
+            return_forces_decomposed: bool,
         ):
         name = type(self.potential).__name__
         if return_energies and potential_output.energies is None:
             raise ValueError(f"Potential {name} cannot calculate energies")
-        if return_energyterms and potential_output.energyterms is None:
-            raise ValueError(f"Potential {name} cannot calculate energyterms")
+        if return_energies_decomposed and potential_output.energies_decomposed is None:
+            raise ValueError(f"Potential {name} cannot calculate energies_decomposed")
         if return_forces and potential_output.forces is None:
             raise ValueError(f"Potential {name} cannot calculate forces")
-        if return_forceterms and potential_output.forceterms is None:
-            raise ValueError(f"Potential {name} cannot calculate forceterms")
+        if return_forces_decomposed and potential_output.forces_decomposed is None:
+            raise ValueError(f"Potential {name} cannot calculate forces_decomposed")
     
     def forward(
             self,
             time : torch.Tensor = None,
             return_velocities: bool = False,
             return_energies: bool = False,
-            return_energyterms: bool = False,
+            return_energies_decomposed: bool = False,
             return_forces: bool = False,
-            return_forceterms: bool = False,
+            return_forces_decomposed: bool = False,
     ) -> PathOutput:
         """
         Forward pass to compute the path, potential, velocities, and force.
@@ -208,14 +208,14 @@ class BasePath(torch.nn.Module):
         positions = self.get_geometry(time)
         if self.transform is not None:
             positions = self.transform(positions)
-        if return_energies or return_energyterms or return_forces or return_forceterms:
+        if return_energies or return_energies_decomposed or return_forces or return_forces_decomposed:
             potential_output = self.potential(positions) #TODO: Add return force here too
             self._check_output(
                 potential_output,
                 return_energies=return_energies,
-                return_energyterms=return_energyterms,
+                return_energies_decomposed=return_energies_decomposed,
                 return_forces=return_forces,
-                return_forceterms=return_forceterms
+                return_forces_decomposed=return_forces_decomposed
             )
         else:
             potential_output = PotentialOutput()
@@ -239,7 +239,7 @@ class BasePath(torch.nn.Module):
             velocities = None
 
         """
-        if return_energies or return_forces or return_forceterms:
+        if return_energies or return_forces or return_forces_decomposed:
             del potential_output
         """
 
@@ -248,9 +248,9 @@ class BasePath(torch.nn.Module):
             positions=self._reshape_out(positions),
             velocities=self._reshape_out(velocities),
             energies=self._reshape_out(potential_output.energies),
-            energyterms=self._reshape_out(potential_output.energyterms),
+            energies_decomposed=self._reshape_out(potential_output.energies_decomposed),
             forces=self._reshape_out(potential_output.forces),
-            forceterms=self._reshape_out(potential_output.forceterms),
+            forces_decomposed=self._reshape_out(potential_output.forces_decomposed),
         )
     
     def _reshape_in(self, time):

@@ -30,28 +30,28 @@ optimizer_params:
         weight:
             value: 1.0
             name: cosine
-            start_factor: 1000.0
-            end_factor: 0.0
-            total_iters: 99
+            start_value: 1000.0
+            end_value: 0.0
+            last_step: 99
         variance:
             value: 1.0
             name: cosine
-            start_factor: 1.5
-            end_factor: 0.0
-            total_iters: 99
+            start_value: 1.5
+            end_value: 0.0
+            last_step: 99
     path_ode_schedulers:
         E_pvre:
             value: 1.0
             name: cosine
-            start_factor: 1.0
-            end_factor: 0.0
-            total_iters: 99
+            start_value: 1.0
+            end_value: 0.0
+            last_step: 99
         E_vre:
             value: 1.0
             name: cosine
-            start_factor: 0.0
-            end_factor: 1.0
-            total_iters: 99
+            start_value: 0.0
+            end_value: 1.0
+            last_step: 99
     TS_region_loss_names: ['E_mean']
     TS_region_loss_scales: [1.0]
     TS_time_loss_names: ['F_mag']
@@ -60,16 +60,16 @@ optimizer_params:
         E_mean:
             value: 1.0
             name: cosine
-            start_factor: 1.0
-            end_factor: 0.0
-            total_iters: 99
+            start_value: 1.0
+            end_value: 0.0
+            last_step: 99
     TS_region_loss_scheduler:
         F_mag:
             value: 1.0
             name: cosine
-            start_factor: 1.0
-            end_factor: 0.0
-            total_iters: 99
+            start_value: 1.0
+            end_value: 0.0
+            last_step: 99
 
   
 

@@ -34,12 +34,12 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
         benchmark_path, f"{name}_path.json"
     )
     if save_results:
-        if path_output.energyterms is None:
-            energyterms = None
-            forceterms = None
+        if path_output.energies_decomposed is None:
+            energies_decomposed = None
+            forces_decomposed = None
         else:
-           energyterms = path_output.energyterms.tolist() 
-           forceterms = path_output.forceterms.tolist() 
+           energies_decomposed = path_output.energies_decomposed.tolist() 
+           forces_decomposed = path_output.forces_decomposed.tolist() 
         with open(path_benchmark_filename, 'w') as file:
             json.dump(
                 {
@@ -47,9 +47,9 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
                     "positions" : path_output.positions.tolist(),
                     "velocities" : path_output.velocities.tolist(),
                     "energies" : path_output.energies.tolist(),
-                    "energyterms" : energyterms,
+                    "energies_decomposed" : energies_decomposed,
                     "forces" : path_output.forces.tolist(),
-                    "forceterms" : forceterms,
+                    "forces_decomposed" : forces_decomposed,
                 },
                 file
             )
@@ -64,42 +64,42 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
     assert time_test, "path output time does not match benchmark"
     position_test = torch.allclose(
         path_output.positions.cpu().to(torch.float32),
-        torch.tensor(path_benchmark['position']),
+        torch.tensor(path_benchmark['positions']),
         atol=pos_atol, rtol=pos_rtol
     )
     assert position_test, "path output position does not match benchmark"
     velocity_test = torch.allclose(
         path_output.velocities.cpu().to(torch.float32),
-        torch.tensor(path_benchmark['velocity']),
+        torch.tensor(path_benchmark['velocities']),
         atol=V_atol, rtol=V_rtol
     )
     assert velocity_test, "path output velocity does not match benchmark"
     energy_test = torch.allclose(
         path_output.energies.cpu().to(torch.float32),
-        torch.tensor(path_benchmark['energy']),
+        torch.tensor(path_benchmark['energies']),
         atol=E_atol, rtol=E_rtol
     )
     assert energy_test, "path output energy does not match benchmark"
-    if path_output.energyterms is not None:
-        energyterms_test = torch.allclose(
-            path_output.energyterms.cpu().to(torch.float32),
-            torch.tensor(path_benchmark['energyterms']),
+    if path_output.energies_decomposed is not None:
+        energies_decomposed_test = torch.allclose(
+            path_output.energies_decomposed.cpu().to(torch.float32),
+            torch.tensor(path_benchmark['energies_decomposed']),
             atol=E_atol, rtol=E_rtol
         )
-        assert energyterms_test, "path output energyterms does not match benchmark"
+        assert energies_decomposed_test, "path output energies_decomposed does not match benchmark"
     force_test = torch.allclose(
         path_output.forces.cpu().to(torch.float32),
-        torch.tensor(path_benchmark['force']),
+        torch.tensor(path_benchmark['forces']),
         atol=F_atol, rtol=F_rtol
     )
     assert force_test, "path output force does not match benchmark"
-    if path_output.forceterms is not None:
-        forceterms_test = torch.allclose(
-            path_output.forceterms.cpu().to(torch.float32),
-            torch.tensor(path_benchmark['forceterms']),
+    if path_output.forces_decomposed is not None:
+        forces_decomposed_test = torch.allclose(
+            path_output.forces_decomposed.cpu().to(torch.float32),
+            torch.tensor(path_benchmark['forces_decomposed']),
             atol=F_atol, rtol=F_rtol
         )
-        assert forceterms_test, "path output forceterms does not match benchmark"
+        assert forces_decomposed_test, "path output forces_decomposed does not match benchmark"
 
 
     # Compare TS output with benchmark
@@ -107,12 +107,12 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
         benchmark_path, f"{name}_ts.json"
     )
     if save_results:
-        if ts_output.energyterms is None:
-            energyterms = None
-            forceterms = None
+        if ts_output.energies_decomposed is None:
+            energies_decomposed = None
+            forces_decomposed = None
         else:
-           energyterms = ts_output.energyterms.tolist() 
-           forceterms = ts_output.forceterms.tolist() 
+           energies_decomposed = ts_output.energies_decomposed.tolist() 
+           forces_decomposed = ts_output.forces_decomposed.tolist() 
         with open(ts_benchmark_filename, 'w') as file:
             json.dump(
                 {
@@ -120,9 +120,9 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
                     "positions" : ts_output.positions.tolist(),
                     "velocities" : ts_output.velocities.tolist(),
                     "energies" : ts_output.energies.tolist(),
-                    "energyterms" : energyterms,
+                    "energies_decomposed" : energies_decomposed,
                     "forces" : ts_output.forces.tolist(),
-                    "forceterms" : forceterms,
+                    "forces_decomposed" : forces_decomposed,
                 },
                 file
             )
@@ -137,42 +137,42 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
     assert time_test, "path output time does not match benchmark"
     position_test = torch.allclose(
         ts_output.positions.cpu().to(torch.float32),
-        torch.tensor(ts_benchmark['position']),
+        torch.tensor(ts_benchmark['positions']),
         atol=pos_atol, rtol=pos_rtol
     )
     assert position_test, "path output position does not match benchmark"
     velocity_test = torch.allclose(
         ts_output.velocities.cpu().to(torch.float32),
-        torch.tensor(ts_benchmark['velocity']),
+        torch.tensor(ts_benchmark['velocities']),
         atol=V_atol, rtol=V_rtol
     )
     assert velocity_test, "path output velocity does not match benchmark"
     energy_test = torch.allclose(
         ts_output.energies.cpu().to(torch.float32),
-        torch.tensor(ts_benchmark['energy']),
+        torch.tensor(ts_benchmark['energies']),
         atol=E_atol, rtol=E_rtol
     )
     assert energy_test, "path output energy does not match benchmark"
-    if ts_output.energyterms is not None:
-        energyterms_test = torch.allclose(
-            ts_output.energyterms.cpu().to(torch.float32),
-            torch.tensor(ts_benchmark['energyterms']),
+    if ts_output.energies_decomposed is not None:
+        energies_decomposed_test = torch.allclose(
+            ts_output.energies_decomposed.cpu().to(torch.float32),
+            torch.tensor(ts_benchmark['energies_decomposed']),
             atol=E_atol, rtol=E_rtol
         )
-        assert energyterms_test, "path output energyterms does not match benchmark"
+        assert energies_decomposed_test, "path output energies_decomposed does not match benchmark"
     force_test = torch.allclose(
         ts_output.forces.cpu().to(torch.float32),
-        torch.tensor(ts_benchmark['force']),
+        torch.tensor(ts_benchmark['forces']),
         atol=F_atol, rtol=F_rtol
     )
     assert force_test, "path output force does not match benchmark"
-    if ts_output.forceterms is not None:
-        forceterms_test = torch.allclose(
-            ts_output.forceterms.cpu().to(torch.float32),
-            torch.tensor(ts_benchmark['forceterms']),
+    if ts_output.forces_decomposed is not None:
+        forces_decomposed_test = torch.allclose(
+            ts_output.forces_decomposed.cpu().to(torch.float32),
+            torch.tensor(ts_benchmark['forces_decomposed']),
             atol=F_atol, rtol=F_rtol
         )
-        assert forceterms_test, "path output forceterms does not match benchmark"
+        assert forces_decomposed_test, "path output forces_decomposed does not match benchmark"
     
     return mep, path_output, ts_output
 

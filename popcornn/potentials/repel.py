@@ -37,16 +37,16 @@ class RepelPotential(BasePotential):
             
         positions_3d = positions.view(-1, self.n_atoms, 3)
         r = torch.norm(positions_3d[:, self.ind[0]] - positions_3d[:, self.ind[1]], dim=-1)
-        energyterms = (
+        energies_decomposed = (
             (torch.exp(-self.alpha * (r - self.r0) / self.r0) + self.beta * self.r0 / r)
             # * torch.sigmoid((self.r_max - r) / self.skin)
         )
-        energies = energyterms.sum(dim=-1, keepdim=True) 
+        energies = energies_decomposed.sum(dim=-1, keepdim=True) 
         return PotentialOutput(
             energies=energies,
-            energyterms=energyterms,
+            energies_decomposed=energies_decomposed,
             forces=self.calculate_conservative_forces(energies, positions),
-            forceterms=self.calculate_conservative_forceterms(energyterms, positions)
+            forces_decomposed=self.calculate_conservative_forces_decomposed(energies_decomposed, positions)
         )
 
     def set_r0(self, atomic_numbers):

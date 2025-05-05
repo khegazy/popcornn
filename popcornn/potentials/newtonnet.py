@@ -29,8 +29,8 @@ class NewtonNetPotential(BasePotential):
         self.n_eval += 1
         energies = pred.energy.unsqueeze(-1)
         forces = pred.gradient_force
-        # energyterms = energyterms.view(-1, self.n_atoms)
-        # return PotentialOutput(energyterms=energyterms)
+        # energies_decomposed = energies_decomposed.view(-1, self.n_atoms)
+        # return PotentialOutput(energies_decomposed=energies_decomposed)
         forces = forces.view(*positions.shape)
         return PotentialOutput(energies=energies, forces=forces)
 

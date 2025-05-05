@@ -411,14 +411,14 @@ class Metrics():
             positions=None,
             velocities=None,
             energies=None,
-            energyterms=None,
+            energies_decomposed=None,
             forces=None,
-            forceterms=None,
+            forces_decomposed=None,
             requires_velocities=False,
             requires_energies=False,
-            requires_energyterms=False,
+            requires_energies_decomposed=False,
             requires_forces=False,
-            requires_forceterms=False,
+            requires_forces_decomposed=False,
         ):
         
         # Do input and previous time match
@@ -429,13 +429,13 @@ class Metrics():
 
         # Is energies missing and required 
         requires_energies = requires_energies and energies is None
-        requires_energyterms = requires_energyterms and energyterms is None
-        missing_any_energy = requires_energies or requires_energyterms
+        requires_energies_decomposed = requires_energies_decomposed and energies_decomposed is None
+        missing_any_energy = requires_energies or requires_energies_decomposed
         
         # Is forces missing and required 
         requires_forces = requires_forces and forces is None
-        requires_forceterms = requires_forceterms and forceterms is None
-        missing_any_force = requires_forces or requires_forceterms
+        requires_forces_decomposed = requires_forces_decomposed and forces_decomposed is None
+        missing_any_force = requires_forces or requires_forces_decomposed
 
         # We must evaluate path if time do not match, or, forces or energies is missing
         path_output = None
@@ -444,21 +444,21 @@ class Metrics():
                 eval_time,
                 return_velocities=requires_velocities,
                 return_energies=requires_energies, 
-                return_energyterms=requires_energyterms, 
+                return_energies_decomposed=requires_energies_decomposed, 
                 return_forces=requires_forces,
-                return_forceterms=requires_forceterms
+                return_forces_decomposed=requires_forces_decomposed
             )
             time = eval_time
             velocities = velocities if path_output.velocities is None\
                 else path_output.velocities
             energies = energies if path_output.energies is None\
                 else path_output.energies
-            energyterms = energyterms if path_output.energyterms is None\
-                else path_output.energyterms
+            energies_decomposed = energies_decomposed if path_output.energies_decomposed is None\
+                else path_output.energies_decomposed
             forces = forces if path_output.forces is None\
                 else path_output.forces
-            forceterms = forceterms if path_output.forceterms is None\
-                else path_output.forceterms
+            forces_decomposed = forces_decomposed if path_output.forces_decomposed is None\
+                else path_output.forces_decomposed
 
         else:
            # Calculate velocities if missing and required
@@ -471,20 +471,20 @@ class Metrics():
             'positions' : positions,
             'velocities' : velocities,
             'energies' : energies,
-            'energyterms' : energyterms,
+            'energies_decomposed' : energies_decomposed,
             'forces' : forces,
-            'forceterms' : forceterms
+            'forces_decomposed' : forces_decomposed
         }
 
 
     def E_geo(self, get_required_variables=False, **kwargs):
         if get_required_variables:
-            return ('forceterms', 'velocities')
+            return ('forces_decomposed', 'velocities')
         variables = self._parse_input(**kwargs)
         
         projection = torch.einsum(
             'bki,bi->bk',
-            variables['forceterms'],
+            variables['forces_decomposed'],
             variables['velocities']
         )
         Egeo = torch.linalg.norm(projection, dim=-1, keepdim=True)

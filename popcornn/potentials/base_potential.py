@@ -16,8 +16,8 @@ class PotentialOutput():
     """
     energies: torch.Tensor = None
     forces: torch.Tensor = None
-    energyterms: torch.Tensor = None
-    forceterms: torch.Tensor = None
+    energies_decomposed: torch.Tensor = None
+    forces_decomposed: torch.Tensor = None
 
 
 
@@ -50,18 +50,18 @@ class BasePotential(nn.Module):
             create_graph=create_graph,
         )[0]
     
-    def calculate_conservative_forceterms(self, energyterms, position, create_graph=True):
+    def calculate_conservative_forces_decomposed(self, energies_decomposed, position, create_graph=True):
         self._forceterm_fxn = torch.vmap(
             lambda vec: torch.autograd.grad(
-                energyterms.flatten(), 
+                energies_decomposed.flatten(), 
                 position,
                 grad_outputs=vec,
                 create_graph=create_graph,
             )[0],
         )
         inp_vec = torch.eye(
-            energyterms.shape[1], device=self.device
-        ).repeat(1, energyterms.shape[0])
+            energies_decomposed.shape[1], device=self.device
+        ).repeat(1, energies_decomposed.shape[0])
         return -1*self._forceterm_fxn(inp_vec).transpose(0, 1)
 
     def forward(

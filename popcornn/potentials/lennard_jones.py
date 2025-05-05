@@ -23,16 +23,16 @@ class LennardJones(BasePotential):
             self.set_r0(self.atomic_numbers)
         positions_3d = positions.view(-1, self.n_atoms, 3)
         r = torch.norm(positions_3d[:, self.ind[0]] - positions_3d[:, self.ind[1]], dim=-1)
-        energyterms = (self.r0 / r) ** 12 - 2 * (self.r0 / r) ** 6
-        energies = torch.sum(energyterms, dim=-1, keepdim=True)
+        energies_decomposed = (self.r0 / r) ** 12 - 2 * (self.r0 / r) ** 6
+        energies = torch.sum(energies_decomposed, dim=-1, keepdim=True)
 
         forces = self.calculate_conservative_forces(energies, positions)
-        forceterms = self.calculate_conservative_forceterms(energyterms, positions)
+        forces_decomposed = self.calculate_conservative_forces_decomposed(energies_decomposed, positions)
         return PotentialOutput(
             energies=energies,
-            energyterms=energyterms,
+            energies_decomposed=energies_decomposed,
             forces=forces,
-            forceterms=forceterms
+            forces_decomposed=forces_decomposed
         )
     
     def set_r0(self, atomic_numbers):
