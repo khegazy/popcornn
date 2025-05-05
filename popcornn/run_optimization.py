@@ -113,7 +113,7 @@ def optimize_MEP(
 
         if output_dir is not None:
             times = path_integral.t.flatten()
-            ts_time = path.TS_time
+            ts_time = path.ts_time
             path_output = path(times, return_velocities=True, return_energies=True, return_forces=True)
             ts_output = path(torch.tensor([ts_time]), return_velocities=True, return_energies=True, return_forces=True)
 
@@ -137,13 +137,13 @@ def optimize_MEP(
         if optimizer.converged:
             print(f"Converged at step {optim_idx}")
             break
-    path.TS_search(path_integral.t)
+    path.ts_search(path_integral.t)
 
     torch.cuda.empty_cache()
 
     #####  Save optimization output  #####
     time = torch.linspace(path.t_init.item(), path.t_final.item(), num_record_points)
-    ts_time = path.TS_time
+    ts_time = path.ts_time
     path_output = path(time, return_velocities=True, return_energies=True, return_forces=True)
     ts_output = path(torch.tensor([ts_time]), return_velocities=True, return_energies=True, return_forces=True)
     if issubclass(images.dtype, Atoms):

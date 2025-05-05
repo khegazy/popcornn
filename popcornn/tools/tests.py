@@ -104,7 +104,7 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
 
     # Compare TS output with benchmark
     ts_benchmark_filename = os.path.join(
-        benchmark_path, f"{name}_TS.json"
+        benchmark_path, f"{name}_ts.json"
     )
     if save_results:
         if ts_output.energyterms is None:

@@ -1,7 +1,6 @@
-import os
 import torch
 import numpy as np
-from popcornn.tools.preprocess import Images
+from popcornn.tools.images import Images
 from popcornn.potentials.base_potential import BasePotential
 from popcornn.paths.base_path import BasePath
 
@@ -16,7 +15,7 @@ def test_ts_search():
     x_final = torch.tensor([-0.25, 0.25, 1], device=device)
     images = Images(
         dtype=x_init.dtype,
-        points=torch.stack([x_init, x_final]),
+        positions=torch.stack([x_init, x_final]),
         vec=torch.stack([x_init, x_final])
     )
     base_path = BasePath(images=images, device=device)
@@ -48,21 +47,21 @@ def test_ts_search():
         time = torch.linspace(
             0, 1, 14, device=device, requires_grad=True
         ).unsqueeze(-1)
-        position = path(time)
-        energy, ts_energy_truth, ts_time_truth = legendre_like(l, position)
+        positions = path(time)
+        energies, ts_energy_truth, ts_time_truth = legendre_like(l, positions)
         ts_time_truth = 0.5 + ts_time_truth/2. 
-        force = BasePotential.calculate_conservative_force(energy, position)
-        base_path.TS_search(time[:,0], energy[:,0], force)
+        force = BasePotential.calculate_conservative_forces(energies, positions)
+        base_path.ts_search(time[:,0], energies[:,0], force)
 
-        ts_position = path(torch.tensor([[base_path.TS_time]], device=device))
+        ts_position = path(torch.tensor([[base_path.ts_time]], device=device))
         ts_energy, _, _ = legendre_like(l, ts_position)
         ts_energy = ts_energy[0]
         
         assert np.isclose(
-            ts_time_truth, base_path.TS_time.cpu().item(), atol=1e4, rtol=1e-4
+            ts_time_truth, base_path.ts_time.cpu().item(), atol=1e4, rtol=1e-4
         ),\
-        f"Did not match TS times for legendre {l}, got {base_path.TS_time.item()}, expected {ts_time_truth}"
+        f"Did not match TS times for legendre {l}, got {base_path.ts_time.item()}, expected {ts_time_truth}"
         assert np.isclose(ts_energy_truth, ts_energy.cpu().item()),\
         f"Did not match TS energy for legendre {l}, got {ts_energy.item()}, expected {ts_energy_truth}"
-        assert base_path.TS_force_mag < 1e-3,\
-        f"Did not find sufficiently small TS gradient magnitude for legendre {l}, got {base_path.TS_force_mag}"
+        assert base_path.ts_force_mag < 1e-3,\
+        f"Did not find sufficiently small TS gradient magnitude for legendre {l}, got {base_path.ts_force_mag}"

@@ -150,7 +150,7 @@ class Popcornn:
             # Save the path
             if output_dir is not None:
                 time = path_integral.t.flatten()
-                ts_time = self.path.TS_time
+                ts_time = self.path.ts_time
                 path_output = self.path(time, return_velocities=True, return_energies=True, return_forces=True)
                 ts_output = self.path(torch.tensor([ts_time]), return_velocities=True, return_energies=True, return_forces=True)
                 
@@ -179,7 +179,7 @@ class Popcornn:
                 break
             
         time = torch.linspace(self.path.t_init.item(), self.path.t_final.item(), self.num_record_points, device=self.device)
-        ts_time = self.path.TS_time
+        ts_time = self.path.ts_time
         path_output = self.path(time, return_velocities=True, return_energies=True, return_forces=True)
         ts_output = self.path(torch.tensor([ts_time]), return_velocities=True, return_energies=True, return_forces=True)
         if issubclass(self.images.dtype, Atoms) and output_ase_atoms:
