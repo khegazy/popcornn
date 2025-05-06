@@ -121,7 +121,7 @@ class BasePath(torch.nn.Module):
         """
         self.potential = potential
 
-    def get_geometry(
+    def get_positions(
             self,
             time: torch.Tensor,
             *args: Any
@@ -148,7 +148,7 @@ class BasePath(torch.nn.Module):
     
     def calculate_velocities(self, t, create_graph=True):
         return torch.autograd.functional.jacobian(
-            lambda t: torch.sum(self.get_geometry(t), axis=0),
+            lambda t: torch.sum(self.get_positions(t), axis=0),
             t,
             create_graph=create_graph,
             vectorize=True
@@ -202,14 +202,12 @@ class BasePath(torch.nn.Module):
         time = time.to(torch.float64).to(self.device)
 
         self.neval += time.numel()
-        # if self.neval > 1e5:
-        #     raise ValueError("Too many evaluations!")
 
-        positions = self.get_geometry(time)
+        positions = self.get_positions(time)
         if self.transform is not None:
             positions = self.transform(positions)
         if return_energies or return_energies_decomposed or return_forces or return_forces_decomposed:
-            potential_output = self.potential(positions) #TODO: Add return force here too
+            potential_output = self.potential(positions) 
             self._check_output(
                 potential_output,
                 return_energies=return_energies,
@@ -220,28 +218,10 @@ class BasePath(torch.nn.Module):
         else:
             potential_output = PotentialOutput()
 
-
         if return_velocities:
-            # if is_batched:
-            #     fxn = lambda t: torch.sum(self.geometric_path(t), axis=0)
-            # else:
-            #     fxn = lambda t: self.geometric_path(t)
-            # velocities = torch.autograd.functional.jacobian(
-            #     fxn, t, create_graph=self.training, vectorize=is_batched
-            # )
-            """
-            velocities = torch.autograd.functional.jacobian(
-                lambda t: torch.sum(self.get_geometry(t), axis=0), t, create_graph=True, vectorize=True
-            ).transpose(0, 1)[:, :, 0]
-            """
             velocities = self.calculate_velocities(time)
         else:
             velocities = None
-
-        """
-        if return_energies or return_forces or return_forces_decomposed:
-            del potential_output
-        """
 
         return PathOutput(
             time=self._reshape_out(time),
@@ -253,6 +233,7 @@ class BasePath(torch.nn.Module):
             forces_decomposed=self._reshape_out(potential_output.forces_decomposed),
         )
     
+
     def _reshape_in(self, time):
         if time is None:
             time = torch.linspace(self.t_init.item(), self.t_final.item(), 101)
@@ -273,6 +254,7 @@ class BasePath(torch.nn.Module):
 
         return time
 
+
     def _reshape_out(self, result):
         if self._inp_reshaped is None:
             raise RuntimeError("Must call _reshape_in() before _reshape_out()")
@@ -281,42 +263,6 @@ class BasePath(torch.nn.Module):
             return rearrange(result, '(b c) d -> b c d', b=B, c=C)
         return result
 
-    def ts_search_orig(self, time, energies, forces, idx_shift=5, N_interp=5000):
-        ts_idx = torch.argmax(energies.view(-1)).item()
-        N_C = time.shape[-2]
-        idx_min = np.max([0, ts_idx-(idx_shift*N_C)])
-        idx_max = np.min(
-            [len(time[:,:,0].view(-1)), ts_idx+(idx_shift*N_C)]
-        )
-        t_interp = time[:,:,0].view(-1)[idx_min:idx_max].detach().cpu().numpy()
-        E_interp = energies.view(-1)[idx_min:idx_max].detach().cpu().numpy()
-        FM_interp = torch.linalg.norm(forces, dim=-1).view(-1)[idx_min:idx_max].detach().cpu().numpy()
-        #print("\tEs: ", E_interp)
-        mask_interp = np.concatenate(
-            [t_interp[1:] - t_interp[:-1] > 1e-10, np.array([1], dtype=bool)]
-        )
-        ts_interp = sp.interpolate.interp1d(
-            t_interp[mask_interp], E_interp[mask_interp], kind='cubic'
-        )
-        ts_search = np.linspace(
-            t_interp[0] + 1e-12,
-            t_interp[-1] - 1e-12,
-            N_interp
-        )
-        ts_E_search = ts_interp(ts_search)
-        ts_idx = np.argmax(ts_E_search)
-        
-        ts_time_scale = t_interp[-1] - t_interp[0]
-        self.ts_time = ts_search[ts_idx]
-        self.ts_region = torch.linspace(
-            self.ts_time-ts_time_scale/(idx_shift),
-            self.ts_time+ts_time_scale/(idx_shift),
-            11,
-            device=self.device
-        )
-        self.orig_ts_energy =ts_E_search[ts_idx] 
-        self.ts_time = torch.tensor([[self.ts_time]], device=self.device)
-        self.orig_ts_time = torch.tensor([[self.ts_time]], device=self.device)
     
     def ts_search(self, time, energies=None, forces=None, topk_E=7, topk_F=16, idx_shift=4, N_interp=100000):
         # Calculate missing energies and forces
@@ -336,16 +282,11 @@ class BasePath(torch.nn.Module):
         if calc_energies or calc_forces:
             path_output = self.forward(
                 time, return_energies=calc_energies, return_forces=calc_forces
-            )  #TODO: check the dimensions of time
+            )  
             if calc_energies:
                 energies = path_output.energies
             if calc_forces:
                 forces = path_output.forces
-            print("CALC E F", time.shape)
-            if energies is not None:
-                print("\tE", energies.shape)
-            if forces is not None:
-                print("\tF", forces.shape)
         
         if len(time.shape) == 3:
             # Remove repeated evaluations
@@ -384,17 +325,6 @@ class BasePath(torch.nn.Module):
         ts_idxs = torch.unique(ts_idxs, sorted=False)
 
         # Get time and energy range
-        """
-        max_min = len(energies) - (2*N_C + 2)*idx_shift
-        idxs_min = ts_idxs - idx_shift*N_C
-        idxs_min[idxs_min>max_min] = max_min
-        idxs_min[idxs_min<N_C] = N_C
-        min_max = (2*N_C + 1)*idx_shift
-        idxs_max = ts_idxs + idx_shift*(1 + N_C)
-        idxs_max[idxs_max<min_max] = min_max
-        idxs_max[idxs_max>=len(energies)] = len(energies) - 1
-        """
- 
         idxs_min = ts_idxs - idx_shift*N_C
         idxs_min[idxs_min<N_C] = N_C
         idxs_max = ts_idxs + idx_shift*(1 + N_C)

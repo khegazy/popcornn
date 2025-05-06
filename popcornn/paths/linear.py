@@ -13,7 +13,7 @@ class LinearPath(BasePath):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def get_geometry(self, time: float, *args):
+    def get_positions(self, time: float, *args):
         """
         Generates a geometric path using the MLP.
 

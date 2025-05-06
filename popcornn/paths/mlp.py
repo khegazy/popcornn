@@ -53,7 +53,7 @@ class MLPpath(BasePath):
         print("Number of trainable parameters in MLP:", sum(p.numel() for p in self.parameters() if p.requires_grad))
         print(self.mlp)
 
-    def get_geometry(self, time: float, *args):
+    def get_positions(self, time: float, *args):
         """
         Generates a geometric path using the MLP.
 
@@ -67,7 +67,7 @@ class MLPpath(BasePath):
         # mlp_out = self.mlp(time) - (1 - time) * self.mlp(self.t_init) - time * self.mlp(self.t_final)
         # out = mlp_out
         mlp_out = self.mlp(time) * (1 - time) * time #* 4
-        base_out = self.base.get_geometry(time) #* (1 - (1 - time) * time * 4)
+        base_out = self.base.get_positions(time) #* (1 - (1 - time) * time * 4)
         out = base_out + mlp_out
         return out
 

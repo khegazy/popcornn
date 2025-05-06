@@ -183,7 +183,7 @@ def _plot_path(
 def plot_path(
         file_name,
         time,
-        geometry,
+        positions,
         energy,
         velocity,
         force,
@@ -192,8 +192,8 @@ def plot_path(
     fig, axs = plt.subplots(6, 1, figsize=(4, 6), sharex=True)
     axs[0].plot(time)
     axs[0].set_ylabel('Time')
-    axs[1].plot(np.linalg.norm(geometry, axis=1))
-    axs[1].set_ylabel('Geometry')
+    axs[1].plot(np.linalg.norm(positions, axis=1))
+    axs[1].set_ylabel('positions')
     axs[2].plot(energy)
     axs[2].set_ylabel('Energy')
     axs[3].plot(np.linalg.norm(velocity, axis=1))
