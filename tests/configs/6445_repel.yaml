@@ -13,7 +13,7 @@ integrator_params:
   computation: parallel
   sample_type: uniform
   path_loss_name: integral
-  path_ode_names: E_geo
+  path_ode_names: geodesic
 optimizer_params:
   optimizer:
     name: adam

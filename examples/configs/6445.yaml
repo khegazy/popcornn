@@ -13,7 +13,7 @@ opt_params:
   - potential_params:
       potential: repel
     integrator_params: 
-      path_ode_names: E_geo
+      path_ode_names: geodesic
     optimizer_params:
       optimizer:
         name: adam
@@ -26,7 +26,7 @@ opt_params:
       potential: newtonnet
       model_path: t1x
     integrator_params: 
-      path_ode_names: E_pvre
+      path_ode_names: projected_variable_reaction_energy
     optimizer_params:
       optimizer:
         name: adam

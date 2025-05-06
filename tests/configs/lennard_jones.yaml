@@ -13,8 +13,8 @@ opt_params:
       potential: lennard_jones
     integrator_params: 
       path_ode_names:
-        - E_pvre
-        - E_geo
+        - projected_variable_reaction_energy
+        - geodesic
       path_ode_scales:
         - 1.0
         - 0.05

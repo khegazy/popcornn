@@ -17,7 +17,7 @@ integrator_params:
     path_loss_name : growing_string
     path_loss_params:
         weight_type: inv_gauss
-    path_ode_names: ['E_pvre', 'E_vre']
+    path_ode_names: ['projected_variable_reaction_energy', 'variable_reaction_energy']
     path_ode_scales: [1.0, 0.1]
     
 
@@ -40,13 +40,13 @@ optimizer_params:
             end_value: 0.0
             last_step: 99
     path_ode_schedulers:
-        E_pvre:
+        projected_variable_reaction_energy:
             value: 1.0
             name: cosine
             start_value: 1.0
             end_value: 0.0
             last_step: 99
-        E_vre:
+        variable_reaction_energy:
             value: 1.0
             name: cosine
             start_value: 0.0
