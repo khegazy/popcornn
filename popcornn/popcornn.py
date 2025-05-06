@@ -72,7 +72,7 @@ class Popcornn:
         self.num_record_points = num_record_points
 
     
-    def run(
+    def optimize_path(
             self,
             *opt_params: list[dict],
             output_ase_atoms: bool = True

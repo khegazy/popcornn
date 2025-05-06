@@ -21,7 +21,7 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
 
     # Run the optimization
     mep = Popcornn(device=device, **config.get('init_params', {}))
-    path_output, ts_output = mep.run(*config.get('opt_params', []), output_ase_atoms=False)
+    path_output, ts_output = mep.optimize_path(*config.get('opt_params', []), output_ase_atoms=False)
 
     # Compare path output with saved benchmarks
     T_atol, T_rtol = 1e-6, 1e-6
