@@ -24,19 +24,19 @@ def output_to_atoms(output, ref_images):
     """
     images = []
     n_atoms = len(ref_images.atomic_numbers)
-    for positions, energy, velocities, forces in zip(output.position, output.energy, output.velocity, output.force):
+    for i in range(len(output)):
         atoms = ase.Atoms(
-            atomic_numbers=ref_images.atomic_numbers.detach().cpu().numpy(),
-            positions=positions.detach().cpu().numpy().reshape(n_atoms, 3),
-            velocities=velocities.detach().cpu().numpy().reshape(n_atoms, 3),
+            numbers=ref_images.atomic_numbers.detach().cpu().numpy(),
+            positions=output.positions[i].detach().cpu().numpy().reshape(n_atoms, 3),
+            velocities=output.velocities[i].detach().cpu().numpy().reshape(n_atoms, 3) if output.velocities is not None else None,
             pbc=ref_images.pbc.detach().cpu().numpy(),
             cell=ref_images.cell.detach().cpu().numpy(),
             tags=ref_images.tags.detach().cpu().numpy(),
         )
         calc = SinglePointCalculator(
             atoms,
-            energy=energy.detach().cpu().numpy().item(),
-            forces=forces.detach().cpu().numpy().reshape(n_atoms, 3),
+            energy=output.energies[i].detach().cpu().numpy().item() if output.energies is not None else None,
+            forces=output.forces[i].detach().cpu().numpy().reshape(n_atoms, 3) if output.forces is not None else None,
         )
         atoms.calc = calc
         images.append(atoms)
