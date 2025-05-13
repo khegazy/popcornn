@@ -50,7 +50,7 @@ def wrap_positions(
     ) -> torch.Tensor:
     """
     PyTorch implementation of ase.geometry.wrap_positions function.
-    Assume periodic boundary conditions for all dimensions.
+    This function is also used for interatomic distances under minimum image convention.
 
     Parameters:
     -----------
@@ -78,7 +78,7 @@ def wrap_positions(
 
     assert cell[pbc].any(dim=1).all(), (cell, pbc)
 
-    fractional = torch.linalg.solve(cell.T, positions.view(-1, 3).T).T - shift
+    fractional = torch.linalg.solve(cell.T, positions.view(-1, cell.shape[-1]).T).T - shift
 
     fractional[:, pbc] = fractional[:, pbc] % 1.0 - shift[pbc]
 
