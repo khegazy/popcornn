@@ -6,35 +6,6 @@ from ase.calculators.singlepoint import SinglePointCalculator
 # from popcornn.tools.preprocess import Images
 
 
-def pair_displacement(
-        initial_atoms: ase.Atoms, 
-        final_atoms: ase.Atoms,
-    ) -> np.ndarray:
-    """
-    Pair displacement between two Atoms objects.
-
-    Parameters:
-    -----------
-    initial_atoms : ase.Atoms
-        Initial Atoms object.
-    final_atoms : ase.Atoms
-        Final Atoms object.
-
-    Returns:
-    --------
-    np.ndarray
-        Pair displacement.
-    """
-    assert len(initial_atoms) == len(final_atoms), "Initial and final atoms must have the same number of atoms."
-    pair = initial_atoms + final_atoms
-    vec = pair.get_distances(
-        [i for i in range(len(initial_atoms))],
-        [i + len(initial_atoms) for i in range(len(initial_atoms))],
-        mic=True,
-        vector=True,
-    )
-    return vec
-
 def output_to_atoms(output, ref_images):
     """
     Convert output to ase.Atoms.

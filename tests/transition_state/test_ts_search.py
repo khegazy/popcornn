@@ -16,7 +16,6 @@ def test_ts_search():
     images = Images(
         dtype=x_init.dtype,
         positions=torch.stack([x_init, x_final]),
-        vec=torch.stack([x_init, x_final])
     )
     base_path = BasePath(images=images, device=device)
     

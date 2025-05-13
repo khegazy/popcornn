@@ -4,8 +4,6 @@ import ase
 from ase.io import read
 from dataclasses import dataclass
 
-from popcornn.tools.ase import pair_displacement
-
 
 @dataclass
 class Images():
@@ -18,8 +16,6 @@ class Images():
         The data type of the images.
     positions: torch.Tensor
         The positions of the images.
-    vec: torch.Tensor
-        The vector representing the displacement between the first and last images.
     atomic_numbers: torch.Tensor, optional
         The atomic atomic_numbers of the images.
     pbc: torch.Tensor, optional
@@ -31,7 +27,6 @@ class Images():
     """
     dtype: type
     positions: torch.Tensor
-    vec: torch.Tensor
     atomic_numbers: torch.Tensor = None
     pbc: torch.Tensor = None
     cell: torch.Tensor = None
@@ -48,7 +43,6 @@ class Images():
         Move the images to the specified device.
         """
         self.positions = self.positions.to(device)
-        self.vec = self.vec.to(device)
         if self.atomic_numbers is not None:
             self.atomic_numbers = self.atomic_numbers.to(device)
         if self.pbc is not None:
@@ -81,20 +75,17 @@ def process_images(raw_images, device):
         processed_images = Images(
             dtype=dtype,
             positions=raw_images,
-            vec=raw_images[-1] - raw_images[0],
         )
     elif dtype is list:
         raw_images = torch.tensor(raw_images, dtype=torch.float64)
         processed_images = Images(
             dtype=dtype,
             positions=raw_images,
-            vec=raw_images[-1] - raw_images[0],
         )
     elif dtype is torch.Tensor:
         processed_images = Images(
             dtype=dtype,
             positions=raw_images.float64(),
-            vec=(raw_images[-1] - raw_images[0]).float64(),
         )
     elif issubclass(dtype, ase.Atoms):
         assert np.all(image.get_positions().shape == raw_images[0].get_positions().shape for image in raw_images), "All images must have the same shape."
@@ -105,7 +96,6 @@ def process_images(raw_images, device):
         processed_images = Images(
             dtype=dtype,
             positions=torch.tensor([image.get_positions().flatten() for image in raw_images], dtype=torch.float64),
-            vec=torch.tensor(pair_displacement(raw_images[0], raw_images[-1]).flatten(), dtype=torch.float64),
             atomic_numbers=torch.tensor(raw_images[0].get_atomic_numbers(), dtype=torch.int64),
             pbc=torch.tensor(raw_images[0].get_pbc(), dtype=torch.bool),
             cell=torch.tensor(raw_images[0].get_cell(), dtype=torch.float64),
