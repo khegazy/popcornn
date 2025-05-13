@@ -9,8 +9,8 @@ class LinearPath(BasePath):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.vec = self.final_position - self.initial_position
-        # if self.transform:
-        #     self.vec = self.transform(self.vec, center=0.5)
+        if self.transform:
+            self.vec = self.transform(self.vec, center=1.0)
 
     def get_positions(self, time: float):
         """

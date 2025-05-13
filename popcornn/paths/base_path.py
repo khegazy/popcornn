@@ -36,6 +36,12 @@ class PathOutput():
     forces: torch.Tensor = None
     forces_decomposed: torch.Tensor = None
 
+    def __len__(self):
+        """
+        Return the number of images.
+        """
+        return len(self.positions)
+
 
 class BasePath(torch.nn.Module):
     """
@@ -89,7 +95,7 @@ class BasePath(torch.nn.Module):
         self._inp_reshaped = None
         if images.pbc is not None and images.pbc.any():
             def transform(positions, **kwargs):
-                return wrap_positions(positions, images.pbc, images.cell, **kwargs)
+                return wrap_positions(positions, images.cell, images.pbc, **kwargs)
             self.transform = transform
         else:
             self.transform = None

@@ -90,7 +90,7 @@ def loss_init(
     assert preds.shape == positions.shape, f"Shapes do not match: {preds.shape} != {positions.shape}"
     disp = positions - preds
     if path.transform is not None:
-        disp = path.transform(disp, center=0.5)
+        disp = path.transform(disp, center=1.0)
     return torch.mean(disp ** 2)
     
     
