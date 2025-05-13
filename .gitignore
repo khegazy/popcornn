@@ -72,3 +72,4 @@ venv.bak/
 
 # Output files
 examples/output/
+tests/output/
