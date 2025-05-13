@@ -42,19 +42,44 @@ def output_to_atoms(output, ref_images):
         images.append(atoms)
     return images
 
-def wrap_points(
-        points: torch.Tensor,
+def wrap_positions(
+        positions: torch.Tensor,
         cell: torch.Tensor,
-        center: float = 0
+        pbc: torch.Tensor,
+        center: torch.Tensor = 0.5,
     ) -> torch.Tensor:
     """
     PyTorch implementation of ase.geometry.wrap_positions function.
     Assume periodic boundary conditions for all dimensions.
+
+    Parameters:
+    -----------
+    positions: float tensor of shape (n, 3)
+        Positions of the atoms
+    cell: float tensor of shape (3, 3)
+        Unit cell vectors.
+    pbc: one or 3 bool
+        For each axis in the unit cell decides whether the positions
+        will be moved along this axis.
+    center: float tensor of shape (3,)
+        The positons in fractional coordinates that the new positions
+        will be nearest possible to.
     """
 
-    fractional = torch.linalg.solve(cell.T, positions.view(*points.shape[:-1], -1, 3).transpose(-1, -2)).transpose(-1, -2)
+    if not isinstance(center, torch.Tensor):
+        center = torch.ones(cell.shape[0], dtype=cell.dtype, device=cell.device) * center
 
-    # fractional[..., :, self.pbc] %= 1.0
-    fractional = (fractional + center) % 1.0 - center    # TODO: Modify this to handle partially true PBCs
+    if not isinstance(pbc, torch.Tensor):
+        pbc = torch.ones(cell.shape[0], dtype=torch.bool, device=cell.device) * pbc
+    shift = center - 0.5
 
-    return torch.matmul(fractional, cell).view(*points.shape)
+    # Don't change coordinates when pbc is False
+    shift[~pbc] = 0.0
+
+    assert cell[pbc].any(dim=1).all(), (cell, pbc)
+
+    fractional = torch.linalg.solve(cell.T, positions.view(-1, 3).T).T - shift
+
+    fractional[:, pbc] = fractional[:, pbc] % 1.0 - shift[pbc]
+
+    return torch.matmul(fractional, cell).view(*positions.shape)

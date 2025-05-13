@@ -3,15 +3,6 @@ from torch import nn
 
 from .base_path import BasePath
 from .linear import LinearPath
-activation_dict = {
-    "relu": nn.ReLU(),
-    "elu": nn.ELU(),
-    "tanh": nn.Tanh(),
-    "sigmoid": nn.Sigmoid(),
-    "gelu": nn.GELU(),
-    "silu": nn.SiLU(),
-    "selu": nn.SELU(),
-}
 
 class MLPpath(BasePath):
     """
@@ -33,7 +24,10 @@ class MLPpath(BasePath):
     ):
         super().__init__(**kwargs)
 
-        self.activation = activation_dict[activation]
+        activation_dict = {key.lower(): key for key in dir(nn) if not key.startswith('_')}
+        name = activation_dict[activation.lower()]
+        activation_class = getattr(nn, name)
+        self.activation = activation_class()
         # input_sizes = [1] + [n_embed]*(depth - 1)
         input_sizes = [1] + [self.final_position.shape[-1] * n_embed]*(depth - 1)
         output_sizes = input_sizes[1:] + [self.final_position.shape[-1]]
@@ -53,7 +47,7 @@ class MLPpath(BasePath):
         print("Number of trainable parameters in MLP:", sum(p.numel() for p in self.parameters() if p.requires_grad))
         print(self.mlp)
 
-    def get_positions(self, time: float, *args):
+    def get_positions(self, time: float):
         """
         Generates a geometric path using the MLP.
 
@@ -71,31 +65,31 @@ class MLPpath(BasePath):
         out = base_out + mlp_out
         return out
 
-class ResNetLayer(nn.Module):
-    def __init__(
-        self,
-        output_size: int,
-        n_embed: int,
-        activation: str = "selu",
-    ):
-        super().__init__()
-        self.activation = activation_dict[activation]
-        self.layer = nn.Sequential(
-            nn.Linear(output_size, output_size * n_embed, dtype=torch.float64, bias=True),
-            self.activation,
-            nn.Linear(output_size * n_embed, output_size, dtype=torch.float64, bias=True),
-        )
-        # self.layer = SwiGLU(output_size, output_size)
+# class ResNetLayer(nn.Module):
+#     def __init__(
+#         self,
+#         output_size: int,
+#         n_embed: int,
+#         activation: str = "selu",
+#     ):
+#         super().__init__()
+#         self.activation = activation_dict[activation]
+#         self.layer = nn.Sequential(
+#             nn.Linear(output_size, output_size * n_embed, dtype=torch.float64, bias=True),
+#             self.activation,
+#             nn.Linear(output_size * n_embed, output_size, dtype=torch.float64, bias=True),
+#         )
+#         # self.layer = SwiGLU(output_size, output_size)
 
-    def forward(self, x):
-        return x + self.layer(x)
+#     def forward(self, x):
+#         return x + self.layer(x)
     
-class SwiGLU(nn.Module):
-    def __init__(self, in_features, out_features):
-        super().__init__()
-        self.fc1 = nn.Linear(in_features, out_features)
-        self.fc2 = nn.Linear(in_features, out_features)
-        self.activation = nn.SiLU()
+# class SwiGLU(nn.Module):
+#     def __init__(self, in_features, out_features):
+#         super().__init__()
+#         self.fc1 = nn.Linear(in_features, out_features)
+#         self.fc2 = nn.Linear(in_features, out_features)
+#         self.activation = nn.SiLU()
 
-    def forward(self, x):
-        return self.fc1(x) * self.activation(self.fc2(x))
+#     def forward(self, x):
+#         return self.fc1(x) * self.activation(self.fc2(x))

@@ -1,9 +1,5 @@
-import torch
-from torch import nn
-
 from .base_path import BasePath
-from typing import Tuple, Optional
-import numpy as np
+from popcornn.tools import Images, wrap_positions
 
 
 class LinearPath(BasePath):
@@ -12,8 +8,11 @@ class LinearPath(BasePath):
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.vec = self.final_position - self.initial_position
+        # if self.transform:
+        #     self.vec = self.transform(self.vec, center=0.5)
 
-    def get_positions(self, time: float, *args):
+    def get_positions(self, time: float):
         """
         Generates a geometric path using the MLP.
 
