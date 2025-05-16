@@ -99,6 +99,7 @@ class BasePath(torch.nn.Module):
             self.transform = transform
         else:
             self.transform = None
+        self.fix_positions = (images.tags==0).to(device) if images.tags is not None else None
         self.device = device
         self.t_init = torch.tensor(
             [[0]], dtype=torch.float64, device=self.device

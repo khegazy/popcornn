@@ -61,6 +61,7 @@ class MLPpath(BasePath):
         # mlp_out = self.mlp(time) - (1 - time) * self.mlp(self.t_init) - time * self.mlp(self.t_final)
         # out = mlp_out
         mlp_out = self.mlp(time) * (1 - time) * time #* 4
+        mlp_out[:, self.fix_positions.repeat_interleave(3)] = 0.0
         base_out = self.base.get_positions(time) #* (1 - (1 - time) * time * 4)
         out = base_out + mlp_out
         return out

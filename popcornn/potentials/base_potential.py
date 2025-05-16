@@ -28,7 +28,7 @@ class BasePotential(nn.Module):
         self.n_atoms = len(images.atomic_numbers) if images.atomic_numbers is not None else None
         self.pbc = images.pbc.to(device) if images.pbc is not None else None
         self.cell = images.cell.to(device) if images.cell is not None else None
-        self.tag = images.tags.to(device) if images.tags is not None else None
+        self.fix_positions = (images.tags==0).to(device) if images.tags is not None else None
         self.point_option = 0
         self.point_arg = 0
         if add_azimuthal_dof:
