@@ -143,6 +143,7 @@ class PathOptimizer():
             path_integral.t,
             path_integral.y[:,:,integrator.path_ode_energy_idx],
             path_integral.y[:,:,integrator.path_ode_force_idx:],
+            evaluate_ts=False
         )
 
         # Evaluate transition state losses

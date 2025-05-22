@@ -262,30 +262,7 @@ class BasePath(torch.nn.Module):
         return result
 
     
-    def ts_search(self, time, energies=None, forces=None, topk_E=7, topk_F=16, idx_shift=4, N_interp=100000):
-        # Calculate missing energies and forces
-        calc_energies = energies is None or torch.any(torch.isnan(energies))
-        calc_forces = forces is None or torch.any(torch.isnan(forces))
-        # Calculate energies and forces if too few time points
-        N_input_times = time.shape[0]
-        if len(time.shape) == 3:
-            N_input_times = N_input_times*(time.shape[1] - 1) - 2
-        if N_input_times < 11:
-            time = torch.reshape(time, (-1, time.shape[-1]))
-            time = torch.linspace(time[1,0], time[-2,0], 15)
-            calc_energies = True
-            calc_forces = True
-        
-        # Calculate energies and forces if necessary
-        if calc_energies or calc_forces:
-            path_output = self.forward(
-                time, return_energies=calc_energies, return_forces=calc_forces
-            )  
-            if calc_energies:
-                energies = path_output.energies
-            if calc_forces:
-                forces = path_output.forces
-        
+    def _ts_search_reformat(self, time, energies, forces, idx_shift):
         if len(time.shape) == 3:
             # Remove repeated evaluations
             unique_mask = torch.all(time[0,1:] - time[0,:-1] > 1e-13, dim=-1)
@@ -314,6 +291,37 @@ class BasePath(torch.nn.Module):
             N_C = 1
             idx_shift = idx_shift*5
             energies = energies.flatten()
+        
+        return time, energies, forces, N_C
+
+
+    def ts_search(self, time, energies=None, forces=None, evaluate_ts=True, topk_E=7, idx_shift=4, N_interp=10000):
+        # Calculate missing energies and forces
+        calc_energies = energies is None or torch.any(torch.isnan(energies))
+        calc_forces = forces is None or torch.any(torch.isnan(forces))
+        # Calculate energies and forces if too few time points
+        N_input_times = time.shape[0]
+        if len(time.shape) == 3:
+            N_input_times = N_input_times*(time.shape[1] - 1) - 2
+        if N_input_times < 11:
+            time = torch.reshape(time, (-1, time.shape[-1]))
+            time = torch.linspace(time[1,0], time[-2,0], 15)
+            calc_energies = True
+            calc_forces = True
+        
+        # Calculate energies and forces if necessary
+        if calc_energies or calc_forces:
+            path_output = self.forward(
+                time, return_energies=calc_energies, return_forces=calc_forces
+            )  
+            if calc_energies:
+                energies = path_output.energies
+            if calc_forces:
+                forces = path_output.forces
+        
+        time, energies, forces, N_C = self._ts_search_reformat(
+            time=time, energies=energies, forces=forces, idx_shift=idx_shift
+        )
 
         # Find highest energy points
         _, ts_idxs = torch.topk(energies, min(len(energies), topk_E))
@@ -391,17 +399,16 @@ class BasePath(torch.nn.Module):
             #interp_Fs.append(ts_F_interp(ts_search))
             #interp_magFs.append(np.linalg.norm(interp_Fs[-1], ord=2, axis=-1).flatten())
             #print("TS time", ts_search[0], ts_search[-1])
-        interp_Es = np.array(interp_Es)
-        interp_Fs = np.array(interp_Fs)
-        interp_magFs = np.array(interp_magFs)
-        interp_times = np.array(interp_times)
+        interp_Es = np.concatenate(interp_Es, axis=0)
+        interp_Fs = np.concatenate(interp_Fs, axis=0)
+        interp_magFs = np.concatenate(interp_magFs, axis=0)
+        interp_times = np.concatenate(interp_times, axis=0)
 
         # Remove low energy entries with low gradient magnitude
-        for _ in range(3):
-            mean = np.mean(interp_Es)
+        max_E = np.amax(interp_Es)
+        for j in range(3):
             std = np.std(interp_Es)
-            mask = interp_Es > mean - 2*std
-            mask = mask*(interp_Es < mean + 2*std)
+            mask = interp_Es > max_E - 2*std
             interp_Es = interp_Es[mask]
             interp_Fs = interp_Fs[mask]
             interp_magFs = interp_magFs[mask]
@@ -412,7 +419,20 @@ class BasePath(torch.nn.Module):
         self.ts_time = torch.tensor(interp_times[ts_idx], device=self.device)
         self.ts_energy = torch.tensor(interp_Es[ts_idx], device=self.device)
         self.ts_force = torch.tensor(interp_Fs[ts_idx], device=self.device)
-        self.ts_force = torch.tensor(interp_Fs[ts_idx], device=self.device)
+        self.ts_force_mag = torch.tensor(interp_magFs[ts_idx], device=self.device)
+
+        if evaluate_ts:
+            ts_output = self.forward(torch.tensor(
+                [self.ts_time]),
+                return_velocities=True,
+                return_energies=True,
+                return_forces=True
+            )
+            self.ts_energy = ts_output.energies
+            self.ts_force = ts_output.forces
+            self.ts_force_mag = torch.linalg.norm(self.ts_force, dim=-1)
+
+
 
 
         #print("NEW METHOD", self.ts_time, self.ts_energy, self.ts_force_mag)
