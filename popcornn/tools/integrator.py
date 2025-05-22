@@ -20,44 +20,29 @@ class ODEintegrator(Metrics):
     def __init__(
             self,
             method='dopri5',
-            rtol=1e-6,
-            atol=1e-7,
             computation='parallel',
-            sample_type='uniform',
-            remove_cut=0.1,
             path_loss_name=None,
             path_loss_params={},
             path_ode_names=None,
             path_ode_scales=None,
-            path_ode_energy_idx=1,
-            path_ode_force_idx=2,
-            process=None,
-            max_batch=None,
-            is_multiprocess=False,
-            is_load_balance=False,
-            n_added_evals=3,
             device=None,
+            **kwargs
         ):
         super().__init__(device, save_energy_force=True)
-        self.max_batch = max_batch
-        self.is_multiprocess = is_multiprocess
-        self.is_load_balance = is_load_balance
-        self.process = process
+
+        # Check Parameters
+        assert computation =='parallel' or computation == 'serial',\
+            f"Computation must be 'parallel' or 'serial', instead got {computation}"
         self.N_integrals = 0
-        self.path_ode_energy_idx = path_ode_energy_idx
-        self.path_ode_force_idx = path_ode_force_idx
         self.device = device
         
-        self.method = method
-        self.rtol = rtol
-        self.atol = atol
+        #self.rtol = rtol
+        #self.atol = atol
         self.integral_output = None
         self.add_y_arg = False
 
         #####  Setup torchpathdiffeq integrator and parallel compute  #####
-        self._setup_integrator_parallism(
-            computation, atol, rtol, sample_type, remove_cut
-        )
+        self._setup_integrator_parallism(method, computation, **kwargs)
 
         #####  Build loss funtion to integrate path over  #####
         ### Setup ode_fxn
@@ -67,7 +52,9 @@ class ODEintegrator(Metrics):
             self.ode_fxn = None
         else:
             self.create_ode_fxn(
-                self.is_parallel, path_ode_names, path_ode_scales
+                computation == 'parallel', 
+                path_ode_names,
+                path_ode_scales
             )
 
         ### Setup loss_fxn
@@ -75,9 +62,26 @@ class ODEintegrator(Metrics):
         self.loss_fxn = get_loss_fxn(path_loss_name, **path_loss_params)
 
 
-    def _setup_integrator_parallism(self, computation, atol, rtol, sample_type, remove_cut):
+    def _setup_integrator_parallism(
+            self,
+            method,
+            computation,
+            rtol=1e-6,
+            atol=1e-7,
+            sample_type='uniform',
+            remove_cut=0.1,
+            path_ode_energy_idx=1,
+            path_ode_force_idx=2,
+            max_batch=None,
+            process=None,
+            is_multiprocess=False,
+            is_load_balance=False,
+            **kwargs
+        ):
+        
+        self.path_ode_energy_idx = path_ode_energy_idx
+        self.path_ode_force_idx = path_ode_force_idx
         if computation == 'serial':
-            self.is_parallel = False
             self._integrator = SerialAdaptiveStepsizeSolver(
                 method=self.method,
                 atol=atol,
@@ -85,30 +89,30 @@ class ODEintegrator(Metrics):
                 t_init=torch.tensor([0], dtype=torch.float64),
                 t_final=torch.tensor([1], dtype=torch.float64),
                 device=self.device,
+                **kwargs
             )
             if self.is_load_balance:
                 self.balance_load = self._serial_load_balance
         elif computation == 'parallel':
-            self.sample_type = sample_type
-            self.is_parallel = True
-            self.remove_cut = remove_cut
             self._integrator = get_parallel_RK_solver(
-                self.sample_type,
-                method=self.method,
-                atol=self.atol,
-                rtol=self.rtol,
-                remove_cut=self.remove_cut,
+                sample_type,
+                method=method,
+                atol=atol,
+                rtol=rtol,
+                remove_cut=remove_cut,
                 max_path_change=None,
                 y0=torch.tensor([0], dtype=torch.float, device=self.device),
                 t_init=torch.tensor([0], dtype=torch.float64),
                 t_final=torch.tensor([1], dtype=torch.float64),
+                max_batch=max_batch,
                 error_calc_idx=0,
                 device=self.device,
+                **kwargs
             )
         else:
             raise ValueError(f"integrator argument must be either 'parallel' or 'serial', not {computation}.")
         
-        if self.is_multiprocess:
+        if is_multiprocess:
             if self.process is None or not self.process.is_distributed:
                 raise ValueError("Must run program in distributed mode with multiprocess integrator.")
             self.inner_path_integral = self.path_integral
@@ -144,7 +148,7 @@ class ODEintegrator(Metrics):
             t_init=t_init,
             t_final=t_final,
             ode_args=(path,),
-            max_batch=self.max_batch
+            #max_batch=self.max_batch
         )
         integral_output.integral = integral_output.integral[0]
         self.integral_output = integral_output
