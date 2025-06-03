@@ -44,20 +44,20 @@ def test_ts_search():
     # Evaluate TS search 
     for l in [2, 3, 4]:
         time = torch.linspace(
-            0, 1, 14, device=device, requires_grad=True
+            0, 1, 13, device=device, requires_grad=True
         ).unsqueeze(-1)
         positions = path(time)
         energies, ts_energy_truth, ts_time_truth = legendre_like(l, positions)
         ts_time_truth = 0.5 + ts_time_truth/2. 
         force = BasePotential.calculate_conservative_forces(energies, positions)
-        base_path.ts_search(time[:,0], energies[:,0], force)
+        base_path.ts_search(time[:,0], energies[:,0], force, evaluate_ts=False)
 
         ts_position = path(torch.tensor([[base_path.ts_time]], device=device))
         ts_energy, _, _ = legendre_like(l, ts_position)
         ts_energy = ts_energy[0]
         
         assert np.isclose(
-            ts_time_truth, base_path.ts_time.cpu().item(), atol=1e4, rtol=1e-4
+            ts_time_truth, base_path.ts_time.cpu().item(), atol=1e-2, rtol=1e-4
         ),\
         f"Did not match TS times for legendre {l}, got {base_path.ts_time.item()}, expected {ts_time_truth}"
         assert np.isclose(ts_energy_truth, ts_energy.cpu().item()),\
