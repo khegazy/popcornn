@@ -266,13 +266,13 @@ class BasePath(torch.nn.Module):
     def _ts_search_reformat(self, time, energies, forces, idx_shift):
         if len(time.shape) == 3:
             # Remove repeated evaluations
-            unique_mask = torch.all(time[0,1:] - time[0,:-1] > 1e-13, dim=-1)
+            unique_mask = torch.all(torch.abs(time[0,1:] - time[0,:-1]) > 1e-7, dim=-1)
             unique_mask = torch.concatenate([unique_mask, torch.tensor([True], device=self.device)])
             time = time[:,unique_mask]
             energies = energies[:,unique_mask]
             forces = forces[:,unique_mask]
 
-            if len(time) > 1 and torch.all(torch.abs(time[:-1,-1] - time[1:,0]) < 1e-13):
+            if len(time) > 1 and torch.all(torch.abs(time[:-1,-1] - time[1:,0]) < 1e-7):
                 time = time[:,:-1]
                 energies = energies[:,:-1]
                 forces = forces[:,:-1]
