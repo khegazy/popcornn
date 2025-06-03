@@ -6,10 +6,11 @@ class LinearPath(BasePath):
     """
     Linear path class for generating linear interpolation paths.
     """
-    def __init__(self, **kwargs):
+    def __init__(self, unwrap_positions, **kwargs):
         super().__init__(**kwargs)
         self.vec = self.final_position - self.initial_position
-        if self.transform:
+        if unwrap_positions and self.transform:
+            print("Unwrapping positions for linear path. Assuming no atoms move more than half the box length.")
             self.vec = self.transform(self.vec, center=1.0)
 
     def get_positions(self, time: float):

@@ -12,6 +12,7 @@ class MLPpath(BasePath):
         n_embed (int, optional): Number of embedding dimensions. Defaults to 32.
         depth (int, optional): Depth of the MLP. Defaults to 3.
         base: Path class to correct. Defaults to LinearPath.
+        unwrap_positions (bool, optional): Whether to unwrap positions. Defaults to True.
     """
     def __init__(
         self,
@@ -20,6 +21,7 @@ class MLPpath(BasePath):
         depth: int = 3,
         activation: str = "selu",
         base: BasePath = None,
+        unwrap_positions: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -42,7 +44,7 @@ class MLPpath(BasePath):
         self.mlp.to(self.device)
         self.neval = 0
 
-        self.base = base if base is not None else LinearPath(**kwargs)
+        self.base = base if base is not None else LinearPath(unwrap_positions=unwrap_positions, **kwargs)
         
         print("Number of trainable parameters in MLP:", sum(p.numel() for p in self.parameters() if p.requires_grad))
         print(self.mlp)
