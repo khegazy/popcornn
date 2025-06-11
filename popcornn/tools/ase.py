@@ -31,8 +31,8 @@ def output_to_atoms(output, ref_images):
             velocities=output.velocities[i].detach().cpu().numpy().reshape(n_atoms, 3) if output.velocities is not None else None,
             pbc=ref_images.pbc.detach().cpu().numpy(),
             cell=ref_images.cell.detach().cpu().numpy(),
-            constraint=ase.constraints.FixAtoms(
-                indices=np.where(ref_images.fix_positions.detach().cpu().numpy())[0]),
+            constraint=ase.constraints.FixAtoms(mask=ref_images.fix_positions.detach().cpu().numpy()),
+            tags=ref_images.tags.detach().cpu().numpy(),
         )
         calc = SinglePointCalculator(
             atoms,
