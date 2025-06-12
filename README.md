@@ -41,23 +41,21 @@ mep = Popcornn(images=images, path_params={'name': 'mlp', 'n_embed': 1, 'depth':
 Optional initialization parameters for Popcornn include `num_record_points` for the number of frames to be recorded after optimization, `output_dir` for optional debug outputs, `device`, `dtype`, and `seed`. For simpler reactions, `depth` of 2 helps limit the complexity of the reaction, while more complicated reactions may require a deeper path neural network.
 
 ### Optimize the path
-Machine learning potentials are vulnerable to unphysical, out-of-distribution configurations, and it's important to resolve atom clashing as an interpolation step. Luckily, you can do both the interpolation and the optimization with Popcornn! In general, therefore, you need multiple optimizations by providing a list of `opt_params`, each with a different potential, integral loss, and optimizer:
+Machine learning potentials are vulnerable to unphysical, out-of-distribution configurations, and it's important to resolve atom clashing as an interpolation step. Luckily, you can do both the interpolation and the optimization with Popcornn! In general, therefore, you need multiple optimizations by providing multiple `opt_params`, each with a different potential, integral loss, and optimizer:
 ```
 final_images, ts_image = mep.optimize_path(
-    [
-        {
-            'potential_params': {'potential': 'repel'},
-            'integrator_params': {'path_ode_names': 'geodesic'},
-            'optimizer_params': {'optimizer': {'name': 'adam', 'lr': 1.0e-1}},
-            'num_optimizer_iterations': 1000,
-        },
-        {
-            'potential_params': {'potential': 'uma', 'model_name': 'uma-s-1', 'task_name': 'omol'},
-            'integrator_params': {'path_ode_names': 'projected_variable_reaction_energy', 'rtol': 1.0e-5, 'atol': 1.0e-7},
-            'optimizer_params': {'optimizer': {'name': 'adam', 'lr': 1.0e-3}},
-            'num_optimizer_iterations': 1000,
-        },
-    ]
+    {
+        'potential_params': {'potential': 'repel'},
+        'integrator_params': {'path_ode_names': 'geodesic'},
+        'optimizer_params': {'optimizer': {'name': 'adam', 'lr': 1.0e-1}},
+        'num_optimizer_iterations': 1000,
+    },
+    {
+        'potential_params': {'potential': 'uma', 'model_name': 'uma-s-1', 'task_name': 'omol'},
+        'integrator_params': {'path_ode_names': 'projected_variable_reaction_energy', 'rtol': 1.0e-5, 'atol': 1.0e-7},
+        'optimizer_params': {'optimizer': {'name': 'adam', 'lr': 1.0e-3}},
+        'num_optimizer_iterations': 1000,
+    },
 )
 ```
 Finally, after optimization, you can save the optimized path as a list of Atoms for visualization and further optimization:
