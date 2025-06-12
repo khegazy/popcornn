@@ -116,6 +116,10 @@ def process_images(raw_images, device, dtype):
         fix_positions = fix_positions.flatten()
         assert np.all(image.get_tags() == raw_images[0].get_tags() for image in raw_images), "All images must have the same tags."
         tags = torch.tensor(raw_images[0].get_tags(), device=device, dtype=torch.int)
+        assert np.all(image.info.get('charge', 0) == raw_images[0].info.get('charge', 0) for image in raw_images), "All images must have the same charge."
+        charge = torch.tensor(raw_images[0].info.get('charge', 0), device=device, dtype=torch.int)
+        assert np.all(image.info.get('spin', 0) == raw_images[0].info.get('spin', 0) for image in raw_images), "All images must have the same spin."
+        spin = torch.tensor(raw_images[0].info.get('spin', 0), device=device, dtype=torch.int)
         processed_images = Images(
             image_type=image_type,
             positions=positions,
@@ -124,6 +128,8 @@ def process_images(raw_images, device, dtype):
             pbc=pbc,
             cell=cell,
             tags=tags,
+            charge=charge,
+            spin=spin,
         )
     else:
         raise ValueError(f"Cannot handle data type {dtype}.")

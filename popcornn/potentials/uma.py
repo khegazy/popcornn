@@ -1,6 +1,7 @@
 
 import torch
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
+from fairchem.core.units.mlip_unit.api.inference import InferenceSettings
 from fairchem.core.datasets import data_list_collater
 from fairchem.core.datasets.atomic_data import AtomicData
 
@@ -19,8 +20,8 @@ class UMAPotential(BasePotential):
             dataset name. eg. 'oc20'
         """
         super().__init__(**kwargs)
-        self.predictor = self.load_model(model_name, task_name)
         self.task_name = task_name
+        self.predictor = self.load_model(model_name, task_name)
         self.n_eval = 0
 
 
@@ -40,7 +41,6 @@ class UMAPotential(BasePotential):
         return calc.predictor
 
     def data_formatter(self, positions):
-        print('positions shape:', positions.shape)
         positions = positions.view(*positions.shape[:-1], self.n_atoms, 3)
         data_list = []
         for pos in positions:
@@ -53,8 +53,8 @@ class UMAPotential(BasePotential):
                 edge_index=torch.empty((2, 0), device=self.device, dtype=torch.long),
                 cell_offsets=torch.empty((0, 3), device=self.device, dtype=self.dtype),
                 nedges=torch.tensor([0], device=self.device, dtype=torch.long),
-                charge=torch.tensor([0], device=self.device, dtype=torch.long),  # default charge
-                spin=torch.tensor([0], device=self.device, dtype=torch.long),  # default spin
+                charge=self.charge.unsqueeze(0),
+                spin=self.spin.unsqueeze(0),
                 # fixed=self.fix_positions.long(),
                 fixed=torch.zeros(self.n_atoms, device=self.device, dtype=torch.long),  # default fixed positions
                 tags=self.tags.long(),
@@ -62,6 +62,5 @@ class UMAPotential(BasePotential):
             data.dataset = self.task_name
             data_list.append(data)
         batch = data_list_collater(data_list, otf_graph=True)
-        print(batch)
         
         return batch
