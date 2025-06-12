@@ -40,7 +40,6 @@ dependencies = [
     "pytest-cov",
     "PyYAML",
     "torchpathdiffeq",
-    "newtonnet",
 ]
 
 [project.optional-dependencies]

@@ -19,6 +19,6 @@ if __name__ == "__main__":
     
     # Write the final images
     if isinstance(final_images, list) and isinstance(final_images[0], Atoms):
-        write('configs/popcornn.xyz', final_images)
+        write('popcornn.xyz', final_images)
     if isinstance(ts_image, Atoms):
-        write('configs/popcornn_ts.xyz', ts_image)
+        write('popcornn_ts.xyz', ts_image)

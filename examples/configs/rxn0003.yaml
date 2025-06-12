@@ -3,9 +3,10 @@ init_params:
   path_params: 
     name: mlp
     n_embed: 1
-    depth: 3
+    depth: 2
     activation: gelu
   num_record_points: 101
+  # output_dir: output
   device: cuda
   seed: 0
 opt_params:  
