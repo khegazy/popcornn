@@ -9,7 +9,7 @@ initialization_params:
   seed: 2025
 optimization_params:  
   - potential_params:
-      potential: wolfe_schlegel
+      name: wolfe_schlegel
     integrator_params:
       path_ode_names:
         - projected_variational_reaction_energy
