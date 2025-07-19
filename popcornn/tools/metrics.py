@@ -347,7 +347,6 @@ class Metrics():
                 kwargs[name] if name in kwargs and kwargs[name] is not None else nans\
                     for name in ['energies', 'forces']
             ]
-            
             loss = torch.concatenate([loss] + keep_variables, dim=-1)
 
         return loss
@@ -473,8 +472,8 @@ class Metrics():
         if get_required_variables:
             return ('forces', 'velocities') 
         variables = self._parse_input(**kwargs)
-        
-        magnitude = torch.linalg.norm(variables['velocities']*variables['forces'])
+
+        magnitude = torch.linalg.norm(variables['velocities']*variables['forces'], dim=-1, keepdim=True)
         return magnitude, variables
 
 
@@ -491,7 +490,7 @@ class Metrics():
             return ('energies',) 
         variables = self._parse_input(**kwargs)
         
-        mean_E = torch.mean(variables['energies'], dim=0, keepdim=True)
+        mean_E = torch.mean(variables['energies'], dim=-1, keepdim=True)
         return mean_E, variables
 
 
@@ -503,8 +502,12 @@ class Metrics():
             ) 
         variables = self._parse_input(**kwargs)
         
-        pvre = self.projected_variational_reaction_energy(**variables)
-        vre = self.variable_reaction_energy(**variables)
+        pvre, _ = self.projected_variational_reaction_energy(
+            eval_time=kwargs['eval_time'], path=kwargs['path'], **variables
+        )
+        vre, _ = self.variable_reaction_energy(
+            eval_time=kwargs['eval_time'], path=kwargs['path'], **variables
+        )
         return vre - pvre, variables
 
     
