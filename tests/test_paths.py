@@ -18,7 +18,7 @@ def test_linear(dtype, device):
     if device.type == 'cuda' and not torch.cuda.is_available():
         pytest.skip(reason='CUDA is not available, skipping test.')
 
-    images = process_images('images/muller_brown.json', device=device, dtype=dtype)
+    images = process_images('tests/images/muller_brown.json', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
     assert path.transform is None
 
@@ -62,7 +62,7 @@ def test_mlp(dtype, device):
         pytest.skip(reason='CUDA is not available, skipping test.')
 
     torch.manual_seed(0)  # For reproducibility
-    images = process_images('images/muller_brown.json', device=device, dtype=dtype)
+    images = process_images('tests/images/muller_brown.json', device=device, dtype=dtype)
     path = get_path('mlp', images=images, device=device, dtype=dtype)
 
     path_output = path()
@@ -132,7 +132,7 @@ def test_output():
 
 
 def test_unwrap():
-    images = process_images('images/LJ35.xyz', unwrap_positions=True, device=torch.device('cpu'), dtype=torch.float32)
+    images = process_images('tests/images/LJ35.xyz', unwrap_positions=True, device=torch.device('cpu'), dtype=torch.float32)
     path = get_path('linear', images=images, device=torch.device('cpu'), dtype=torch.float32)
     assert path.transform is not None
     assert torch.allclose(
@@ -179,7 +179,7 @@ def test_unwrap():
         atol=1e-5
     )
 
-    images = process_images('images/LJ35.xyz', unwrap_positions=False, device=torch.device('cpu'), dtype=torch.float32)
+    images = process_images('tests/images/LJ35.xyz', unwrap_positions=False, device=torch.device('cpu'), dtype=torch.float32)
     path = get_path('linear', images=images, device=torch.device('cpu'), dtype=torch.float32)
     assert path.transform is not None
     assert torch.allclose(
@@ -229,7 +229,7 @@ def test_unwrap():
 
 @pytest.mark.parametrize(
     'raw_images',
-    ['images/muller_brown.json', 'images/LJ13.xyz', 'images/LJ35.xyz']
+    ['tests/images/muller_brown.json', 'tests/images/LJ13.xyz', 'tests/images/LJ35.xyz']
 )
 @pytest.mark.parametrize(
     'path_name',
@@ -271,7 +271,7 @@ def test_set_potential(path_name, dtype, device):
     if device.type == 'cuda' and not torch.cuda.is_available():
         pytest.skip(reason='CUDA is not available, skipping test.')
         
-    images = process_images('images/muller_brown.json', device=device, dtype=dtype)
+    images = process_images('tests/images/muller_brown.json', device=device, dtype=dtype)
     path = get_path(path_name, images=images, device=device, dtype=dtype)
     assert path.potential is None
     with pytest.raises(AssertionError, match='Potential must be set by \'set_potential\' before calling \'forward\''):
@@ -313,7 +313,7 @@ def test_set_potential(path_name, dtype, device):
         path(torch.tensor([0.5], requires_grad=True, device=device, dtype=dtype), return_forces_decomposed=True)
 
     torch.manual_seed(0)  # For reproducibility
-    images = process_images('images/LJ35.xyz', device=device, dtype=dtype)
+    images = process_images('tests/images/LJ35.xyz', device=device, dtype=dtype)
     path = get_path(path_name, images=images, device=device, dtype=dtype)
     potential = get_potential('lennard_jones', images=images, device=device, dtype=dtype)
     path.set_potential(potential)

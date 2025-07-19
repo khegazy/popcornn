@@ -9,7 +9,7 @@ from popcornn.tools import process_images
 
 @pytest.mark.parametrize(
     'raw_images',
-    [[[-0.558, 1.442], [-0.050, 0.467]], 'images/muller_brown.json']
+    [[[-0.558, 1.442], [-0.050, 0.467]], 'tests/images/muller_brown.json']
 )
 @pytest.mark.parametrize(
     'dtype',
@@ -44,7 +44,7 @@ def test_list(raw_images, dtype, device):
 
 @pytest.mark.parametrize(
     'raw_images', 
-    [np.array([[-0.558, 1.442], [-0.050, 0.467]]), 'images/muller_brown.npy']
+    [np.array([[-0.558, 1.442], [-0.050, 0.467]]), 'tests/images/muller_brown.npy']
 )
 @pytest.mark.parametrize(
     'dtype',
@@ -79,7 +79,7 @@ def test_numpy(raw_images, dtype, device):
 
 @pytest.mark.parametrize(
     'raw_images',
-    [torch.tensor([[-0.558, 1.442], [-0.050, 0.467]]), 'images/muller_brown.pt']
+    [torch.tensor([[-0.558, 1.442], [-0.050, 0.467]]), 'tests/images/muller_brown.pt']
 )
 @pytest.mark.parametrize(
     'dtype',
@@ -114,7 +114,7 @@ def test_torch(raw_images, dtype, device):
 
 @pytest.mark.parametrize(
     'raw_images',
-    [read('images/OC20NEB.xyz', index=':'), 'images/OC20NEB.xyz']
+    [read('tests/images/OC20NEB.xyz', index=':'), 'tests/images/OC20NEB.xyz']
 )
 @pytest.mark.parametrize(
     'dtype',
@@ -221,7 +221,7 @@ def test_xyz(raw_images, dtype, device):
 
 @pytest.mark.parametrize(
     'raw_images',
-    [read('images/OC20NEB.traj', index=':'), 'images/OC20NEB.traj']
+    [read('tests/images/OC20NEB.traj', index=':'), 'tests/images/OC20NEB.traj']
 )
 @pytest.mark.parametrize(
     'dtype',
@@ -328,7 +328,7 @@ def test_traj(raw_images, dtype, device):
 
 @pytest.mark.parametrize(
     'raw_images',
-    [[[-0.558, 1.442], [0.623, 0.028], [-0.050, 0.467]], 'images/muller_brown_all.json']
+    [[[-0.558, 1.442], [0.623, 0.028], [-0.050, 0.467]], 'tests/images/muller_brown_all.json']
 )
 def test_list_with_intermediates(raw_images):
     images = process_images(raw_images, device=torch.device('cpu'), dtype=torch.float32)
@@ -348,7 +348,7 @@ def test_list_with_intermediates(raw_images):
 
 @pytest.mark.parametrize(
     'raw_images',
-    [read('images/OC20NEB_all.xyz', index=':'), 'images/OC20NEB_all.xyz']
+    [read('tests/images/OC20NEB_all.xyz', index=':'), 'tests/images/OC20NEB_all.xyz']
 )
 def test_xyz_with_intermediates(raw_images):
     images = process_images(raw_images, device=torch.device('cpu'), dtype=torch.float32)
@@ -583,7 +583,7 @@ def test_charge_spin(device):
     if device.type == 'cuda' and not torch.cuda.is_available():
         pytest.skip(reason='CUDA is not available, skipping test.')
         
-    images = process_images('images/T1x.xyz', device=device, dtype=torch.float32)
+    images = process_images('tests/images/T1x.xyz', device=device, dtype=torch.float32)
     assert images.charge is not None
     assert images.charge.shape == ()
     assert images.charge.device.type == device.type
@@ -613,7 +613,7 @@ def test_unwrap(caplog):
     )
 
     caplog.clear()
-    images = process_images('images/LJ35.xyz', device=torch.device('cpu'), dtype=torch.float32, unwrap_positions=True)
+    images = process_images('tests/images/LJ35.xyz', device=torch.device('cpu'), dtype=torch.float32, unwrap_positions=True)
     assert UNWRAP_WARNING in caplog.text
     assert NO_UNWRAP_WARNING not in caplog.text
     assert torch.allclose(images.positions, torch.tensor(
@@ -668,7 +668,7 @@ def test_unwrap(caplog):
     ))
 
     caplog.clear()
-    images = process_images('images/LJ35.xyz', device=torch.device('cpu'), dtype=torch.float32, unwrap_positions=False)
+    images = process_images('tests/images/LJ35.xyz', device=torch.device('cpu'), dtype=torch.float32, unwrap_positions=False)
     assert UNWRAP_WARNING not in caplog.text
     assert NO_UNWRAP_WARNING in caplog.text
     assert torch.allclose(images.positions, torch.tensor(
@@ -724,7 +724,7 @@ def test_unwrap(caplog):
     ))
 
     caplog.clear()
-    images = process_images('images/LJ13.xyz', device=torch.device('cpu'), dtype=torch.float32, unwrap_positions=True)
+    images = process_images('tests/images/LJ13.xyz', device=torch.device('cpu'), dtype=torch.float32, unwrap_positions=True)
     assert UNWRAP_WARNING not in caplog.text
     assert NO_UNWRAP_WARNING not in caplog.text
     assert torch.allclose(images.positions, torch.tensor(
@@ -754,7 +754,7 @@ def test_unwrap(caplog):
     ))
 
     caplog.clear()
-    images = process_images('images/LJ13.xyz', device=torch.device('cpu'), dtype=torch.float32, unwrap_positions=False)
+    images = process_images('tests/images/LJ13.xyz', device=torch.device('cpu'), dtype=torch.float32, unwrap_positions=False)
     assert UNWRAP_WARNING not in caplog.text
     assert NO_UNWRAP_WARNING not in caplog.text
     assert torch.allclose(images.positions, torch.tensor(

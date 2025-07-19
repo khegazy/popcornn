@@ -27,7 +27,7 @@ def test_sphere(dtype, device):
     if device.type == 'cuda' and not torch.cuda.is_available():
         pytest.skip(reason='CUDA is not available, skipping test.')
         
-    images = process_images('images/sphere.json', device=device, dtype=dtype)
+    images = process_images('tests/images/sphere.json', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
     potential = get_potential('sphere', images=images, device=device, dtype=dtype)
 
@@ -64,7 +64,7 @@ def test_muller_brown(dtype, device):
     if device.type == 'cuda' and not torch.cuda.is_available():
         pytest.skip(reason='CUDA is not available, skipping test.')
         
-    images = process_images('images/muller_brown.json', device=device, dtype=dtype)
+    images = process_images('tests/images/muller_brown.json', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
     potential = get_potential('muller_brown', images=images, device=device, dtype=dtype)
 
@@ -108,7 +108,7 @@ def test_wolfe(dtype, device):
     if device.type == 'cuda' and not torch.cuda.is_available():
         pytest.skip(reason='CUDA is not available, skipping test.')
         
-    images = process_images('images/wolfe.json', device=device, dtype=dtype)
+    images = process_images('tests/images/wolfe.json', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
     potential = get_potential('wolfe_schlegel',images=images, device=device, dtype=dtype)
 
@@ -152,11 +152,11 @@ def test_lennard_jones(dtype, device):
     if device.type == 'cuda' and not torch.cuda.is_available():
         pytest.skip(reason='CUDA is not available, skipping test.')
         
-    raw_images = [read('images/LJ13.xyz', index=i) for i in (0, 1, 1)]
+    raw_images = [read('tests/images/LJ13.xyz', index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = LennardJones()
-    images = process_images('images/LJ13.xyz', device=device, dtype=dtype)
+    images = process_images('tests/images/LJ13.xyz', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
     potential = get_potential('lennard_jones', images=images, device=device, dtype=dtype)
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
@@ -187,11 +187,11 @@ def test_lennard_jones(dtype, device):
     assert torch.allclose(potential_output.forces_decomposed.sum(dim=-2, keepdim=False), potential_output.forces, atol=1e-5)
     assert potential_output.forces_decomposed.grad_fn is not None
 
-    raw_images = [read('images/LJ35.xyz', index=i) for i in (0, 1, 1)]
+    raw_images = [read('tests/images/LJ35.xyz', index=i) for i in (0, 1, 1)]
     interpolate(raw_images, mic=True)
     for image in raw_images:
         image.calc = LennardJones()
-    images = process_images('images/LJ35.xyz', device=device, dtype=dtype)
+    images = process_images('tests/images/LJ35.xyz', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
     potential = get_potential('lennard_jones', images=images, device=device, dtype=dtype)
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
@@ -280,11 +280,11 @@ def test_repel(dtype, device):
             self.results['energy'] = energy
             self.results['forces'] = forces
 
-    raw_images = [read('images/LJ13.xyz', index=i) for i in (0, 1, 1)]
+    raw_images = [read('tests/images/LJ13.xyz', index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = RepelCalculator()
-    images = process_images('images/LJ13.xyz', device=device, dtype=dtype)
+    images = process_images('tests/images/LJ13.xyz', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
     potential = get_potential('repel', images=images, device=device, dtype=dtype)
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
@@ -315,11 +315,11 @@ def test_repel(dtype, device):
     assert torch.allclose(potential_output.forces_decomposed.sum(dim=-2, keepdim=False), potential_output.forces, atol=1e-5)
     assert potential_output.forces_decomposed.grad_fn is not None
 
-    raw_images = [read('images/LJ35.xyz', index=i) for i in (0, 1, 1)]
+    raw_images = [read('tests/images/LJ35.xyz', index=i) for i in (0, 1, 1)]
     interpolate(raw_images, mic=True)
     for image in raw_images:
         image.calc = RepelCalculator()
-    images = process_images('images/LJ35.xyz', device=device, dtype=dtype)
+    images = process_images('tests/images/LJ35.xyz', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
     potential = get_potential('repel', images=images, device=device, dtype=dtype)
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
@@ -367,14 +367,14 @@ def test_uma(dtype, device):
     if dtype == torch.float64:
         pytest.skip("UMA potential is not supported for float64 due to precision issues.")
 
-    raw_images = [read('images/T1x.xyz', index=i) for i in (0, 1, 1)]
+    raw_images = [read('tests/images/T1x.xyz', index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = FAIRChemCalculator(
             pretrained_mlip.get_predict_unit('uma-s-1', device=device.type),
             task_name='omol'
         )
-    images = process_images('images/T1x.xyz', device=device, dtype=dtype)
+    images = process_images('tests/images/T1x.xyz', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
     potential = get_potential('uma', model_name='uma-s-1', task_name='omol', images=images, device=device, dtype=dtype)
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
@@ -397,14 +397,14 @@ def test_uma(dtype, device):
     assert potential_output.forces.grad_fn is not None
     assert potential_output.forces_decomposed is None
 
-    raw_images = [read('images/OC20NEB.xyz', index=i) for i in (0, 1, 1)]
+    raw_images = [read('tests/images/OC20NEB.xyz', index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = FAIRChemCalculator(
             pretrained_mlip.get_predict_unit('uma-s-1', device=device.type),
             task_name='oc20'
         )
-    images = process_images('images/OC20NEB.xyz', device=device, dtype=dtype)
+    images = process_images('tests/images/OC20NEB.xyz', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
     potential = get_potential('uma', model_name='uma-s-1', task_name='oc20', images=images, device=device, dtype=dtype)
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
