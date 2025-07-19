@@ -360,6 +360,7 @@ def test_repel(dtype, device):
     [torch.device('cpu'), torch.device('cuda')]
 )
 def test_uma(dtype, device):
+    pytest.skip(reason='Give github an UMA license')
     if device.type == 'cuda' and not torch.cuda.is_available():
         pytest.skip(reason='CUDA is not available, skipping test.')
         
