@@ -14,10 +14,11 @@ def test_ts_search():
     x_init = torch.tensor([-1.5, 1, -0.5], device=device)
     x_final = torch.tensor([-0.25, 0.25, 1], device=device)
     images = Images(
-        dtype=x_init.dtype,
+        image_type=x_init.dtype,
         positions=torch.stack([x_init, x_final]),
+        fix_positions=None
     )
-    base_path = BasePath(images=images, device=device)
+    base_path = BasePath(images=images, dtype=x_init.dtype, device=device)
     
     # Create simple path where sum of coordinates is from -1 to 1
     def path(t):
