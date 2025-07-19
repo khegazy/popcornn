@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        python-version: ["3.9", "3.12"]
+        python-version: ["3.10", "3.12"]
 
     defaults:
       run:
@@ -40,7 +40,7 @@ jobs:
           uv pip install --system .[dev]
 
       - name: Run tests with pytest
-        run: pytest --cov=transbymep --cov-report=xml
+        run: pytest --cov=popcornn --cov-report=xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
