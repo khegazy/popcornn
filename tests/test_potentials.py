@@ -158,7 +158,7 @@ def test_lennard_jones(dtype, device):
         image.calc = LennardJones()
     images = process_images('tests/images/LJ13.xyz', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
-    potential = get_potential('lennard_jones', images=images, device=device, dtype=dtype)
+    potential = get_potential('lennard_jones', cutoff=3.0, images=images, device=device, dtype=dtype)
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
     assert potential_output.energies.shape == (3, 1)
     assert potential_output.energies.device.type == device.type
@@ -194,7 +194,7 @@ def test_lennard_jones(dtype, device):
         image.calc = LennardJones()
     images = process_images('tests/images/LJ35.xyz', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
-    potential = get_potential('lennard_jones', images=images, device=device, dtype=dtype)
+    potential = get_potential('lennard_jones', cutoff=3.0, images=images, device=device, dtype=dtype)
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
     assert potential_output.energies.shape == (3, 1)
     assert potential_output.energies.device.type == device.type
@@ -287,7 +287,7 @@ def test_repel(dtype, device):
         image.calc = RepelCalculator()
     images = process_images('tests/images/LJ13.xyz', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
-    potential = get_potential('repel', images=images, device=device, dtype=dtype)
+    potential = get_potential('repel', cutoff=3.0, images=images, device=device, dtype=dtype)
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
     assert potential_output.energies.shape == (3, 1)
     assert potential_output.energies.device.type == device.type
@@ -323,7 +323,7 @@ def test_repel(dtype, device):
         image.calc = RepelCalculator()
     images = process_images('tests/images/LJ35.xyz', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
-    potential = get_potential('repel', images=images, device=device, dtype=dtype)
+    potential = get_potential('repel', cutoff=3.0, images=images, device=device, dtype=dtype)
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
     assert potential_output.energies.shape == (3, 1)
     assert potential_output.energies.device.type == device.type

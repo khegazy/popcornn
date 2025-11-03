@@ -6,7 +6,7 @@ from .base_potential import BasePotential, PotentialOutput
 from popcornn.tools import radius_graph
 
 class LennardJones(BasePotential):
-    def __init__(self, epsilon=1.0, sigma=1.0, cutoff=3.0, **kwargs):
+    def __init__(self, epsilon=1.0, sigma=1.0, cutoff=None, **kwargs):
         """
         Constructor for the Lennard-Jones Potential.
 

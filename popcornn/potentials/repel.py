@@ -10,7 +10,7 @@ class RepelPotential(BasePotential):
             self, 
             alpha=1.7, 
             beta=0.01, 
-            cutoff=3.0,
+            cutoff=None,
             **kwargs,
         ):
         """
