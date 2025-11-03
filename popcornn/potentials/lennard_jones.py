@@ -34,14 +34,13 @@ class LennardJones(BasePotential):
         )
         r = graph_dict['edge_distance']
         v = graph_dict['edge_distance_vec']
-        e = 0.5 * (
-            4 * self.epsilon * ((self.sigma / r) ** 12 - (self.sigma / r) ** 6) 
-            - 4 * self.epsilon * ((self.sigma / self.cutoff) ** 12 - (self.sigma / self.cutoff) ** 6)
-        )
+        e = 4 * self.epsilon * ((self.sigma / r) ** 12 - (self.sigma / r) ** 6)
+        if self.cutoff is not None:
+            e -= 4 * self.epsilon * ((self.sigma / self.cutoff) ** 12 - (self.sigma / self.cutoff) ** 6)
         energies_decomposed, _ = to_dense_batch(e, batch=graph_dict['edge_index'][1] // n_atoms)
         energies = torch.sum(energies_decomposed, dim=-1, keepdim=True)
 
-        f = 0.5 * (
+        f = (
             -24 * self.epsilon * (2 * (self.sigma / r) ** 12 - (self.sigma / r) ** 6) / r ** 2
         ).unsqueeze(-1) * v
         forces_decomposed = torch.zeros(len(f), n_atoms, 3, device=self.device, dtype=self.dtype)
