@@ -110,54 +110,110 @@ def unwrap_atoms(
         images[i + 1].set_positions(positions_i + diff)
     return images
 
-# def radius_graph(
-#         positions: torch.Tensor,
-#         cell: torch.Tensor,
-#         pbc: torch.Tensor,
-#         cutoff: float,
-#         n_data: int,
-#         n_atoms: int,
-#     ) -> torch.Tensor:
-#     """
-#     Create a graph of atom pairs within a cutoff distance.
-
-#     Parameters:
-#     -----------
-#     positions: float tensor of shape (n_data * n_atoms, 3)
-#         Positions of the atoms.
-#     cell: float tensor of shape (3, 3)
-#         Unit cell vectors.
-#     pbc: one or 3 bool
-#         For each axis in the unit cell decides whether the positions
-#         will be moved along this axis.
-#     cutoff: float
-#         Cutoff distance for the graph.
-#     n_data: int
-#         Number of data points.
-#     n_atoms: int
-#         Number of atoms in each data point.
-
-#     Returns:
-#     --------
-#     torch.Tensor
-#         Graph of atom pairs within the cutoff distance.
-#     """
-#     # Create all-pairs distance matrix
-#     edge_index = torch.triu_indices(n_atoms, n_atoms, offset=1)
-#     edge_index = edge_index[:, None, :] + torch.arange(n_atoms, device=positions.device)[None, :, None] * n_data
-#     edge_index = edge_index.view(2, -1)
-#     disp = positions[:, edge_index[0]] - positions[:, edge_index[1]]
-
-#     # Apply periodic boundary conditions if cell is provided
-#     if pbc.any():
-#         disp = wrap_positions(disp, cell, pbc, center=1.0)
-
-#     # Create graph based on cutoff distance
-#     edge_index = edge_index[:, disp.norm(dim=-1) < cutoff]
-
-#     return edge_index
-
 def radius_graph(
+        positions: torch.Tensor,
+        cell: torch.Tensor,
+        pbc: torch.Tensor,
+        cutoff: float = None,
+        max_neighbors: int = None,
+        method: str = "mic",
+    ) -> torch.Tensor:
+    """
+    Create a graph of atom pairs within a cutoff distance.
+
+    Parameters:
+    -----------
+    positions: float tensor of shape (n_data, n_atoms, 3)
+        Positions of the atoms.
+    cell: float tensor of shape (3, 3)
+        Unit cell vectors.
+    pbc: one or 3 bool
+        For each axis in the unit cell decides whether the positions
+        will be moved along this axis.
+    cutoff: float
+        Cutoff distance for the graph.
+    max_neighbors: int
+        Maximum number of neighbors for each atom. If -1, no limit is applied.
+    method: str
+        Method to use for creating the graph. Options are "mic" and "fairchem".
+
+    Returns:
+    --------
+    torch.Tensor
+        Graph of atom pairs within the cutoff distance.
+    """
+    if method == "mic":
+        return radius_graph_mic(positions, cell, pbc, cutoff, max_neighbors)
+    elif method == "fairchem":
+        return radius_graph_fairchem(positions, cell, pbc, cutoff, max_neighbors)
+    else:
+        raise ValueError(f"Invalid method: {method}. Options are 'mic' and 'fairchem'.")
+
+def radius_graph_mic(
+        positions: torch.Tensor,
+        cell: torch.Tensor,
+        pbc: torch.Tensor,
+        cutoff: float = None,
+        max_neighbors: int = None,
+    ) -> torch.Tensor:
+    """
+    Create a graph of atom pairs within a cutoff distance.
+
+    Parameters:
+    -----------
+    positions: float tensor of shape (n_data, n_atoms, 3)
+        Positions of the atoms.
+    cell: float tensor of shape (3, 3)
+        Unit cell vectors.
+    pbc: one or 3 bool
+        For each axis in the unit cell decides whether the positions
+        will be moved along this axis.
+    cutoff: float
+        Cutoff distance for the graph.
+    n_data: int
+        Number of data points.
+    n_atoms: int
+        Number of atoms in each data point.
+
+    Returns:
+    --------
+    torch.Tensor
+        Graph of atom pairs within the cutoff distance.
+    """
+    device = positions.device
+    dtype = positions.dtype
+    n_data, n_atoms, _ = positions.shape
+
+    # Create all-pairs distance matrix
+    edge_index = torch.triu_indices(n_atoms, n_atoms, offset=1, device=device)
+    edge_index = edge_index[:, None, :] + torch.arange(n_data, device=device)[None, :, None] * n_atoms
+    edge_index = edge_index.view(2, -1)
+    positions_flat = positions.view(-1, 3)
+    disp = positions_flat[edge_index[0]] - positions_flat[edge_index[1]]
+
+    # Apply periodic boundary conditions if cell is provided
+    if pbc.any():
+        disp = wrap_positions(disp, cell, pbc, center=1.0)
+
+    # Create graph based on cutoff distance
+    dist = torch.norm(disp, dim=-1)
+    if cutoff is not None:
+        mask = dist < cutoff
+        edge_index = edge_index[:, mask]
+        edge_distance = dist[mask]
+        edge_distance_vec = disp[mask]
+    else:
+        edge_index = edge_index
+        edge_distance = dist
+        edge_distance_vec = disp
+
+    return {
+        'edge_index': edge_index,
+        'edge_distance': edge_distance,
+        'edge_distance_vec': edge_distance_vec,
+    }
+
+def radius_graph_fairchem(
         positions: torch.Tensor,
         cell: torch.Tensor,
         pbc: torch.Tensor,
