@@ -16,12 +16,11 @@ optimization_params:
       name: repel
     integrator_params:
       path_integrand_names: geodesic
-      rtol: 0.5
-      atol: 0.05
+      rtol: 1.0
     optimizer_params:
       optimizer:
         name: adam
-        lr: 1.0e-2
+        lr: 0.01
       threshold: 0.1
     num_optimizer_iterations: 1000
   - potential_params:
@@ -29,15 +28,11 @@ optimization_params:
       model_name: uma-s-1p1
       task_name: omol
     integrator_params:
-      path_integrand_names: pvre_pseudo_huber
-      path_integrand_kwargs:
-        pvre_pseudo_huber:
-          delta: 0.05
-      rtol: 0.5
-      atol: 2.5e-3
+      path_integrand_names: pvre
+      rtol: 1.0
     optimizer_params:
       optimizer:
         name: adam
-        lr: 1.0e-2
-      threshold: 5.0e-3
+        lr: 0.01
+      threshold: 0.1
     num_optimizer_iterations: 1000

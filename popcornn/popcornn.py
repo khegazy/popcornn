@@ -20,14 +20,14 @@ class _StageLogger:
 
     Streams a header at stage start, sparse per-iter rows, a
     convergence-trigger announcement, and a stage-end summary to
-    stdout. When ``metrics_log_path`` is provided, also writes one
+    stdout. When ``log_path`` is provided, also writes one
     JSONL row per iteration with the full scalar metric set —
     flushed each row so a killed run leaves a partial-but-valid
     file.
     """
 
     def __init__(self, stage_idx, integrand_terms, lr, threshold,
-                 n_iter, n_params, metrics_log_path=None):
+                 n_iter, n_params, log_path=None):
         self.stage_idx = stage_idx
         self.n_iter = n_iter
         terms_str = (
@@ -44,31 +44,35 @@ class _StageLogger:
             f"  {'iter':>6s}    {'step_s':>8s}  "
             f"  {'loss':>12s}    {'grad':>12s}  "
             f"  {'barrier':>8s}    {'force':>8s}  "
+            f"  {'ts_time':>8s}    {'crossings':>8s}  "
         )
         print(header)
         self._t_start = time.perf_counter()
 
         self._metrics_fh = None
-        if metrics_log_path is not None:
-            parent = os.path.dirname(metrics_log_path)
+        if log_path is not None:
+            parent = os.path.dirname(log_path)
             if parent:
                 os.makedirs(parent, exist_ok=True)
-            self._metrics_fh = open(metrics_log_path, 'w')
+            self._metrics_fh = open(log_path, 'w')
 
-    def row(self, it, loss, grad_norm, step_s, barrier=None, ts_force=None):
+    def row(self, it, loss, grad_norm, step_s, barrier=None, ts_force=None, ts_time=None, n_crossings=None):
         loss_str = "—" if loss is None else f"{loss:12.4e}"
         barrier_str = "—" if barrier is None else f"{barrier:8.4f}"
         force_str = "—" if ts_force is None else f"{float(ts_force.norm().item()):8.4f}"
+        ts_time_str = "—" if ts_time is None else f"{ts_time:8.2f}"
+        crossings_str = "—" if n_crossings is None else f"{n_crossings:>8d}"
         line = (
             f"  {it:>6d}    {step_s:8.4f}  "
             f"  {loss_str:>12s}    {grad_norm:12.4e}  "
             f"  {barrier_str:>8s}    {force_str:>8s}  "
+            f"  {ts_time_str:>8s}    {crossings_str:>8s}  "
         )
         print(line, flush=True)
 
     def metrics(self, **fields):
         """Append one JSONL row with scalar metrics. No-op when no
-        ``metrics_log_path`` was configured."""
+        ``log_path`` was configured."""
         if self._metrics_fh is None:
             return
         self._metrics_fh.write(json.dumps(fields) + "\n")
@@ -135,6 +139,7 @@ class Popcornn:
             device: str | None = None,
             dtype: str = "float32",
             seed: int | None = 0,
+            log_path: str | None = None,
     ):
         """
         Initialize the Popcornn class.
@@ -192,11 +197,12 @@ class Popcornn:
         # Number of points to record along the optimized path
         self.num_record_points = num_record_points
 
+        self.log_path = log_path
+
 
     def optimize_path(
             self,
             *optimization_params: list[dict],
-            metrics_log_path: str | None = None,
     ):
         """
         Run a chain of optimization stages on ``self.path`` in place.
@@ -248,7 +254,6 @@ class Popcornn:
                 # output_dir=output_dir,
                 # output_ase_atoms=output_ase_atoms,
                 stage_idx=i,
-                metrics_log_path=metrics_log_path,
             )
 
 
@@ -300,7 +305,6 @@ class Popcornn:
             # output_dir: str | None = None,
             # output_ase_atoms: bool = True,
             stage_idx: int = 0,
-            metrics_log_path: str | None = None,
     ):
         """
         Run a single optimization stage.
@@ -368,7 +372,7 @@ class Popcornn:
             threshold=optimizer.threshold,
             n_iter=num_optimizer_iterations,
             n_params=sum(p.numel() for p in self.path.parameters() if p.requires_grad),
-            metrics_log_path=metrics_log_path,
+            log_path=f"{self.log_path}/stage_{stage_idx}_metrics.jsonl" if self.log_path is not None else None,
         )
 
         # Safe defaults for the degenerate num_optimizer_iterations=0 case
@@ -396,12 +400,16 @@ class Popcornn:
             # which sets path.barrier alongside path.ts_force).
             barrier = None
             ts_force = None
+            ts_time = None
+            n_crossings = None
             if self.track_ts:
                 b = getattr(self.path, 'barrier', None)
                 barrier = b.item() if b is not None else None
                 ts_force = getattr(self.path, 'ts_force', None)
+                ts_time = getattr(self.path, 'ts_time', None)
+                n_crossings = getattr(self.path, 'n_crossings', None)
 
-            logger.row(optim_idx, loss_v, grad_norm, step_s, barrier=barrier, ts_force=ts_force)
+            logger.row(optim_idx, loss_v, grad_norm, step_s, barrier=barrier, ts_force=ts_force, ts_time=ts_time, n_crossings=n_crossings)
 
             logger.metrics(
                 iter=optim_idx,
@@ -413,6 +421,7 @@ class Popcornn:
                 converged=bool(optimizer.converged),
                 barrier=barrier,
                 ts_force_norm=(float(ts_force.norm().item()) if ts_force is not None else None),
+                n_crossings=n_crossings,
             )
 
             # Save the path

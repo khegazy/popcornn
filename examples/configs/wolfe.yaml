@@ -15,15 +15,11 @@ optimization_params:
   - potential_params:
       name: wolfe_schlegel
     integrator_params:
-      path_integrand_names: pvre_pseudo_huber
-      path_integrand_kwargs:
-        pvre_pseudo_huber:
-          delta: 0.05
-      rtol: 0.5
-      atol: 2.5e-3
+      path_integrand_names: pvre
+      rtol: 1.0
     optimizer_params:
       optimizer:
         name: adam
         lr: 1.0e-2
-      threshold: 5.0e-3
+      threshold: 0.1
     num_optimizer_iterations: 1000

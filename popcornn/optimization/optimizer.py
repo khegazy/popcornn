@@ -212,19 +212,6 @@ class PathOptimizer():
         #         )
         #         ts_time_loss[:, 0].backward()
 
-        #####  Update Optimization  #####
-        # Path update step
-        if update_path:
-            self.optimizer.step()
-        # Update schedulers
-        # for name, sched in self.integrand_schedulers.items():
-        #     sched.step()
-        # if self.has_ts_loss:
-        #     for name, sched in self.ts_time_loss_schedulers.items():
-        #         sched.step()
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
-
         # Convergence: ‖∫∇L dt‖_2 below threshold for `patience` consecutive
         # iterations. Patience guards against single-step dips driven by
         # adaptive-quadrature error wiggling around the threshold.
@@ -235,6 +222,19 @@ class PathOptimizer():
                     self.converged = True
             else:
                 self._below_threshold_count = 0
+
+        #####  Update Optimization  #####
+        # Path update step
+        if not self.converged and update_path:
+            self.optimizer.step()
+        # Update schedulers
+        # for name, sched in self.integrand_schedulers.items():
+        #     sched.step()
+        # if self.has_ts_loss:
+        #     for name, sched in self.ts_time_loss_schedulers.items():
+        #         sched.step()
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.step()
 
         self.iteration = self.iteration + 1
 

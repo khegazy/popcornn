@@ -58,13 +58,14 @@ class PathIntegrator:
             path_integrand_names=None,
             path_integrand_scales=None,
             path_integrand_kwargs=None,
-            rtol=0.5,
-            atol=2.5e-3,
+            rtol=1.0,
+            atol=0.0,
             norm='2',
             max_batch=None,
+            max_iter=5,
             track_loss=False,
-            loss_rtol=0.01,
-            loss_atol=0.0,
+            loss_rtol=0.0,
+            loss_atol=0.0001,
             track_ts=False,
             device=None,
             dtype=None,
@@ -138,6 +139,7 @@ class PathIntegrator:
         self.loss_atol = loss_atol
         self.track_ts = track_ts
         self.max_batch = max_batch
+        self.max_iter = max_iter
         self.device = device
         self.dtype = dtype
         self.N_integrals = 0
@@ -268,6 +270,7 @@ class PathIntegrator:
             rtol=self.rtol,
             norm=self.norm,
             max_batch=self.max_batch,
+            max_iter=self.max_iter,
             device=self.device,
             dtype=self.dtype,
         )

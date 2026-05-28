@@ -71,7 +71,8 @@ venv.bak/
 *.png
 
 # Output files
-examples/output/
+examples/popcornn_opt/
+examples/popcornn_*.json
 tests/output/
 tests_ongoing/output/
 # Sweep / plot artifacts (regenerated each run)

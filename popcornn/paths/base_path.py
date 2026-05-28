@@ -107,6 +107,7 @@ class BasePath(torch.nn.Module):
             [[1]], dtype=self.dtype, device=self.device
         )
         self.ts_time = None
+        self.n_crossings = None
 
     def set_potential(
             self,
@@ -118,6 +119,16 @@ class BasePath(torch.nn.Module):
         Each optimization stage constructs its own potential and calls
         this; the path holds onto the most recently set one.
         """
+        # TODO: assigning potential as a submodule causes its parameters
+        # to leak into path.state_dict() — e.g., a NewtonNet potential
+        # adds ~40 keys (potential.model.embedding_layer..., interaction_layers...,
+        # scalers..., etc.) that bloat MLP checkpoints and force callers to
+        # use load_state_dict(..., strict=False). The path's "saveable"
+        # parameters are just the MLP weights, not the (typically frozen,
+        # externally-loaded) potential network. Exclude potential parameters
+        # from state_dict — either register as non-module attribute
+        # (object.__setattr__ or store via a wrapper) or override
+        # _save_to_state_dict / state_dict to skip the 'potential.' prefix.
         self.potential = potential
 
     def get_positions(
@@ -374,6 +385,10 @@ class BasePath(torch.nn.Module):
                 d_j = dEdt[i_abs + 1]
                 # t_TS_k = t_i_k - d_i_k * (t_j_k - t_i_k) / (d_j_k - d_i_k)
                 interior_candidates = t_i - d_i * (t_j - t_i) / (d_j - d_i)
+
+        self.n_crossings = (
+            int(interior_candidates.numel()) if interior_candidates is not None else 0
+        )
 
         # Always include the endpoints as candidates so a barrierless
         # path can pick the higher-energy reactant or product as TS.
