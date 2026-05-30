@@ -22,7 +22,29 @@ class PotentialOutput():
 
 
 class BasePotential(nn.Module):
+    """
+    Base class for potentials.
+
+    A potential takes batched positions and returns
+    ``PotentialOutput`` with energies and (usually) forces. Subclasses
+    implement ``forward``; this base class handles caching the
+    chemistry metadata pulled off ``images`` (atomic numbers, cell,
+    pbc, charge, spin, tags, fix-atoms mask) and provides
+    ``calculate_conservative_forces`` so energy-only models get
+    forces from autograd.
+    """
+
     def __init__(self, images, device, dtype, add_azimuthal_dof=False, add_translation_dof=False, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        images : Images
+            Source of chemistry metadata. Same instance the path uses.
+        device : torch.device
+        dtype : torch.dtype
+        add_azimuthal_dof, add_translation_dof : bool
+            Reserved augmentation flags; flagged for removal.
+        """
         super().__init__()
         self.atomic_numbers = images.atomic_numbers if images.atomic_numbers is not None else None
         self.n_atoms = len(images.atomic_numbers) if images.atomic_numbers is not None else None
@@ -44,17 +66,30 @@ class BasePotential(nn.Module):
         # Put model in eval mode
         self.eval()
 
-    @staticmethod 
+    @staticmethod
     def calculate_conservative_forces(energies, position, create_graph=True):
+        """
+        Forces from autograd: ``F = -∂E/∂x``.
+
+        Use this when the energy is differentiable wrt positions and
+        you don't have an explicit force expression. ``create_graph``
+        keeps second-order derivatives available for the optimizer.
+        """
         return -torch.autograd.grad(
             energies,
             position,
             grad_outputs=torch.ones_like(energies),
             create_graph=create_graph,
         )[0]
-    
+
     @staticmethod
     def calculate_conservative_forces_decomposed(energies_decomposed, position, create_graph=True):
+        """
+        Per-component forces for energy-decomposed potentials.
+
+        For losses like ``geodesic`` that need a separate force vector
+        per energy component (rather than a single total force).
+        """
         _forceterm_fxn = torch.vmap(
             lambda vec: -torch.autograd.grad(
                 energies_decomposed.flatten(), 
@@ -72,4 +107,20 @@ class BasePotential(nn.Module):
             self,
             positions: torch.Tensor
     ) -> PotentialOutput:
+        """
+        Evaluate the potential. Subclasses must override.
+
+        Parameters
+        ----------
+        positions : torch.Tensor
+            Shape ``[N, 3 * n_atoms]`` for atomistic systems,
+            ``[N, n_dim]`` for toy potentials.
+
+        Returns
+        -------
+        PotentialOutput
+            With ``energies`` populated. Force fields populated when
+            available; ``calculate_conservative_forces`` makes this
+            cheap.
+        """
         raise NotImplementedError

@@ -1,0 +1,40 @@
+initialization_params:
+  images: configs/gg3.xyz
+  path_params:
+    name: mlp
+    width: 128
+    depth: 2
+    activation: gelu
+  track_loss: true
+  track_ts: true
+  num_record_points: 101
+  device: cuda
+  dtype: float32
+  seed: 0
+optimization_params:
+  - potential_params:
+      name: repel
+    integrator_params:
+      path_integrand_names: geodesic
+      rtol: 1.0
+    optimizer_params:
+      optimizer:
+        name: adam
+        lr: 0.01
+      threshold: 0.1
+    num_optimizer_iterations: 1000
+  - potential_params:
+      # name: uma
+      # model_name: uma-s-1p1
+      # task_name: omol
+      name: newtonnet
+      model_path: /pscratch/sd/e/ericyuan/20240322_Geodesics/20241025_GG/newtonnet/training_35/models/best_model.pt
+    integrator_params:
+      path_integrand_names: pvre
+      rtol: 1.0
+    optimizer_params:
+      optimizer:
+        name: adam
+        lr: 0.01
+      threshold: 0.1
+    num_optimizer_iterations: 1000

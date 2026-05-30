@@ -4,9 +4,8 @@ import ase
 from ase import Atoms
 from ase.geometry import find_mic
 from ase.calculators.singlepoint import SinglePointCalculator
-from fairchem.core.graph.compute import generate_graph
-from fairchem.core.datasets import data_list_collater
-from fairchem.core.datasets.atomic_data import AtomicData
+# fairchem is lazy-imported in radius_graph_fairchem to keep `import popcornn`
+# off the Ray Serve / FSDP / wandb cold-import path (~5s on login, ~35s on compute).
 # from popcornn.paths.base_path import PathOutput
 # from popcornn.tools.preprocess import Images
 
@@ -254,6 +253,10 @@ def radius_graph_fairchem(
         - 'neighbors': int tensor of shape (n_graphs,)
             Number of neighbors for each atom.
     """
+    from fairchem.core.graph.compute import generate_graph
+    from fairchem.core.datasets import data_list_collater
+    from fairchem.core.datasets.atomic_data import AtomicData
+
     device = positions.device
     dtype = positions.dtype
     n_data, n_atoms, _ = positions.shape

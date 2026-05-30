@@ -8,16 +8,23 @@ from fairchem.core.datasets.atomic_data import AtomicData
 from .base_potential import BasePotential, PotentialOutput
 
 class UMAPotential(BasePotential):
+    """
+    Wrapper around Meta's UMA (universal MLIP).
+
+    Loads a pretrained UMA checkpoint via ``fairchem-core`` and
+    exposes the energy/forces head through popcornn's
+    ``PotentialOutput`` interface. Needs a HuggingFace token plus the
+    model weights — see ``docs/potentials.md`` for setup.
+    """
+
     def __init__(self, model_name, task_name, **kwargs):
         """
-        Constructor for UMA Potential
-
         Parameters
         ----------
-        model_path: str
-            path to the model. eg. 'weights/uma/model.pt'
-        dataset: str
-            dataset name. eg. 'oc20'
+        model_name : str
+            UMA checkpoint identifier, e.g. ``"uma-s-1p1"``.
+        task_name : str
+            UMA task, e.g. ``"omol"``.
         """
         super().__init__(**kwargs)
         self.task_name = task_name
@@ -38,7 +45,14 @@ class UMAPotential(BasePotential):
 
 
     def load_model(self, model_name, task_name):
-        predictor = pretrained_mlip.get_predict_unit(model_name=model_name, device=self.device.type)
+        # Propagate self.dtype to fairchem's model via InferenceSettings.
+        # Default is float32; without this, fp64 mep ends up with float32
+        # UMA weights and float32 forces despite self.dtype=float64.
+        inference_settings = InferenceSettings(base_precision_dtype=self.dtype)
+        predictor = pretrained_mlip.get_predict_unit(
+            model_name=model_name, device=self.device.type,
+            inference_settings=inference_settings,
+        )
         calc = FAIRChemCalculator(predictor, task_name=task_name)
         calc.predictor.model.module.output_heads['energyandforcehead'].head.training = True
         return calc.predictor

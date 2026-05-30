@@ -4,6 +4,15 @@ import torch
 from .base_potential import BasePotential, PotentialOutput
 
 class WolfeSchlegel(BasePotential):  # TODO: rename to Wolfe-Quapp potential
+    """
+    Wolfe–Quapp 2D analytic potential. Two minima, two saddles.
+
+    Reference: Wolfe & Quapp, *J. Chem. Phys.* (2005),
+    https://doi.org/10.1063/1.1885467 (note: the cross-term coefficient
+    in the source code is 0.2 rather than the paper's 0.3 — a known
+    typo, see the inline ``TODO``).
+    """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 

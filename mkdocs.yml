@@ -1,10 +1,22 @@
 site_name: popcornn
-site_author: YourName
+site_author: The popcornn authors
+site_url: https://khegazy.github.io/popcornn/
 site_description: >-
-  This is the popcornn package!
+  Path Optimization with a Continuous Representation Neural Network —
+  reaction path and transition state search on analytic potentials and
+  machine-learned interatomic potentials.
 nav:
   - Home: index.md
-  - Code Documentation: reference/ # keep me!
+  - Getting started: getting-started.md
+  - Concepts: concepts.md
+  - Configuration: configuration.md
+  - Potentials: potentials.md
+  - Paths: paths.md
+  - Loss functions: loss-functions.md
+  - Convergence: convergence.md
+  - Memory & OOM: memory-and-oom.md
+  - Advanced: advanced.md
+  - Code reference: reference/ # keep me!
   - About:
       - example_docs/about/changelog.md
       - example_docs/about/conduct.md
@@ -59,7 +71,13 @@ markdown_extensions:
   - pymdownx.keys
   - pymdownx.magiclink
   - pymdownx.mark
-  - pymdownx.snippets
+  # snippets resolves `---8<--- "FOO.md"` includes; base_path lets the
+  # About pages pull CHANGELOG / CODE_OF_CONDUCT / LICENSE from the repo
+  # root (one level above docs_dir).
+  - pymdownx.snippets:
+      base_path:
+        - .
+        - ..
   - pymdownx.smartsymbols
   - pymdownx.superfences:
       custom_fences:

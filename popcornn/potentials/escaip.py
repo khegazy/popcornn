@@ -14,7 +14,22 @@ sys.path.append('/global/homes/e/ericyuan/GitHub/EScAIP')
 from .base_potential import BasePotential, PotentialOutput
 
 class EScAIPPotential(BasePotential):
+    """
+    Wrapper around EScAIP — efficiently scaled attentive interatomic
+    potential, served via the fairchem ``OCPCalculator`` pipeline.
+    """
+
     def __init__(self, config_yml, checkpoint_path, cpu, **kwargs):
+        """
+        Parameters
+        ----------
+        config_yml : str
+            Path to the EScAIP config YAML.
+        checkpoint_path : str
+            Path to the EScAIP checkpoint.
+        cpu : bool
+            Whether to force CPU execution.
+        """
         super().__init__(**kwargs)
         calc = OCPCalculator(config_yml=config_yml, checkpoint_path=checkpoint_path, cpu=cpu)
         self.trainer = calc.trainer

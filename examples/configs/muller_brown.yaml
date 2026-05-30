@@ -1,0 +1,25 @@
+initialization_params:
+  images: [[-0.558, 1.442], [0.623, 0.028]]
+  path_params:
+    name: mlp
+    width: 128
+    depth: 2
+    activation: gelu
+  track_loss: true
+  track_ts: true
+  num_record_points: 101
+  device: cuda
+  dtype: float32
+  seed: 0
+optimization_params:
+  - potential_params:
+      name: muller_brown
+    integrator_params:
+      path_integrand_names: pvre
+      rtol: 1.0
+    optimizer_params:
+      optimizer:
+        name: adam
+        lr: 0.01
+      threshold: 0.1
+    num_optimizer_iterations: 1000

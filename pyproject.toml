@@ -35,11 +35,10 @@ dependencies = [
     "torch_geometric",
     "matplotlib",
     "ase",
-    "tqdm",
     "pytest",
     "pytest-cov",
     "PyYAML",
-    "torchpathdiffeq",
+    "torchpathint",
     "fairchem-core >= 2.4.0",
 ]
 

@@ -3,6 +3,11 @@ from .base_potential import BasePotential, PotentialOutput
 
 
 class Schwefel(BasePotential):
+    """
+    Schwefel function — n-dimensional analytic test surface with many
+    local minima. Useful for stress-testing path optimizers.
+    """
+
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 

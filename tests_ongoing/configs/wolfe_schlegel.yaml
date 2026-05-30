@@ -11,8 +11,8 @@ optimization_params:
   - potential_params:
       potential: wolfe_schlegel
     integrator_params:
-      path_ode_names:
-        - projected_variational_reaction_energy
+      path_integrand_names:
+        - pvre
       method : dopri5
       rtol: 1.0e-5
       atol: 1.0e-6

@@ -1,21 +1,46 @@
 import numpy as np
 
 class SchedulerBase:
+    """
+    Step-counted scheduler base class.
+
+    Subclasses implement ``_get_closed_form`` to produce a value as a
+    function of the current step. The optimizer steps one of these per
+    iteration; ``get_value`` returns the current scheduled value (used
+    to multiply ``path_integrand_scales`` etc.).
+    """
+
     def __init__(self, value=1.0, current_step=-1):
+        """
+        Parameters
+        ----------
+        value : float, default=1.0
+            Multiplied into the scheduled output.
+        current_step : int, default=-1
+            Internal step counter. Pre-increments once on
+            construction so the first ``step()`` lands on step 1.
+        """
         self.value = value
         self.current_step = current_step
         self.current_step += 1
 
     def step(self):
+        """Advance the step counter by one. Call once per iteration."""
         self.current_step += 1
-    
+
     def get_value(self):
+        """
+        Return the current scheduled value. Falls back to ``value``
+        when the subclass doesn't define a closed form.
+        """
         if hasattr(self, '_get_closed_form'):
             return self._get_closed_form()
         else:
             return self.value
 
 class Linear(SchedulerBase):
+    """Linear interpolation from ``start_value`` to ``end_value`` over ``last_step`` steps."""
+
     def __init__(self, start_value, end_value, last_step, **kwargs):
         self.start_value = start_value
         self.end_value = end_value
@@ -29,6 +54,8 @@ class Linear(SchedulerBase):
         return self.value * update 
     
 class Cosine(SchedulerBase):
+    """Half-cosine anneal from ``start_value`` to ``end_value`` over ``last_step`` steps."""
+
     def __init__(self, start_value, end_value, last_step, **kwargs):
         self.start_value = start_value
         self.end_value = end_value
@@ -48,6 +75,13 @@ SCHEDULER_DICT = {
 }
 
 def get_schedulers(scheduler_params):
+    """
+    Build a dict of name-keyed schedulers from a config dict.
+
+    ``scheduler_params`` looks like ``{"<term-name>": {"name": "cosine",
+    "start_value": ..., ...}}``. ``None`` returns an empty dict, which
+    is the no-scheduling case.
+    """
     schedulers = {}
     if scheduler_params is None:
         return schedulers

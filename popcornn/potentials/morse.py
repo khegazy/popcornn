@@ -4,16 +4,25 @@ from ase.data import covalent_radii
 from .base_potential import BasePotential, PotentialOutput
 
 class MorsePotential(BasePotential):
+    """
+    All-pairs Morse potential.
+
+    Energy per pair:
+
+    .. math::
+        E_{ij} = \\big(1 - e^{-\\alpha (r_{ij} - r_0)}\\big)^2 - 1
+
+    where ``r_0`` is the sum of covalent radii. Used as a cheap
+    classical surface for testing and as the default for some
+    relax-then-refine pipelines.
+    """
+
     def __init__(self, alpha=2.0, **kwargs):
         """
-        Constructor for the Morse Potential
-
-        The potential is given by:
-        E_ij = (1 - exp(-alpha * (r_ij - r0))) ** 2 - 1
-        E = sum_{i<j} E_ij
-
         Parameters
         ----------
+        alpha : float, default=2.0
+            Morse range parameter (1/Å).
         """
         super().__init__(**kwargs)
         self.alpha = alpha

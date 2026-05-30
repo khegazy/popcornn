@@ -6,15 +6,15 @@ from torch_geometric.data import Data
 from .base_potential import BasePotential, PotentialOutput
 
 class CHGNetPotential(BasePotential):
-    def __init__(self, model_path, **kwargs):
-        """
-        Constructor for CHGNet Potential
+    """
+    Stub wrapper for the CHGNet MLIP. Not wired up yet — the
+    constructor raises ``NotImplementedError``. Kept so the
+    ``get_potential`` registry stays stable while the integration is
+    finished.
+    """
 
-        Parameters
-        ----------
-        model_path: str
-            path to the model. eg. 'weights/chg/model.pt'
-        """
+    def __init__(self, model_path, **kwargs):
+        """Raises ``NotImplementedError`` until CHGNet support lands."""
         raise NotImplementedError("CHGNetPotential is not implemented yet.")
         super().__init__(**kwargs)
         self.model = self.load_model(model_path)

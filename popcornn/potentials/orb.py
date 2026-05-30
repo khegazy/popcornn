@@ -6,14 +6,25 @@ from orb_models.forcefield.base import AtomGraphs
 from .base_potential import BasePotential, PotentialOutput
 
 class OrbPotential(BasePotential):
+    """
+    Wrapper around Orbital Materials' Orb MLIP.
+
+    Loads a pretrained Orb model and exposes it through popcornn's
+    ``PotentialOutput`` interface. By default uses Orb's predicted
+    forces directly; set ``use_autograd=True`` to differentiate
+    through the energy instead (slower, sometimes more consistent
+    with the loss).
+    """
+
     def __init__(self, model_path, use_autograd=False, **kwargs):
         """
-        Constructor for Orb Potential
-
         Parameters
         ----------
-        model_path: str
-            path to the model. eg. 'weights/orb/model.pt'
+        model_path : str
+            Path to a saved Orb checkpoint.
+        use_autograd : bool, default=False
+            If True, drop the model's force head and recompute forces
+            from ``-dE/dx`` via autograd.
         """
         super().__init__(**kwargs)
         self.model = self.load_model(model_path)

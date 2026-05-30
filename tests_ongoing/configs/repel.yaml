@@ -12,10 +12,10 @@ optimization_params:
   - potential_params:
       potential: repel
     integrator_params: 
-      path_ode_names:
-        - projected_variational_reaction_energy
+      path_integrand_names:
+        - pvre
         - geodesic
-      path_ode_scales:
+      path_integrand_scales:
         - 0.1
         - 1.0
       rtol: 1.0e-5

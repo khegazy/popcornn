@@ -6,14 +6,20 @@ from torch_geometric.data import Data
 from .base_potential import BasePotential, PotentialOutput
 
 class MacePotential(BasePotential):
+    """
+    Wrapper around the MACE message-passing MLIP.
+
+    Loads a saved MACE model from a ``.pt`` checkpoint, builds an
+    on-the-fly radius graph each forward pass, and computes forces
+    by autograd through the energy.
+    """
+
     def __init__(self, model_path, **kwargs):
         """
-        Constructor for MACE Potential
-
         Parameters
         ----------
-        model_path: str
-            path to the model. eg. 'weights/mace/model.pt'
+        model_path : str
+            Path to a saved MACE model file.
         """
         super().__init__(**kwargs)
         self.model = self.load_model(model_path)

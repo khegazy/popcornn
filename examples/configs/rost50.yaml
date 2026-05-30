@@ -1,34 +1,38 @@
 initialization_params:
-  images: configs/rxn0003.xyz
-  path_params: 
+  images: configs/rost50.xyz
+  path_params:
     name: mlp
-    n_embed: 1
+    width: 128
     depth: 2
     activation: gelu
+  track_loss: true
+  track_ts: true
   num_record_points: 101
-  # output_dir: output
   device: cuda
+  dtype: float32
   seed: 0
-optimization_params:  
+optimization_params:
   - potential_params:
       name: repel
-    integrator_params: 
-      path_ode_names: geodesic
+    integrator_params:
+      path_integrand_names: geodesic
+      rtol: 1.0
     optimizer_params:
       optimizer:
         name: adam
-        lr: 1.0e-1
+        lr: 0.01
+      threshold: 0.1
     num_optimizer_iterations: 1000
   - potential_params:
       name: uma
-      model_name: uma-s-1
+      model_name: uma-s-1p1
       task_name: omol
-    integrator_params: 
-      path_ode_names: projected_variational_reaction_energy
-      rtol: 1.0e-5
-      atol: 1.0e-7
+    integrator_params:
+      path_integrand_names: pvre
+      rtol: 1.0
     optimizer_params:
       optimizer:
         name: adam
-        lr: 1.0e-3
+        lr: 0.01
+      threshold: 0.1
     num_optimizer_iterations: 1000

@@ -12,23 +12,30 @@ def randomly_initialize_path(
         seed: int = 1910
 ) -> Union[torch.Tensor, np.ndarray]:
     """
-    Randomly initialize the path.
+    Initialize the path through randomly drawn intermediate points.
 
-    Parameters:
-    -----------
-    path : torch.Tensor
-        The path object.
+    Samples ``n_points`` random points uniformly in the bounding box
+    spanned by reactant and product (per-dimension), optionally
+    sorted along the first axis (or along every axis when
+    ``order_points`` is True), then fits the path to pass through
+    them.
+
+    Parameters
+    ----------
+    path : BasePath
+        The path to fit.
     n_points : int
-        Number of points.
-    order_points : bool, optional
-        Whether to order points (default is False).
-    seed : int, optional
-        Random seed (default is 1910).
+        Number of intermediate points to sample.
+    order_points : bool, default=False
+        If True, sort the random points along every dimension so the
+        sampled chain is monotonic in each coordinate.
+    seed : int, default=1910
+        RNG seed.
 
-    Returns:
-    --------
-    Union[torch.Tensor, np.ndarray]
-        Initialized path.
+    Returns
+    -------
+    BasePath
+        The fitted path.
     """
     #times = rnd.uniform(shape=(n_points, 1), minval=0.1, maxval=0.9)
     times = torch.unsqueeze(torch.linspace(0, 1, n_points+2, device=path.device)[1:-1], -1)
@@ -70,21 +77,11 @@ def loss_init(
         positions: torch.tensor
 ) -> torch.Tensor:
     """
-    Initialize the loss.
+    Mean-squared displacement between path predictions and target points.
 
-    Parameters:
-    -----------
-    path : torch.Tensor
-        The path object.
-    times : torch.Tensor
-        Times.
-    positions : torch.Tensor
-        Points.
-
-    Returns:
-    --------
-    torch.Tensor
-        Loss value.
+    Used as the fitting loss in ``initialize_path``. For periodic
+    systems, the displacement is wrapped under the minimum-image
+    convention before squaring.
     """
     preds = path(times).positions
     assert preds.shape == positions.shape, f"Shapes do not match: {preds.shape} != {positions.shape}"
@@ -104,25 +101,31 @@ def initialize_path(
         max_steps: int = 10000 # 5000
 ) -> torch.tensor:
     """
-    Initialize the path.
+    Fit the path's parameters so it passes through given points at given times.
 
-    Parameters:
-    -----------
-    path : torch.Tensor
-        The path object.
+    Run before optimization whenever the user supplies more than two
+    images: the intermediate frames become target points, and a
+    quick Adam loop minimizes ``loss_init`` until the path
+    interpolates them.
+
+    Parameters
+    ----------
+    path : BasePath
+        Path to fit. Must have trainable parameters.
     times : torch.Tensor
-        Times.
+        Target times in [0, 1]; shape ``[N, 1]``.
     init_points : torch.Tensor
-        Initial points.
-    lr : float, optional
-        Learning rate (default is 0.001).
-    max_steps : int, optional
-        Maximum number of steps (default is 5000).
+        Target positions; shape ``[N, D]``.
+    lr : float, default=0.001
+        Adam learning rate for the fit.
+    max_steps : int, default=10000
+        Cap on fit iterations. The loop also exits early when the
+        loss drops below ``1e-8``.
 
-    Returns:
-    --------
-    torch.Tensor
-        Initialized path.
+    Returns
+    -------
+    BasePath
+        The fitted path (same object, mutated in place).
     """
     print("INFO: Beginning path initialization")
     loss, prev_loss = torch.tensor([2e-10]), torch.tensor([1e-10])

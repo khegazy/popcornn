@@ -4,9 +4,9 @@ import torch
 import numpy as np
 from popcornn import tools
 from popcornn import Popcornn
-from popcornn.tools.metrics import Metrics
-from popcornn.tools.integrator import ODEintegrator
-from popcornn.optimization.path_optimizer import PathOptimizer
+from popcornn.tools.integrand import PATH_INTEGRANDS, build_integrand_terms, evaluate_integrand_sum
+from popcornn.tools.integrator import PathIntegrator
+from popcornn.optimization.optimizer import PathOptimizer
 
 
 def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
@@ -180,12 +180,12 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
 def scheduler_test(path, config, schedule_fxn, device):
     # Shortcuts
     config = config['optimization_params'][0]
-    scheduler_config = config['optimizer_params']['path_ode_schedulers']
-    fxn1_name = config['integrator_params']['path_ode_names'][0]
-    fxn2_name = config['integrator_params']['path_ode_names'][1]
+    scheduler_config = config['optimizer_params']['path_integrand_schedulers']
+    fxn1_name = config['integrator_params']['path_integrand_names'][0]
+    fxn2_name = config['integrator_params']['path_integrand_names'][1]
 
     # Run optimizer and get integration values with scheduler
-    integrator = ODEintegrator(
+    integrator = PathIntegrator(
         **config['integrator_params'], device=device
     )
     optimizer = PathOptimizer(
@@ -197,45 +197,30 @@ def scheduler_test(path, config, schedule_fxn, device):
     time = None
     scheduled_evals = []
     for i in range(scheduler_config[fxn2_name]['last_step']):
-        path_integral = optimizer.optimization_step(
+        integral_output = optimizer.optimization_step(
             path, integrator, time=time, update_path=False 
         )
         scheduled_evals.append(
-            torch.flatten(path_integral.y, start_dim=0, end_dim=1)
+            torch.flatten(integral_output.y, start_dim=0, end_dim=1)
         )
         time = torch.concatenate(
-            [path_integral.t[:,0,:], torch.tensor([[1]], device=device)],
+            [integral_output.t[:,0,:], torch.tensor([[1]], device=device)],
             dim=0
         )
     scheduled_evals = torch.stack(scheduled_evals)
     
     # Calculate function values and weight with scheduler
-    time = torch.flatten(path_integral.t, start_dim=0, end_dim=1)
-    metrics = Metrics(device=device)
-    fxn1 = getattr(metrics, fxn1_name)
-    fxn1_val, _ = fxn1(
-        eval_time=time,
-        path=path,
-        requires_energies=True,
-        requires_velocities=True,
-        requires_forces=True,
-    )
+    time = torch.flatten(integral_output.t, start_dim=0, end_dim=1)
+    fxn1_terms = build_integrand_terms([fxn1_name])
+    fxn1_val, _ = evaluate_integrand_sum(fxn1_terms, time, path)
     fxn1_scheduled_vals = fxn1_val.unsqueeze(0)*schedule_fxn(
         scheduler_config[fxn1_name]['start_value'],
         scheduler_config[fxn1_name]['end_value'],
         scheduler_config[fxn1_name]['last_step'],
         device=device
     ).unsqueeze(-1).unsqueeze(-1)
-    fxn2 = getattr(
-        metrics, fxn2_name
-    )
-    fxn2_val, _ = fxn2(
-        eval_time=time,
-        path=path,
-        requires_energies=True,
-        requires_velocities=True,
-        requires_forces=True
-    )
+    fxn2_terms = build_integrand_terms([fxn2_name])
+    fxn2_val, _ = evaluate_integrand_sum(fxn2_terms, time, path)
     fxn2_scheduled_vals = fxn2_val.unsqueeze(0)*schedule_fxn(
         scheduler_config[fxn2_name]['start_value'],
         scheduler_config[fxn2_name]['end_value'],

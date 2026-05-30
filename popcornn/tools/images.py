@@ -70,14 +70,32 @@ class Images():
 
 def process_images(raw_images, device, dtype, unwrap_positions=True):
     """
-    Process the images.
+    Normalize raw inputs into an ``Images`` container.
 
-    Parameters:
+    Accepts:
+
+    - a string path to an ``.xyz`` / ``.traj`` / ``.json`` / ``.npy`` /
+      ``.pt`` file,
+    - a list/array/tensor of bare coordinates (no chemistry metadata),
+    - a list of ASE ``Atoms`` (carries cell, pbc, charges, tags,
+      constraints).
+
+    Parameters
     ----------
-    unwrap_positions: bool
-        Whether to unwrap the positions under periodic boundary conditions 
-        using minimum image convention, assuming no atoms move more than half 
-        the box length.
+    raw_images : str | list | np.ndarray | torch.Tensor
+        See above.
+    device : torch.device
+    dtype : torch.dtype
+    unwrap_positions : bool, default=True
+        For periodic systems, unwrap the product (and any
+        intermediate frames) against the reactant using the
+        minimum-image convention. Disable when atoms legitimately
+        move more than half a cell.
+
+    Returns
+    -------
+    Images
+        Validated, on-device, with consistent shape across frames.
     """
     if type(raw_images) == str:
         if raw_images.endswith('.json'):
@@ -118,7 +136,7 @@ def process_images(raw_images, device, dtype, unwrap_positions=True):
             else:
                 logging.warning("Not unwrapping atom positions. Assuming atoms are already unwrapped or do not travel across period boundaries.")
         assert np.all(image.get_positions().shape == raw_images[0].get_positions().shape for image in raw_images), "All images must have the same shape."
-        positions = torch.tensor([image.get_positions().flatten() for image in raw_images], device=device, dtype=dtype)
+        positions = torch.tensor(np.array([image.get_positions().flatten() for image in raw_images]), device=device, dtype=dtype)
         assert np.all(image.get_atomic_numbers() == raw_images[0].get_atomic_numbers() for image in raw_images), "All images must have the same atomic atomic_numbers."
         atomic_numbers = torch.tensor(raw_images[0].get_atomic_numbers(), device=device, dtype=torch.int)
         assert np.all(image.get_pbc() == raw_images[0].get_pbc() for image in raw_images), "All images must have the same pbc."

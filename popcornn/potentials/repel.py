@@ -6,28 +6,36 @@ from .base_potential import BasePotential, PotentialOutput
 from popcornn.tools import radius_graph
 
 class RepelPotential(BasePotential):
+    """
+    Soft-repulsive potential for geodesic interpolation.
+
+    From Zhu, Thompson & Martínez, *J. Chem. Phys.* **150**, 164103
+    (2019). Energy per pair:
+
+    .. math::
+        E_{ij} = e^{-\\alpha (r_{ij} - r_0)/r_0} + \\beta \\, r_0 / r_{ij}
+
+    where ``r_0`` is the sum of covalent radii. Use this as a first
+    optimization stage with ``path_integrand_names: geodesic`` to fix atom
+    clashes before handing the path off to an MLIP.
+    """
+
     def __init__(
-            self, 
-            alpha=1.7, 
-            beta=0.01, 
+            self,
+            alpha=1.7,
+            beta=0.01,
             cutoff=None,
             **kwargs,
         ):
         """
-        Constructor for the Repulsive Potential from 
-        Zhu, X., Thompson, K. C. & Martínez, T. J. 
-        Geodesic interpolation for reaction pathways. 
-        Journal of Chemical Physics 150, 164103 (2019).
-
-        The potential is given by:
-        E = sum_{i<j} exp(-alpha * (r_ij - r0_ij) / r0_ij) + beta * r0_ij / r_ij
-        where r_ij is the distance between atoms i and j, and r0_ij is the sum of their covalent radii.
-
         Parameters
         ----------
-        alpha: exponential term decay factor
-        beta: inverse term weight
-        cutoff: cutoff distance for the potential
+        alpha : float, default=1.7
+            Exponential decay rate.
+        beta : float, default=0.01
+            Inverse-distance term weight.
+        cutoff : float, optional
+            Cutoff distance. ``None`` keeps all pairs.
         """
         super().__init__(**kwargs)
         self.alpha = alpha

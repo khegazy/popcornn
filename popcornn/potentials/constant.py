@@ -2,6 +2,8 @@ import torch
 from .base_potential import BasePotential, PotentialOutput
 
 class Constant(BasePotential):
+    """Flat potential — energy is ``scale`` everywhere, force is zero. Test fixture only."""
+
     def __init__(self, scale=1., **kwargs):
         super().__init__(**kwargs)
         self.scale = scale

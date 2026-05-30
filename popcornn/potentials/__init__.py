@@ -1,6 +1,27 @@
 
 
 def get_potential(name, **kwargs):
+    """
+    Construct a potential by name.
+
+    Imports the wrapper class lazily so installing one MLIP doesn't
+    force you to install all of them.
+
+    Parameters
+    ----------
+    name : str
+        Case-insensitive. See ``docs/potentials.md`` for the full list
+        and per-potential extra keys.
+    **kwargs
+        Forwarded to the potential class. ``BasePotential`` requires
+        ``images``, ``device``, ``dtype``; subclasses add their own
+        (e.g. UMA needs ``model_name`` and ``task_name``, MACE needs
+        ``model_path``).
+
+    Returns
+    -------
+    BasePotential
+    """
     name = name.lower()
     if name == "wolfe_schlegel":
         from .wolfe_schlegel import WolfeSchlegel

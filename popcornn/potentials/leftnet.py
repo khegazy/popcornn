@@ -5,14 +5,17 @@ from torch_geometric.data import Data
 from .base_potential import BasePotential, PotentialOutput
 
 class LeftNetPotential(BasePotential):
+    """Wrapper around LEFTNet — equivariant message-passing MLIP."""
+
     def __init__(self, model_path, use_autograd=True, **kwargs):
         """
-        Constructor for LEFTNet Potential
-
         Parameters
         ----------
-        model_path: str
-            path to the model. eg. 'weights/leftnet/model.pt'
+        model_path : str
+            Path to a saved LEFTNet checkpoint.
+        use_autograd : bool, default=True
+            If True, route through the model's autograd-based force
+            head; otherwise use the direct force prediction.
         """
         super().__init__(**kwargs)
         self.model = self.load_model(model_path)

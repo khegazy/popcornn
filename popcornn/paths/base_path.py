@@ -1,13 +1,8 @@
 import torch
-import numpy as np
-import scipy as sp
 from dataclasses import dataclass
 from einops import rearrange
-from popcornn.tools import Images, wrap_positions
+from popcornn.tools import Images, SamplesCache, wrap_positions
 from popcornn.potentials.base_potential import BasePotential, PotentialOutput
-from typing import Callable, Any
-from ase import Atoms
-from ase.io import read
 
 
 @dataclass
@@ -45,27 +40,21 @@ class PathOutput():
 
 class BasePath(torch.nn.Module):
     """
-    Base class for path representation.
+    Base class for differentiable path representations.
 
-    Attributes:
-    -----------
-    initial_position : torch.Tensor
-        The initial point of the path.
-    final_position : torch.Tensor
-        The final point of the path.
-    potential : PotentialBase
-        The potential function.
+    A path is a smooth mapping ``t -> x(t)`` from ``t in [0, 1]`` to a
+    configuration, with ``x(0)`` pinned at the reactant and ``x(1)`` at
+    the product. Subclasses implement ``get_positions``; this base
+    class wires up
 
-    Methods:
-    --------
-    geometric_path(time, y, *args) -> torch.Tensor:
-        Compute the geometric path at the given time.
+    - velocity computation via autograd (``calculate_velocities``),
+    - periodic-cell wrapping (when ``images.pbc`` is set),
+    - fixed-atom masking,
+    - the ``forward`` interface that popcornn's optimizer drives,
+    - the input/output reshaping that lets the integrator pass either
+      ``[B, T]`` or ``[B, C, T]`` time tensors.
 
-    get_path(time=None, return_velocities=False, return_forces=False) -> PathOutput:
-        Get the path for the given time.
-
-    forward(t, return_velocities=False, return_forces=False) -> PathOutput:
-        Compute the path output for the given time.
+    Subclasses must populate trainable ``torch.nn.Parameter``\\s.
     """
     initial_position: torch.Tensor
     final_position: torch.Tensor
@@ -78,14 +67,22 @@ class BasePath(torch.nn.Module):
             find_ts: bool = True,
         ) -> None:
         """
-        Initialize the BasePath.
+        Initialize the path.
 
-        Parameters:
-        -----------
-        initial_position : torch.Tensor
-            The initial point of the path.
-        final_position : torch.Tensor
-            The final point of the path.
+        Parameters
+        ----------
+        images : Images
+            Processed images. The first frame's positions become
+            ``self.initial_position``, the last frame's become
+            ``self.final_position``. Periodic-cell info, fixed-atom
+            masks, and tags are pulled from here.
+        device : torch.device
+        dtype : torch.dtype
+        find_ts : bool, default=True
+            Whether the optimization loop should run ``ts_search`` each
+            iteration and populate ``ts_time`` / ``ts_energy`` /
+            ``ts_force`` / ``ts_force_mag``. Set False to skip the
+            sign-change + fresh-eval step entirely.
         """
         super().__init__()
         self.neval = 0
@@ -110,20 +107,28 @@ class BasePath(torch.nn.Module):
             [[1]], dtype=self.dtype, device=self.device
         )
         self.ts_time = None
-        self.ts_region = None
+        self.n_crossings = None
 
     def set_potential(
             self,
             potential: BasePotential,
     ) -> None:
         """
-        Set the potential function.
+        Attach a potential to evaluate energies/forces along the path.
 
-        Parameters:
-        -----------
-        potential : BasePotential
-            The potential function to be used.
+        Each optimization stage constructs its own potential and calls
+        this; the path holds onto the most recently set one.
         """
+        # TODO: assigning potential as a submodule causes its parameters
+        # to leak into path.state_dict() — e.g., a NewtonNet potential
+        # adds ~40 keys (potential.model.embedding_layer..., interaction_layers...,
+        # scalers..., etc.) that bloat MLP checkpoints and force callers to
+        # use load_state_dict(..., strict=False). The path's "saveable"
+        # parameters are just the MLP weights, not the (typically frozen,
+        # externally-loaded) potential network. Exclude potential parameters
+        # from state_dict — either register as non-module attribute
+        # (object.__setattr__ or store via a wrapper) or override
+        # _save_to_state_dict / state_dict to skip the 'potential.' prefix.
         self.potential = potential
 
     def get_positions(
@@ -131,28 +136,36 @@ class BasePath(torch.nn.Module):
             time: torch.Tensor,
     ) -> torch.Tensor:
         """
-        Compute the geometric path at the given time.
+        Evaluate the geometric path at ``time``. Subclasses must override.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         time : torch.Tensor
-            The time at which to evaluate the geometric path.
+            Times in [0, 1]; shape ``[N, 1]``.
 
-        Returns:
-        --------
+        Returns
+        -------
         torch.Tensor
-            The geometric path at the given time.
+            Positions of shape ``[N, D]``.
         """
         raise NotImplementedError()
 
-    
+
     def calculate_velocities(self, t, create_graph=True):
+        """
+        Compute path velocities via autograd.
+
+        Differentiates ``get_positions`` with respect to ``t``. The
+        ``torch.sum`` over the leading axis is a vectorization trick:
+        summing collapses the per-time outputs so a single jacobian
+        call returns ``dx_i/dt_i`` for every i in one pass.
+        """
         return torch.autograd.functional.jacobian(
             lambda t: torch.sum(self.get_positions(t), axis=0),
             t,
             create_graph=create_graph,
             vectorize=True
-        ).transpose(0, 1)[:, :, 0] 
+        ).transpose(0, 1)[:, :, 0]
     
     def _check_output(
             self,
@@ -162,6 +175,13 @@ class BasePath(torch.nn.Module):
             return_forces: bool,
             return_forces_decomposed: bool,
         ):
+        """
+        Raise if the attached potential can't produce a requested field.
+
+        Toy potentials skip force-decomposition; some MLIP wrappers
+        skip energy-decomposition. Catch the missing field at the
+        first call site rather than later in the loss layer.
+        """
         name = type(self.potential).__name__
         if return_energies and potential_output.energies is None:
             raise ValueError(f"Potential {name} cannot calculate energies")
@@ -182,21 +202,30 @@ class BasePath(torch.nn.Module):
             return_forces_decomposed: bool = False,
     ) -> PathOutput:
         """
-        Forward pass to compute the path, potential, velocities, and force.
+        Evaluate the path (and optionally the potential) at given times.
 
-        Parameters:
-        -----------
-        t : torch.Tensor
-            The time tensor at which to evaluate the path.
-        return_velocities : bool, optional
-            Whether to return velocities along the path (default is False).
-        return_forces : bool, optional
-            Whether to return force along the path (default is False).
+        Parameters
+        ----------
+        time : torch.Tensor, optional
+            Times in [0, 1]. Accepts shape ``[B]``, ``[B, T]`` or
+            ``[B, C, T]``; the input shape is restored on the output.
+            ``None`` defaults to 101 points linearly spaced over
+            ``[t_init, t_final]``.
+        return_velocities : bool, default=False
+        return_energies : bool, default=False
+        return_energies_decomposed : bool, default=False
+        return_forces : bool, default=False
+        return_forces_decomposed : bool, default=False
+            Each toggles whether to populate the corresponding field
+            on the returned ``PathOutput``. Disabled-by-default to
+            avoid paying for autograd / potential evaluations the
+            caller doesn't need.
 
-        Returns:
-        --------
+        Returns
+        -------
         PathOutput
-            An instance of the PathOutput class containing the computed path, potential, velocities, force, and time.
+            With ``time`` and ``positions`` always populated; other
+            fields populated when the matching flag is set.
         """
         time = self._reshape_in(time)
 
@@ -235,6 +264,14 @@ class BasePath(torch.nn.Module):
     
 
     def _reshape_in(self, time):
+        """
+        Flatten an arbitrary-shape time tensor to ``[N, T]`` for batched
+        evaluation. ``_reshape_out`` undoes the flatten on the way out.
+
+        The integrator passes ``[B, C, T]`` (batch x quadrature-channel
+        x time) but downstream layers want a flat batch dim, so cache
+        the input shape, rearrange, and remember to invert.
+        """
         if time is None:
             time = torch.linspace(self.t_init.item(), self.t_final.item(), 101, device=self.device, dtype=self.dtype)
         
@@ -256,6 +293,7 @@ class BasePath(torch.nn.Module):
 
 
     def _reshape_out(self, result):
+        """Restore the original shape stashed by ``_reshape_in``."""
         if self._inp_reshaped is None:
             raise RuntimeError("Must call _reshape_in() before _reshape_out()")
         if self._inp_reshaped and result is not None:
@@ -264,271 +302,124 @@ class BasePath(torch.nn.Module):
         return result
 
     
-    def _ts_search_reformat(self, time, energies, forces, idx_shift):
-        if len(time.shape) == 3:
-            # Remove repeated evaluations
-            unique_mask = torch.all(torch.abs(time[0,1:] - time[0,:-1]) > 1e-7, dim=-1)
-            unique_mask = torch.concatenate([unique_mask, torch.tensor([True], device=self.device)])
-            time = time[:,unique_mask]
-            energies = energies[:,unique_mask]
-            forces = forces[:,unique_mask]
+    def ts_search(
+        self,
+        samples: SamplesCache,
+    ):
+        """
+        Locate the predicted transition state on the current path.
 
-            if len(time) > 1 and torch.all(torch.abs(time[:-1,-1] - time[1:,0]) < 1e-7):
-                time = time[:,:-1]
-                energies = energies[:,:-1]
-                forces = forces[:,:-1]
+        Linearly interpolates ``t`` at **every** interior sign change of
+        ``dE/dt`` on the cached quadrature samples, appends the two
+        endpoints (``t=0`` and ``t=1``) to the candidate set, re-evaluates
+        the path at all candidates in one batched forward, and picks the
+        candidate with the highest model-truth ``energy``. Returns the
+        winning candidate's fresh ``E`` and ``F`` and the corresponding
+        barrier ``E_TS - E_reactant``.
 
-            N_S = time.shape[0] 
-            energies = energies.flatten()
-            time = time[:,:,0].flatten()
-            forces = torch.flatten(forces, start_dim=0, end_dim=1)
-            if N_S > 3:
-                N_C = N_S
-            else:
-                N_C = 1
-                time = time[1:-1]
-                energies = energies[1:-1]
-                forces = forces[1:-1]
+        Why every interior crossing: on wiggly paths (high-capacity MLP,
+        adversarial quadrature, multi-basin landscapes) there are multiple
+        ``dE/dt = 0`` brackets and the cache-based ranking (mean of
+        bracket-endpoint energies) can mis-rank them — picking a
+        non-rate-limiting local max, or worse, a ``- → +`` crossing
+        that's actually a local *minimum* of E. Evaluating model-truth
+        ``E`` at each candidate and taking the argmax filters both
+        failure modes.
+
+        Why endpoints are included as candidates: a **barrierless** path
+        has no interior maximum — the highest-energy point lies at one
+        of the endpoints (the higher-lying reactant or product minimum
+        for an exoergic / endoergic step). The endpoint candidate
+        ``t=0`` or ``t=1`` correctly wins the argmax in that case, and
+        the barrier reduces to ``max(E_R, E_P) - E_R`` — either zero
+        (exoergic) or ``E_P - E_R`` (endoergic).
+
+        Parameters
+        ----------
+        samples : SamplesCache
+            Per-quadrature-point ``(time, energies, dE/dt)`` from
+            ``PathIntegrator.integrate_path(save_samples=True)``.
+
+        Notes
+        -----
+        Sets ``self.ts_time``, ``self.ts_energy``, ``self.ts_force``,
+        ``self.ts_force_mag`` (per-atom fmax = ``max_i ‖F_i‖_2`` for
+        atomistic systems; vector L2 norm for toy potentials with no
+        ``n_atoms`` set), and ``self.barrier`` (``E_TS - E_reactant``,
+        non-negative).
+
+        The K candidates are batched into a single ``forward`` call —
+        cost is one batched MLIP eval, not K sequential evals. On
+        stiff paths ``K = 3`` (two endpoints + one interior crossing).
+        On pathological wiggly paths ``K`` can be 20+; the batched call
+        must fit in GPU memory. If it OOMs, chunk the candidates
+        yourself before calling ``ts_search``.
+        """
+        time = samples.time
+        dEdt = samples.dEdt
+        N = time.shape[0]
+
+        # Interior sign-change brackets. ``dE/dt`` touches zero at the
+        # endpoints (reactant/product minima), so a global sign search
+        # would falsely bracket the first/last segment; restrict to
+        # interior segments [i, i+1] with i ∈ [1, N-3].
+        #
+        # Use ``<= 0`` rather than ``< 0`` so a sample that lands exactly
+        # on the saddle (``dE/dt = 0``) is still bracketed; the linear
+        # interp then degenerates to ``t = t_zero`` cleanly. Exclude the
+        # both-zero case to avoid a 0/0 in the interp formula.
+        interior_candidates = None
+        if N >= 4:
+            d_int = dEdt[1:N-1]
+            both_zero = (d_int[:-1] == 0) & (d_int[1:] == 0)
+            sign_change = ((d_int[:-1] * d_int[1:]) <= 0) & ~both_zero
+            if sign_change.any():
+                # Linear-interp t at each bracketed zero crossing.
+                brackets = sign_change.nonzero(as_tuple=False).flatten()
+                # ``brackets`` indexes into the interior segments; map
+                # back to absolute indices into ``time`` / ``dEdt``.
+                i_abs = brackets + 1
+                t_i = time[i_abs]
+                t_j = time[i_abs + 1]
+                d_i = dEdt[i_abs]
+                d_j = dEdt[i_abs + 1]
+                # t_TS_k = t_i_k - d_i_k * (t_j_k - t_i_k) / (d_j_k - d_i_k)
+                interior_candidates = t_i - d_i * (t_j - t_i) / (d_j - d_i)
+
+        self.n_crossings = (
+            int(interior_candidates.numel()) if interior_candidates is not None else 0
+        )
+
+        # Always include the endpoints as candidates so a barrierless
+        # path can pick the higher-energy reactant or product as TS.
+        # Put t=0 first so cand_E[0] is unambiguously the reactant energy.
+        endpoint_candidates = torch.tensor(
+            [0.0, 1.0], device=self.device, dtype=self.dtype,
+        )
+        if interior_candidates is not None:
+            candidate_times = torch.cat(
+                [endpoint_candidates,
+                 interior_candidates.to(device=self.device, dtype=self.dtype)],
+                dim=0,
+            )
         else:
-            N_C = 1
-            idx_shift = idx_shift*5
-            energies = energies.flatten()
-        
-        return time, energies, forces, N_C
+            candidate_times = endpoint_candidates
 
-
-    def ts_search(self, time, energies=None, forces=None, evaluate_ts=True, topk_E=7, idx_shift=4, N_interp=10000):
-        # Calculate missing energies and forces
-        calc_energies = energies is None or torch.any(torch.isnan(energies))
-        calc_forces = forces is None or torch.any(torch.isnan(forces))
-        # Calculate energies and forces if too few time points
-        N_input_times = time.shape[0]
-        if len(time.shape) == 3:
-            N_input_times = N_input_times*(time.shape[1] - 1) - 2
-        if N_input_times < 11:
-            time = torch.reshape(time, (-1, time.shape[-1]))
-            time = torch.linspace(time[1,0], time[-2,0], 15, device=self.device, dtype=self.dtype)
-            calc_energies = True
-            calc_forces = True
-        
-        # Calculate energies and forces if necessary
-        if calc_energies or calc_forces:
-            path_output = self.forward(
-                time, return_energies=calc_energies, return_forces=calc_forces
-            )  
-            if calc_energies:
-                energies = path_output.energies
-            if calc_forces:
-                forces = path_output.forces
-        
-        time, energies, forces, N_C = self._ts_search_reformat(
-            time=time, energies=energies, forces=forces, idx_shift=idx_shift
+        # Batched fresh forward at every candidate. Picks the model-truth
+        # global-max-E candidate — the rate-limiting saddle when several
+        # brackets exist, or the higher-energy endpoint for a barrierless
+        # path.
+        cand_out = self.forward(
+            candidate_times,
+            return_velocities=False,
+            return_energies=True,
+            return_forces=True,
         )
+        energies = cand_out.energies.detach().cpu()
+        forces = cand_out.forces.detach().cpu()
+        winner = int(torch.argmax(energies).item())
 
-        # Find highest energy points
-        _, ts_idxs = torch.topk(energies, min(len(energies), topk_E))
-
-        # Start at beginning of integration step
-        ts_idxs = (ts_idxs//N_C)*N_C
-        ts_idxs = torch.unique(ts_idxs, sorted=False)
-
-        # Get time and energy range
-        idxs_min = ts_idxs - idx_shift*N_C
-        idxs_min[idxs_min<N_C] = N_C
-        idxs_max = ts_idxs + idx_shift*(1 + N_C)
-        idxs_max[idxs_max>=len(energies)] = len(energies) - N_C
-        idx_ranges = {(idxs_min[i].item(), idxs_max[i].item()) for i in range(len(idxs_min))}
-        
-        interp_Es = []
-        interp_Fs = []
-        interp_magFs = []
-        interp_times = []
-        top_N = np.max([N_interp//200, 1])
-        ts_time_scale = 0
-        self.ts_force_mag = torch.tensor([np.inf], device=self.device, dtype=self.dtype)
-        for imin, imax in idx_ranges:
-            t_interp = time[imin:imax].detach().cpu().numpy()
-            #print(time.shape, t_interp.shape, energies[imin:imax].shape, forces[imin:imax].shape)
-            ts_E_interp = sp.interpolate.interp1d(
-                t_interp,
-                energies[imin:imax].detach().cpu().numpy(),
-                kind='cubic'
-            )
-            ts_F_interp = sp.interpolate.interp1d(
-                t_interp, forces[imin:imax].detach().cpu().numpy(), axis=0, kind='cubic'
-            )
-            ts_search = np.linspace(
-                t_interp[0] + 1e-12,
-                t_interp[-1] - 1e-12,
-                N_interp
-            )
-            interp_E = ts_E_interp(ts_search)
-            E_idxs = np.argpartition(interp_E, -top_N)[-top_N:]
-            interp_F = ts_F_interp(ts_search)
-            interp_magF = np.linalg.norm(interp_F, ord=2, axis=-1).flatten()
-            F_idxs = np.argpartition(interp_magF, top_N)[:top_N]
-            interp_idxs = np.unique(np.concatenate([E_idxs, F_idxs]))
-            interp_Es.append(interp_E[interp_idxs])
-            interp_Fs.append(interp_F[interp_idxs])
-            interp_magFs.append(interp_magF[interp_idxs])
-            interp_times.append(ts_search[interp_idxs])
-
-            if t_interp[-1] - t_interp[0] > ts_time_scale:
-                ts_time_scale = t_interp[-1] - t_interp[0] 
-            """
-            ts_idx = np.argmin(interp_magF)
-            if interp_magF[ts_idx] < self.ts_force_mag:
-                self.ts_time = torch.tensor(ts_search[ts_idx], device=self.device)
-                self.ts_force = torch.tensor(interp_F[ts_idx], device=self.device)
-                self.ts_force_mag = interp_magF[ts_idx]
-                ts_E_interp = sp.interpolate.interp1d(
-                    t_interp,
-                    energies[imin:imax].detach().cpu().numpy(),
-                    kind='cubic'
-                )
-                interp_E = ts_E_interp(ts_search)
-                self.ts_energy = torch.tensor(interp_E[ts_idx], device=self.device)
-                ts_time_scale = t_interp[-1] - t_interp[0]
-
-                if False and ts_search[0] < self.orig_ts_time and ts_search[-1] > self.orig_ts_time:
-                    print(self.orig_ts_time.detach().cpu().numpy()[0,0], ts_search)
-                    oidx = np.argmin(np.abs(self.orig_ts_time.detach().cpu().numpy()[0,0] - ts_search))
-                    orig_FM = interp_magF[oidx]
-
-            """
-            #interp_ts.append(ts_search)
-            #interp_Es.append(ts_E_interp(ts_search))
-            #interp_Fs.append(ts_F_interp(ts_search))
-            #interp_magFs.append(np.linalg.norm(interp_Fs[-1], ord=2, axis=-1).flatten())
-            #print("TS time", ts_search[0], ts_search[-1])
-        interp_Es = np.concatenate(interp_Es, axis=0)
-        interp_Fs = np.concatenate(interp_Fs, axis=0)
-        interp_magFs = np.concatenate(interp_magFs, axis=0)
-        interp_times = np.concatenate(interp_times, axis=0)
-
-        # Remove low energy entries with low gradient magnitude
-        max_E = np.amax(interp_Es)
-        for j in range(3):
-            std = np.std(interp_Es)
-            mask = interp_Es > max_E - 2*std
-            if sum(mask) < 1:
-                break
-            interp_Es = interp_Es[mask]
-            interp_Fs = interp_Fs[mask]
-            interp_magFs = interp_magFs[mask]
-            interp_times = interp_times[mask]
-        
-        # TS is the lowest gradient point
-        ts_idx = np.argmin(interp_magFs)
-        self.ts_time = torch.tensor(interp_times[ts_idx], device=self.device, dtype=self.dtype)
-        self.ts_energy = torch.tensor(interp_Es[ts_idx], device=self.device, dtype=self.dtype)
-        self.ts_force = torch.tensor(interp_Fs[ts_idx], device=self.device, dtype=self.dtype)
-        self.ts_force_mag = torch.tensor(interp_magFs[ts_idx], device=self.device, dtype=self.dtype)
-
-        if evaluate_ts:
-            ts_output = self.forward(
-                torch.tensor([self.ts_time], device=self.device, dtype=self.dtype),
-                return_velocities=True,
-                return_energies=True,
-                return_forces=True
-            )
-            self.ts_energy = ts_output.energies
-            self.ts_force = ts_output.forces
-            self.ts_force_mag = torch.linalg.norm(self.ts_force, dim=-1)
-
-
-
-
-        #print("NEW METHOD", self.ts_time, self.ts_energy, self.ts_force_mag)
-        #print("OLD METHOD", self.orig_ts_time, self.orig_ts_energy, orig_FM)
-        #if torch.abs(self.ts_time - self.orig_ts_time).flatten()/self.orig_ts_time > 1e-2:
-        #    print("WARNING FAILED CONVERGENCE")
-        """
-        interp_ts = np.array(interp_ts)
-        interp_Es = np.array(interp_Es)
-        interp_Fs = np.array(interp_Fs)
-        interp_magFs = np.array(interp_magFs)
-        ts_idx = np.argmin(interp_magFs)
-
-        idx0 = ts_idx//N_interp
-        idx1 = ts_idx % N_interp
-        self.ts_time = torch.tensor(interp_ts[idx0, idx1], device=self.device)
-        print("TS time", interp_ts[:,0], interp_ts[:,-1])
-        print("SELECTED TS time", self.ts_time)
-        if torch.abs(self.ts_time - self.orig_ts_time).flatten()/self.orig_ts_time > 1e-3:
-            asdfas
-        self.ts_energy = torch.tensor(interp_ts[idx0, idx1], device=self.device)
-        self.ts_force = torch.tensor(interp_Fs[idx0, idx1], device=self.device)
-        self.ts_force_mag = torch.linalg.vector_norm(
-            self.ts_force, ord=2, dim=-1
-        )
-        """
-
-
-        """
-        t_interp = time[:(2*N_C + 1)*idx_shift].detach().cpu().numpy()
-        F_interp = np.stack(
-            [
-                forces[idxs_min[i]:idxs_max[i]].detach().cpu().numpy()\
-                for i in range(len(idxs_max)) 
-            ]
-        )
-        E_interp = np.stack(
-            [
-                energies[idxs_min[i]:idxs_max[i]].detach().cpu().numpy()\
-                for i in range(len(idxs_max)) 
-            ]
-        )
-        print("NEW TS")
-        print("\tidxs: ", idxs_min, idxs_max)
-        #print("\tEs: ", E_interp)
-        ts_E_interp = sp.interpolate.interp1d(
-            t_interp, E_interp, axis=1, kind='cubic'
-        )
-        ts_F_interp = sp.interpolate.interp1d(
-            t_interp, F_interp, axis=1, kind='cubic'
-        )
-        ts_search = np.linspace(
-            t_interp[0] + 1e-12,
-            t_interp[-1] - 1e-12,
-            N_interp
-        )
-        ts_E_search = ts_E_interp(ts_search)
-        ts_F_search = ts_F_interp(ts_search)
-        ts_magF_search = np.linalg.norm(ts_F_search, ord=2, axis=-1).flatten()
-        ts_idx = np.argmin(ts_magF_search)
-        
-
-        #ts_idxs = np.argpartition(ts_E_search.flatten(), -1*topk_F)[-1*topk_F:]
-        #ts_time = ts_search[ts_idxs % N_interp]
-
-        #ts_time = torch.tensor(ts_time) + time[idxs_min[ts_idxs//N_interp]]
-        #path_output = path(ts_time, return_energies=True, return_forces=True)
-        #ts_idx = torch.argmin(
-        #    torch.linalg.vector_norm(path_output.path_force, ord=2, dim=-1)
-        #)
-        
-        idx0 = ts_idx//N_interp
-        idx1 = ts_idx % N_interp
-        self.ts_time = ts_search[idx1]
-        self.ts_time = torch.tensor(self.ts_time, device=self.device) + time[idxs_min[idx0]]
-        print("TS time", ts_search[0] + time[idxs_min], ts_search[-1] + time[idxs_min])
-        print("SELECTED TS time", self.ts_time)
-        self.ts_energy = torch.tensor(ts_E_search[idx0, idx1], device=self.device)
-        self.ts_force = torch.tensor(ts_F_search[idx0, idx1], device=self.device)
-        self.ts_force_mag = torch.linalg.vector_norm(
-            self.ts_force, ord=2, dim=-1
-        )
-        """
-
-        ts_time_scale = t_interp[-1] - t_interp[0]
-        self.ts_region = torch.linspace(
-            self.ts_time-ts_time_scale/idx_shift,
-            self.ts_time+ts_time_scale/idx_shift,
-            11,
-            device=self.device
-        )
-        #self.ts_time = torch.unsqueeze(self.ts_time, -1)
-        #self.ts_time = torch.unsqueeze(self.ts_time, -1)
-        #print(self.ts_energy, self.ts_force_mag, ts_magF_search[ts_idx], self.ts_force)
- 
+        self.ts_time = candidate_times[winner]
+        self.ts_energy = energies[winner]
+        self.ts_force = forces[winner]
+        self.barrier = self.ts_energy - energies[0]

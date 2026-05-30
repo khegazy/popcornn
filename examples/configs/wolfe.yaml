@@ -2,18 +2,24 @@ initialization_params:
   images: [[1.133, -1.486], [-1.166, 1.477]]
   path_params:
     name: mlp
-    n_embed : 8
-    depth : 4
+    width: 128
+    depth: 2
     activation: gelu
+  track_loss: false
+  track_ts: false
+  num_record_points: 101
+  device: cuda
+  dtype: float32
+  seed: 0
 optimization_params:
   - potential_params:
       name: wolfe_schlegel
-    integrator_params: 
-      path_ode_names: projected_variational_reaction_energy
-      rtol: 1.0e-5
-      atol: 1.0e-7
+    integrator_params:
+      path_integrand_names: pvre
+      rtol: 1.0
     optimizer_params:
       optimizer:
         name: adam
-        lr: 1.0e-3
+        lr: 1.0e-2
+      threshold: 0.1
     num_optimizer_iterations: 1000

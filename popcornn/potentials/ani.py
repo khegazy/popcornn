@@ -4,14 +4,18 @@ from torchani.units import HARTREE_TO_EV
 from .base_potential import BasePotential, PotentialOutput
 
 class AniPotential(BasePotential):
+    """
+    Wrapper around TorchANI — small-molecule MLIP. Energies are
+    converted Hartree → eV; forces come from autograd through the
+    energy.
+    """
+
     def __init__(self, model_path, **kwargs):
         """
-        Constructor for ANI Potential
-
         Parameters
         ----------
-        model_path: str
-            path to the model. eg. 'weights/ani/model.pt'
+        model_path : str
+            Path to a saved ANI checkpoint.
         """
         super().__init__(**kwargs)
         self.model = self.load_model(model_path)

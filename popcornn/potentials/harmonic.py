@@ -4,16 +4,26 @@ from ase.data import covalent_radii
 from .base_potential import BasePotential, PotentialOutput
 
 class HarmonicPotential(BasePotential):
+    """
+    Pairwise harmonic potential gated by a sigmoid cutoff.
+
+    Energy per pair:
+
+    .. math::
+        E_{ij} = (r_{ij} - r_0)^2 \\cdot \\sigma\\!\\left(\\frac{r_\\text{max} - r_{ij}}{\\text{skin}}\\right)
+
+    where ``r_0`` is the sum of covalent radii. The sigmoid factor
+    smoothly turns interactions off beyond ``r_max``.
+    """
+
     def __init__(self, r_max=1.5, skin=0.1, **kwargs):
         """
-        Constructor for the Morse Potential
-
-        The potential is given by:
-        E_ij = (1 - exp(-alpha * (r_ij - r0))) ** 2 * sigmoid(beta * (sigma * r0 - r_ij))
-        E = sum_{i<j} E_ij
-
         Parameters
         ----------
+        r_max : float, default=1.5
+            Cutoff radius (Å).
+        skin : float, default=0.1
+            Width (Å) over which the sigmoid switches off.
         """
         super().__init__(**kwargs)
         self.r_max = r_max
