@@ -38,7 +38,7 @@ dependencies = [
     "pytest",
     "pytest-cov",
     "PyYAML",
-    "torchpathint",
+    "padaquad",
     "fairchem-core >= 2.4.0",
 ]
 
