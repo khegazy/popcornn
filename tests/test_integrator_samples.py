@@ -1,8 +1,10 @@
-"""Tests for ``PathIntegrator.save_samples=True``.
+"""Tests for ``PathIntegrator(track_ts=True)`` on the padaquad backend.
 
-Exercises the side-buffer + byte-keyed stitch that lets the
-transition-state finder consume the integrator's quadrature samples
-without paying for any extra path forwards.
+Exercises the tracked-variables path: the integrand emits per-quadrature-point
+``(energies, dE/dt)`` alongside the gradient, padaquad returns them at the
+accepted nodes, and ``PathIntegrator`` reassembles them into a ``SamplesCache``
+so the transition-state finder consumes the integrator's own samples without
+paying for any extra path forwards.
 """
 
 import pytest
@@ -21,10 +23,7 @@ def muller_brown_setup():
     images = process_images(
         'tests/images/muller_brown.json', device=device, dtype=dtype
     )
-    path = get_path(
-        'mlp', images=images, n_embed=4, depth=2,
-        activation='gelu', device=device, dtype=dtype,
-    )
+    path = get_path('mlp', images=images, device=device, dtype=dtype)
     potential = get_potential(
         'muller_brown', images=images, device=device, dtype=dtype,
     )
@@ -32,42 +31,47 @@ def muller_brown_setup():
     return path, device, dtype
 
 
-def test_save_samples_aligned_with_quadrature_mesh(muller_brown_setup):
+def test_track_ts_aligned_with_quadrature_mesh(muller_brown_setup):
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(
         method='gk21',
         path_integrand_names='pvre',
         rtol=1e-2, atol=1e-2,
-        save_samples=True,
+        track_ts=True,
         device=device, dtype=dtype,
     )
 
     out = integrator.integrate_path(path)
 
     assert isinstance(out.samples, SamplesCache)
-    expected_n = out.t.flatten().shape[0]
+
+    # Samples come from padaquad's accepted nodes: [N, C, T] -> N*C points.
+    accepted_t = out.nodes[..., 0].reshape(-1)
+    expected_n = accepted_t.shape[0]
     assert out.samples.time.shape == (expected_n,)
     # dE/dt is a per-sample scalar.
     assert out.samples.dEdt.shape == (expected_n,)
     # energies may be shape [N, 1] or [N, K]; just assert leading axis.
     assert out.samples.energies.shape[0] == expected_n
 
-    # sample times round-trip to the integrator's accepted mesh exactly.
+    # sample times are the accepted-node times, sorted ascending.
     assert torch.allclose(
-        out.samples.time, out.t.flatten().to(out.samples.time.device)
+        out.samples.time,
+        torch.sort(accepted_t.to(out.samples.time.device))[0],
     )
+    assert torch.all(out.samples.time[1:] - out.samples.time[:-1] >= 0)
     # nothing nan / inf — energies and dE/dt actually came from the potential.
     assert torch.isfinite(out.samples.energies).all()
     assert torch.isfinite(out.samples.dEdt).all()
 
 
-def test_save_samples_off_yields_none(muller_brown_setup):
+def test_track_ts_off_yields_none(muller_brown_setup):
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(
         method='gk21',
         path_integrand_names='pvre',
         rtol=1e-2, atol=1e-2,
-        save_samples=False,
+        track_ts=False,
         device=device, dtype=dtype,
     )
 
@@ -75,14 +79,11 @@ def test_save_samples_off_yields_none(muller_brown_setup):
     assert out.samples is None
 
 
-def test_sticky_max_batch_after_oom_in_integrate_path(muller_brown_setup):
-    """If torchpathint reports a shrunken max_batch, ``PathIntegrator``
-    stores it so the next ``integrate_path`` starts at the learned size
-    rather than re-discovering it from scratch.
-
-    Simulated by monkeypatching ``path_integral`` (we can't provoke a real
-    CUDA OOM in a unit test); the mechanics on top of torchpathint are
-    what's under test here, not the shrinker itself.
+def test_max_batch_benchmarked_once(muller_brown_setup):
+    """With ``max_batch=None``, padaquad benchmarks the integrand's memory on
+    the first ``integrate_path``; ``PathIntegrator`` snapshots the resulting
+    batch size so it is reused (unchanged) on subsequent calls rather than
+    re-benchmarked once per optimizer step.
     """
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(
@@ -91,24 +92,11 @@ def test_sticky_max_batch_after_oom_in_integrate_path(muller_brown_setup):
         rtol=1e-2, atol=1e-2,
         device=device, dtype=dtype,
     )
+    assert integrator.max_batch is None
 
-    # Confirm normal-path behavior leaves max_batch == None when no OOM.
-    out = integrator.integrate_path(path)
-    assert integrator.max_batch == out.max_batch  # both None after a clean run
+    integrator.integrate_path(path)
+    learned = integrator.max_batch
+    assert isinstance(learned, int) and learned > 0
 
-    # Now simulate torchpathint reporting a learned, shrunken value.
-    import popcornn.tools.integrator as integ_mod
-
-    real_pi = integ_mod.path_integral
-
-    def fake_pi(*args, **kwargs):
-        result = real_pi(*args, **kwargs)
-        result.max_batch = 7  # pretend the shrinker landed at 7
-        return result
-
-    integ_mod.path_integral = fake_pi
-    try:
-        integrator.integrate_path(path)
-    finally:
-        integ_mod.path_integral = real_pi
-    assert integrator.max_batch == 7
+    integrator.integrate_path(path)
+    assert integrator.max_batch == learned
