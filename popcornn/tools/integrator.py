@@ -64,6 +64,7 @@ class PathIntegrator:
     def __init__(
             self,
             method='gk7',
+            integrate_gradient=True,
             path_integrand_names=None,
             path_integrand_scales=None,
             path_integrand_kwargs=None,
@@ -90,6 +91,28 @@ class PathIntegrator:
             Use ``gk21`` / ``gk31`` for tighter integration if the path
             is unusually rough; padaquad also offers ``gk15`` and
             Clenshaw–Curtis (``cc*``) / Runge–Kutta rules.
+        integrate_gradient : bool, default=True
+            Selects which of padaquad's two gradient modes to use.
+
+            - ``True`` (integrate-the-gradient): the integrand itself
+              computes ``∂L/∂θ`` (a batched Jacobian) and padaquad
+              integrates that with ``take_gradient=False`` (no autograd
+              through the quadrature). ``result.integral`` is the flat
+              ``[D]`` gradient, scattered into ``param.grad`` directly.
+              This is the current/default popcornn behavior.
+            - ``False`` (gradient-of-the-integral): the integrand returns
+              the scalar loss only, padaquad integrates it with
+              ``take_gradient=True`` and calls ``.backward()`` on the loss
+              integral per batch, accumulating ``∫∂L/∂θ dt`` into
+              ``param.grad`` via autograd. This is the pre-fork behavior.
+
+            Both yield the same path gradient ``∫∂L/∂θ dt`` (up to
+            quadrature error); they differ in where the derivative is
+            taken. ``True`` frees the autograd graph per batch (the
+            Jacobian is computed and detached inside the integrand);
+            ``False`` keeps the graph for padaquad's backward and lets the
+            loss integral fall out for free (no separate ``track_loss``
+            pass needed).
         path_integrand_names : str or list of str, optional
             Per-point integrand (or list of them) to integrate. Looked up
             by name in ``PATH_INTEGRANDS``. See ``docs/loss-functions.md``.
@@ -168,6 +191,7 @@ class PathIntegrator:
         dtype : torch.dtype
         """
         self.method = method
+        self.integrate_gradient = integrate_gradient
         self.atol = atol
         self.rtol = rtol
         self.norm = norm
@@ -218,8 +242,10 @@ class PathIntegrator:
         self._mesh_optimal = None
 
         # Detached loss integral runs on its own solver so it can use its own
-        # (looser) tolerances and keep an independent warm-start mesh.
-        if self.track_loss:
+        # (looser) tolerances and keep an independent warm-start mesh. Only
+        # needed in integrate_gradient mode; when integrate_gradient=False the
+        # main pass already integrates the loss, so .loss comes for free.
+        if self.track_loss and self.integrate_gradient:
             self._loss_solver = adaptive_quadrature(
                 sampling_type='uniform',
                 method=self.method,
@@ -255,17 +281,20 @@ class PathIntegrator:
             t_final=torch.tensor([1.]),
         ):
         """
-        Integrate the gradient of the loss along the path.
+        Compute the path gradient and write it into ``param.grad``.
 
         Sets ``param.grad`` for each path parameter to the integrated
         gradient ``∫₀¹ ∂L/∂θ dt`` (accumulated, so multiple calls
-        between ``optimizer.zero_grad()`` compose). Also returns the
-        underlying ``IntegralOutput`` enriched with popcornn-level
-        fields:
+        between ``optimizer.zero_grad()`` compose). Whether the derivative
+        is taken inside the integrand (``integrate_gradient=True``) or by
+        padaquad backpropagating through the loss integral
+        (``integrate_gradient=False``) is set at construction; both land
+        the same gradient in ``param.grad``. Also returns the underlying
+        padaquad ``IntegrationResult`` enriched with popcornn-level fields:
 
-        - ``.grad_integral``: alias for the flat ``[D]`` integrated
-          gradient (same tensor as padaquad's ``.integral``; named for
-          clarity at popcornn call sites).
+        - ``.grad_integral``: the flat ``[D]`` path gradient (padaquad's
+          ``.integral`` when ``integrate_gradient=True``; gathered from
+          ``param.grad`` after padaquad's backward when ``False``).
         - ``.grad_norm``: ``‖∫∇L dt‖`` (L2 or L∞ per ``norm``); the
           convergence trigger read by ``PathOptimizer``.
         - ``.loss``: scalar ``∫L(t) dt`` when ``track_loss=True``, else
@@ -302,36 +331,48 @@ class PathIntegrator:
 
         also_resolve = ('energies', 'forces', 'velocities') if self.track_ts else ()
 
-        # Gradient-of-loss integrand: returns the per-point batched Jacobian
-        # ``∂L/∂θ`` as [N, D]. padaquad integrates it (take_gradient=False, no
-        # .backward()) so ``result.integral`` is the flat [D] gradient we
-        # scatter into param.grad below. When track_ts is on, the integrand
-        # also emits ``(energies, dE/dt)`` as padaquad tracked_variables —
-        # evaluated at every node, returned (detached) at the accepted nodes,
-        # and reassembled into a SamplesCache. dE/dt = -(F·v).sum(-1) reuses
-        # the forces/velocities already resolved for the loss integrand.
-        # padaquad passes nodes as [N, 1] (already 2-D) — no unsqueeze.
-        def f(t):
+        def _loss_and_tracked(t):
+            """Evaluate the graph-live weighted integrand sum (``[N]``) and,
+            when track_ts is on, the ``(energies, dE/dt)`` tracked tuple
+            padaquad carries to the accepted nodes. padaquad passes nodes as
+            ``[N, 1]`` (already 2-D) — no unsqueeze. ``dE/dt = -(F·v).sum(-1)``
+            reuses the forces/velocities already resolved for the loss."""
             l, variables = evaluate_integrand_sum(
-                self._terms,
-                t,
-                path,
-                also_resolve=also_resolve,
+                self._terms, t, path, also_resolve=also_resolve,
             )
             l_per_t = l.reshape(t.shape[0], -1).sum(dim=-1)  # [N], graph live
-            n = l_per_t.shape[0]
-            grad_out = torch.eye(n, device=l_per_t.device, dtype=l_per_t.dtype)
-            grads = torch.autograd.grad(
-                outputs=l_per_t,
-                inputs=params,
-                grad_outputs=grad_out,
-                is_grads_batched=True,
-            )
-            jac = torch.cat([g.reshape(n, -1) for g in grads], dim=-1)  # [N, D]
+            tracked = None
             if self.track_ts:
-                dEdt = -(variables['forces'] * variables['velocities']).sum(dim=-1)  # [N]
-                return jac, (variables['energies'], dEdt)
-            return jac, None
+                dEdt = -(variables['forces'] * variables['velocities']).sum(dim=-1)
+                tracked = (variables['energies'], dEdt)
+            return l_per_t, tracked
+
+        if self.integrate_gradient:
+            # Integrate-the-gradient: the integrand returns the per-point
+            # batched Jacobian ``∂L/∂θ`` as [N, D]; padaquad integrates it with
+            # take_gradient=False (no autograd through the quadrature), so
+            # ``result.integral`` is the flat [D] gradient scattered into
+            # param.grad below.
+            def f(t):
+                l_per_t, tracked = _loss_and_tracked(t)
+                n = l_per_t.shape[0]
+                grad_out = torch.eye(n, device=l_per_t.device, dtype=l_per_t.dtype)
+                grads = torch.autograd.grad(
+                    outputs=l_per_t, inputs=params,
+                    grad_outputs=grad_out, is_grads_batched=True,
+                )
+                jac = torch.cat([g.reshape(n, -1) for g in grads], dim=-1)  # [N, D]
+                return jac, tracked
+            take_gradient = False
+        else:
+            # Gradient-of-the-integral: the integrand returns the scalar loss
+            # [N, 1] with the graph live; padaquad integrates it with
+            # take_gradient=True and calls .backward() on the loss integral
+            # per batch, accumulating ``∫∂L/∂θ dt`` into param.grad via autograd.
+            def f(t):
+                l_per_t, tracked = _loss_and_tracked(t)
+                return l_per_t.reshape(-1, 1), tracked  # [N, 1], graph live
+            take_gradient = True
 
         # Whether padaquad must benchmark the integrand's memory this call.
         # The closure ``f`` is rebuilt every call, so padaquad's id(f)-keyed
@@ -346,7 +387,7 @@ class PathIntegrator:
             mesh=self._mesh_optimal,          # None on first call -> fresh random mesh
             mesh_init=t_init_1d,
             mesh_final=t_final_1d,
-            take_gradient=False,              # we scatter ∂L/∂θ ourselves; no .backward()
+            take_gradient=take_gradient,      # see integrate_gradient branch above
             max_batch=self.max_batch,
         )
         # Warm-start the next call from this run's pruned + refined mesh.
@@ -355,19 +396,29 @@ class PathIntegrator:
             self.max_batch = self._solver._get_max_f_evals(self._solver.total_mem_usage)
 
         integral_output = result
-        # padaquad's ``.integral`` is the integrated function value — here the
-        # flat [D] gradient. Alias to ``.grad_integral`` so popcornn-internal
-        # call sites read clearly against the loss-integral pass below.
-        integral_output.grad_integral = result.integral
 
-        # Scatter the [D] integrated gradient into param.grad. Accumulate so
-        # multiple integrate_path calls between optimizer.zero_grad() compose.
-        offset = 0
-        flat = integral_output.grad_integral.detach()
-        for p, k in zip(params, sizes):
-            chunk = flat[offset:offset + k].reshape(p.shape)
-            p.grad = chunk if p.grad is None else p.grad + chunk
-            offset += k
+        # Recover the flat [D] path gradient into param.grad. In both modes the
+        # optimizer reads it back off param.grad, but the source differs:
+        if self.integrate_gradient:
+            # ``result.integral`` IS the [D] integrated gradient. Scatter it
+            # into param.grad, accumulating so multiple integrate_path calls
+            # between optimizer.zero_grad() compose.
+            flat = result.integral.detach()
+            offset = 0
+            for p, k in zip(params, sizes):
+                chunk = flat[offset:offset + k].reshape(p.shape)
+                p.grad = chunk if p.grad is None else p.grad + chunk
+                offset += k
+        else:
+            # padaquad already called .backward(), accumulating ∫∂L/∂θ dt into
+            # param.grad. Gather it into a flat [D] vector for grad_norm and the
+            # grad_integral alias. (Frozen/untouched params contribute zeros.)
+            flat = torch.cat([
+                p.grad.reshape(-1) if p.grad is not None
+                else p.new_zeros(k).reshape(-1)
+                for p, k in zip(params, sizes)
+            ]).detach()
+        integral_output.grad_integral = flat
 
         # Surface ‖∫∇L dt‖ as the convergence signal consumed by
         # PathOptimizer's threshold check. L∞ is closer to MLP-size-independent
@@ -385,10 +436,14 @@ class PathIntegrator:
         else:
             integral_output.samples = None
 
-        # padaquad pre-fills ``result.loss`` from its default loss_fxn (= the
-        # integral, i.e. the [D] gradient here), which is meaningless to
-        # popcornn. Overwrite: None unless track_loss runs a real loss pass.
-        if self.track_loss:
+        # ``.loss`` = scalar ∫L(t) dt when track_loss, else None. padaquad
+        # pre-fills ``result.loss`` from its default loss_fxn, so always
+        # overwrite it explicitly.
+        if not self.track_loss:
+            integral_output.loss = None
+        elif self.integrate_gradient:
+            # The main pass integrated the gradient, not the loss, so run a
+            # separate detached loss integral on its own (looser-tol) solver.
             def fval(t):
                 l, _ = evaluate_integrand_sum(self._terms, t, path)
                 return l.reshape(t.shape[0], -1).detach()  # [N, 1], bare tensor
@@ -403,7 +458,8 @@ class PathIntegrator:
             self._loss_mesh_optimal = loss_result.mesh_optimal
             integral_output.loss = loss_result.integral.detach()  # [1]
         else:
-            integral_output.loss = None
+            # The main pass already integrated the loss — it's free here.
+            integral_output.loss = result.integral.detach()  # [1]
 
         self.integral_output = integral_output
         self.N_integrals += 1
