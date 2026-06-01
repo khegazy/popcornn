@@ -72,7 +72,6 @@ class PathIntegrator:
             norm='2',
             max_batch=None,
             max_iter=5,
-            max_adaptive_splits=10,
             track_loss=False,
             loss_rtol=0.0,
             loss_atol=0.0001,
@@ -143,21 +142,19 @@ class PathIntegrator:
                 for it in range(N2):
                     optr2.optimization_step(path, integ2)
         max_iter : int, default=5
-            Ignored; retained for config back-compatibility. padaquad bounds
-            refinement per-panel via ``max_adaptive_splits`` (below) rather
-            than with a global iteration count.
-        max_adaptive_splits : int, default=10
-            Maximum recursion depth for splitting any single quadrature panel
-            during adaptive refinement; a panel split this many times is
-            accepted even if it still fails the error tolerance. This bounds
-            padaquad's otherwise-uncapped refinement: a *finite* integrand
-            whose error never falls below ``atol + rtol·|integral|`` (e.g. a
-            near-zero integral against ``atol=0``) would otherwise split every
-            panel forever — geometrically, ~2^(splits) panels — burning
-            unbounded compute. The default leaves well-behaved integrals
-            untouched (production runs converge well before depth 10; verified
-            identical grad_norm at 5/10/20 on Müller-Brown) while capping the
-            worst case at ~2^10 panels. Note this does NOT rescue an integrand
+            Maximum adaptive-refinement depth, passed to padaquad as
+            ``max_adaptive_splits``: the most times any single quadrature panel
+            may be split, after which it is accepted even if it still fails the
+            error tolerance. (padaquad has no global iteration count; this is a
+            per-panel recursion-depth cap, so the same integer bounds local
+            refinement at ~2^max_iter panels rather than total passes.) This
+            bounds padaquad's otherwise-uncapped refinement: a *finite*
+            integrand whose error never falls below ``atol + rtol·|integral|``
+            (e.g. a near-zero integral against ``atol=0``) would otherwise
+            split every panel forever, burning unbounded compute. The default
+            of 5 leaves well-behaved integrals untouched (production runs
+            converge well before depth 5; verified identical grad_norm at
+            5/10/20 on Müller-Brown). Note this does NOT rescue an integrand
             that returns NaN/Inf (a NaN error ratio is neither accepted nor
             split); such degenerate inputs must be avoided upstream.
         track_loss : bool, default=False
@@ -182,7 +179,6 @@ class PathIntegrator:
         self.track_ts = track_ts
         self.max_batch = max_batch
         self.max_iter = max_iter
-        self.max_adaptive_splits = max_adaptive_splits
         self.device = device
         self.dtype = dtype
         self.N_integrals = 0
@@ -212,7 +208,7 @@ class PathIntegrator:
             atol=self.atol,
             rtol=self.rtol,
             max_batch=self.max_batch,
-            max_adaptive_splits=self.max_adaptive_splits,  # bound refinement on degenerate integrands
+            max_adaptive_splits=self.max_iter,  # per-panel split-depth cap; bounds refinement
             error_calc_idx=None,              # RMS error over all gradient components
             dtype=solver_dtype,
             device=solver_device,
@@ -230,7 +226,7 @@ class PathIntegrator:
                 atol=self.loss_atol,
                 rtol=self.loss_rtol,
                 max_batch=self.max_batch,
-                max_adaptive_splits=self.max_adaptive_splits,
+                max_adaptive_splits=self.max_iter,
                 error_calc_idx=None,
                 dtype=solver_dtype,
                 device=solver_device,
