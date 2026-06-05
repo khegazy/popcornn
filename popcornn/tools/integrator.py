@@ -233,7 +233,6 @@ class PathIntegrator:
             rtol=self.rtol,
             max_batch=self.max_batch,
             max_adaptive_splits=self.max_iter,  # per-panel split-depth cap; bounds refinement
-            error_calc_idx=None,              # RMS error over all gradient components
             dtype=solver_dtype,
             device=solver_device,
         )
@@ -253,7 +252,6 @@ class PathIntegrator:
                 rtol=self.loss_rtol,
                 max_batch=self.max_batch,
                 max_adaptive_splits=self.max_iter,
-                error_calc_idx=None,
                 dtype=solver_dtype,
                 device=solver_device,
             )
@@ -387,13 +385,14 @@ class PathIntegrator:
             mesh=self._mesh_optimal,          # None on first call -> fresh random mesh
             mesh_init=t_init_1d,
             mesh_final=t_final_1d,
+            error_norm=self.norm,
             take_gradient=take_gradient,      # see integrate_gradient branch above
             max_batch=self.max_batch,
         )
         # Warm-start the next call from this run's pruned + refined mesh.
         self._mesh_optimal = result.mesh_optimal
         if snapshot_max_batch:
-            self.max_batch = self._solver._get_max_f_evals(self._solver.total_mem_usage)
+            self.max_batch = self._solver._get_max_f_evals(0.9)#self._solver.total_mem_usage)
 
         integral_output = result
 
@@ -452,6 +451,7 @@ class PathIntegrator:
                 mesh=self._loss_mesh_optimal,
                 mesh_init=t_init_1d,
                 mesh_final=t_final_1d,
+                error_norm=self.norm,
                 take_gradient=False,
                 max_batch=self.max_batch,     # int by now (snapshotted on the grad pass)
             )
