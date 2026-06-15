@@ -239,7 +239,6 @@ class PathIntegrator:
         # Warm-start cache: previous run's optimized mesh, fed back as the
         # next call's initial mesh. None on the first call -> fresh random mesh.
         self._mesh_optimal = None
-        self._previous_integral = None
 
         # Detached loss integral runs on its own solver so it can use its own
         # (looser) tolerances and keep an independent warm-start mesh. Only
@@ -257,7 +256,6 @@ class PathIntegrator:
                 device=solver_device,
             )
             self._loss_mesh_optimal = None
-            self._loss_previous_integral = None
 
     def update_integrand_scales(self, **kwargs):
         """Replace one or more per-term scales. Used by schedulers to ramp
@@ -388,13 +386,11 @@ class PathIntegrator:
             mesh_init=t_init_1d,
             mesh_final=t_final_1d,
             error_norm=self.norm,
-            error_integral_reference=self._previous_integral,
             take_gradient=take_gradient,      # see integrate_gradient branch above
             max_batch=self.max_batch,
         )
         # Warm-start the next call from this run's pruned + refined mesh.
         self._mesh_optimal = result.mesh_optimal
-        self._previous_integral = result.integral.detach()
         if snapshot_max_batch:
             self.max_batch = self._solver._get_max_f_evals(0.9)#self._solver.total_mem_usage)
 
@@ -456,12 +452,10 @@ class PathIntegrator:
                 mesh_init=t_init_1d,
                 mesh_final=t_final_1d,
                 error_norm=self.norm,
-                error_integral_reference=self._loss_previous_integral,
                 take_gradient=False,
                 max_batch=self.max_batch,     # int by now (snapshotted on the grad pass)
             )
             self._loss_mesh_optimal = loss_result.mesh_optimal
-            self._loss_previous_integral = loss_result.integral.detach()
             integral_output.loss = loss_result.integral.detach()  # [1]
         else:
             # The main pass already integrated the loss — it's free here.
