@@ -341,12 +341,13 @@ class PathIntegrator:
             l, variables = evaluate_integrand_sum(
                 self._terms, t, path, also_resolve=also_resolve,
             )
-            l_per_t = l.reshape(t.shape[0], -1).sum(dim=-1)  # [N], graph live
             tracked = None
             if self.track_ts:
-                dEdt = -(variables['forces'] * variables['velocities']).sum(dim=-1)
+                dEdt = -torch.sum(
+                    variables['forces'] * variables['velocities'], dim=-1
+                )
                 tracked = (variables['energies'], dEdt)
-            return l_per_t, tracked
+            return l, tracked
 
         if self.integrate_gradient:
             # Integrate-the-gradient: the integrand returns the per-point
@@ -359,8 +360,10 @@ class PathIntegrator:
                 n = l_per_t.shape[0]
                 grad_out = torch.eye(n, device=l_per_t.device, dtype=l_per_t.dtype)
                 grads = torch.autograd.grad(
-                    outputs=l_per_t, inputs=params,
-                    grad_outputs=grad_out, is_grads_batched=True,
+                    outputs=torch.sum(l_per_t, dim=-1), # Reduce to scalar for taking gradient
+                    inputs=params,
+                    grad_outputs=grad_out,
+                    is_grads_batched=True,
                 )
                 jac = torch.cat([g.reshape(n, -1) for g in grads], dim=-1)  # [N, D]
                 return jac, tracked
@@ -371,8 +374,8 @@ class PathIntegrator:
             # take_gradient=True and calls .backward() on the loss integral
             # per batch, accumulating ``∫∂L/∂θ dt`` into param.grad via autograd.
             def f(t):
-                l_per_t, tracked = _loss_and_tracked(t)
-                return l_per_t.reshape(-1, 1), tracked  # [N, 1], graph live
+                l, tracked = _loss_and_tracked(t)
+                return l, tracked  # [N, 1], graph live
             take_gradient = True
 
         result = self._solver.integrate(
