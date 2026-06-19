@@ -80,11 +80,11 @@ def test_track_ts_off_yields_none(muller_brown_setup):
     assert out.samples is None
 
 
-def test_max_batch_benchmarked_once(muller_brown_setup):
-    """With ``max_batch=None``, padaquad benchmarks the integrand's memory on
-    the first ``integrate_path``; ``PathIntegrator`` snapshots the resulting
-    batch size so it is reused (unchanged) on subsequent calls rather than
-    re-benchmarked once per optimizer step.
+def test_max_batch_left_to_padaquad(muller_brown_setup):
+    """With ``max_batch=None``, padaquad benchmarks the integrand's memory
+    internally on each ``integrate_path``. ``PathIntegrator`` no longer
+    snapshots the benchmarked size onto itself, so ``max_batch`` stays as
+    configured (``None``) across calls and integration still succeeds.
     """
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(
@@ -95,9 +95,10 @@ def test_max_batch_benchmarked_once(muller_brown_setup):
     )
     assert integrator.max_batch is None
 
-    integrator.integrate_path(path)
-    learned = integrator.max_batch
-    assert isinstance(learned, int) and learned > 0
+    out = integrator.integrate_path(path)
+    assert integrator.max_batch is None
+    assert torch.isfinite(out.integral).all()
 
+    # Unchanged across subsequent calls — not re-discovered or mutated.
     integrator.integrate_path(path)
-    assert integrator.max_batch == learned
+    assert integrator.max_batch is None
