@@ -45,13 +45,14 @@ def test_track_ts_aligned_with_quadrature_mesh(muller_brown_setup):
 
     assert isinstance(out.samples, SamplesCache)
 
-    # Samples come from padaquad's accepted nodes: [N, C, T] -> N*C points.
-    accepted_t = out.nodes[..., 0].reshape(-1)
+    # Samples come from padaquad's accepted nodes, already flattened to
+    # [P, T] (shared panel boundaries deduplicated) -> P points.
+    accepted_t = out.nodes[..., 0]
     expected_n = accepted_t.shape[0]
     assert out.samples.time.shape == (expected_n,)
     # dE/dt is a per-sample scalar.
     assert out.samples.dEdt.shape == (expected_n,)
-    # energies may be shape [N, 1] or [N, K]; just assert leading axis.
+    # energies may be shape [P, 1] or [P, K]; just assert leading axis.
     assert out.samples.energies.shape[0] == expected_n
 
     # sample times are the accepted-node times, sorted ascending.
