@@ -447,7 +447,7 @@ class PathIntegrator:
                 mesh_final=t_final_1d,
                 error_norm=self.norm,
                 take_gradient=False,
-                max_batch=self.max_batch,     # int by now (snapshotted on the grad pass)
+                max_batch=self.max_batch,     # as configured; padaquad benchmarks internally when None
                 result_device=self.device
             )
             self._loss_mesh_optimal = loss_result.mesh_optimal
