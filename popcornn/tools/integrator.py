@@ -11,11 +11,14 @@ from .integrand import build_integrand_terms, evaluate_integrand_sum
 class SamplesCache:
     """Per-quadrature-point energy + dE/dt samples harvested during integration.
 
-    Shape contract:
-    - ``time``: ``[N*K]``, flattened from ``IntegralOutput.t``'s ``[N, K]``.
-    - ``energies``: ``[N*K, E]`` (typically ``E=1``; potentials may emit a
+    Shape contract (``P`` = total accepted quadrature points; padaquad returns
+    its node-level outputs already flattened across panels with shared panel
+    boundaries deduplicated, so there is no per-panel ``[N, K]`` layout to
+    flatten on our side):
+    - ``time``: ``[P]``, taken from ``IntegralOutput.nodes``'s ``[P, T]``.
+    - ``energies``: ``[P, E]`` (typically ``E=1``; potentials may emit a
       decomposed energy tensor).
-    - ``dEdt``: ``[N*K]``, scalar ``dE/dt = ∇E·ẋ = -(F·v).sum(-1)``
+    - ``dEdt``: ``[P]``, scalar ``dE/dt = ∇E·ẋ = -(F·v).sum(-1)``
       precomputed inside the integrator from the same forces and
       velocities that were already resolved for the loss integrand —
       cached as a scalar so the consumer doesn't carry F (shape ``[D]``)
@@ -372,14 +375,6 @@ class PathIntegrator:
                 return l_per_t.reshape(-1, 1), tracked  # [N, 1], graph live
             take_gradient = True
 
-        # Whether padaquad must benchmark the integrand's memory this call.
-        # The closure ``f`` is rebuilt every call, so padaquad's id(f)-keyed
-        # cache never hits; passing an explicit ``max_batch`` suppresses the
-        # benchmark. On the first call (max_batch is None) we let it run, then
-        # snapshot the sizing so subsequent calls skip it — benchmarking once
-        # per integrator lifetime rather than once per optimizer step.
-        snapshot_max_batch = self.max_batch is None
-
         result = self._solver.integrate(
             f,
             mesh=self._mesh_optimal,          # None on first call -> fresh random mesh
@@ -388,11 +383,10 @@ class PathIntegrator:
             error_norm=self.norm,
             take_gradient=take_gradient,      # see integrate_gradient branch above
             max_batch=self.max_batch,
+            result_device=self.device
         )
         # Warm-start the next call from this run's pruned + refined mesh.
         self._mesh_optimal = result.mesh_optimal
-        if snapshot_max_batch:
-            self.max_batch = self._solver._get_max_f_evals(0.9)#self._solver.total_mem_usage)
 
         integral_output = result
 
@@ -454,6 +448,7 @@ class PathIntegrator:
                 error_norm=self.norm,
                 take_gradient=False,
                 max_batch=self.max_batch,     # int by now (snapshotted on the grad pass)
+                result_device=self.device
             )
             self._loss_mesh_optimal = loss_result.mesh_optimal
             integral_output.loss = loss_result.integral.detach()  # [1]
@@ -468,12 +463,13 @@ class PathIntegrator:
     def _samples_from_result(self, result):
         """Build a ``SamplesCache`` from padaquad's accepted-node output.
 
-        ``result.nodes`` (``[N, C, T]``, T=1) gives the per-quadrature-point
+        ``result.nodes`` (``[P, T]``, T=1) gives the per-quadrature-point
         times; ``result.tracked_variables`` carries the ``(energies, dE/dt)``
         the integrand emitted, returned detached at the accepted nodes and
-        aligned with ``nodes``. Flatten the ``[N, C, ...]`` layout to a flat
-        sample list and sort by time so consumers (TS search) can scan in
-        order without an extra ``argsort``.
+        aligned with ``nodes``. padaquad already returns these flattened across
+        panels with shared panel boundaries deduplicated (``P`` total points),
+        so we just move them to ``device`` and sort by time, letting consumers
+        (TS search) scan in order without an extra ``argsort``.
 
         Note: unlike the old byte-keyed stitch, these are the *accepted* mesh
         nodes only (rejected-refinement evals are not returned by padaquad).
@@ -481,9 +477,9 @@ class PathIntegrator:
         if result.tracked_variables is None or result.nodes.shape[0] == 0:
             empty = torch.empty(0, device=self.device, dtype=self.dtype)
             return SamplesCache(time=empty, energies=empty, dEdt=empty)
-        energies, dEdt = result.tracked_variables          # [N, C, E], [N, C]
-        time = result.nodes[..., 0].reshape(-1).to(self.device)              # [N*C]
-        energies = energies.reshape(-1, energies.shape[-1]).to(self.device)  # [N*C, E]
-        dEdt = dEdt.reshape(-1).to(self.device)                              # [N*C]
+        energies, dEdt = result.tracked_variables  # [P, E], [P]
+        time = result.nodes[..., 0].to(self.device)      # [P]
+        energies = energies.to(self.device)              # [P, E]
+        dEdt = dEdt.to(self.device)                      # [P]
         order = torch.argsort(time)
         return SamplesCache(time=time[order], energies=energies[order], dEdt=dEdt[order])
