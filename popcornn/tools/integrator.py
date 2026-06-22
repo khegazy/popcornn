@@ -391,6 +391,17 @@ class PathIntegrator:
         # Warm-start the next call from this run's pruned + refined mesh.
         self._mesh_optimal = result.mesh_optimal
 
+        # Snapshot the benchmarked batch size after the first run so the slow
+        # memory benchmark fires once per integrator lifetime, not once per
+        # optimizer step. padaquad caches the benchmark keyed on ``id(f)``, but
+        # our integrand closure is rebuilt every call, so id(f) never matches and
+        # padaquad would re-benchmark indefinitely. Capturing the solver's
+        # resolved batch size into ``self.max_batch`` makes every subsequent call
+        # pass an explicit size, skipping the benchmark. Only when the user did
+        # NOT configure ``max_batch`` (else it's already set and honored as-is).
+        if self.max_batch is None:
+            self.max_batch = self._solver.get_max_batch()
+
         integral_output = result
 
         # Recover the flat [D] path gradient into param.grad. In both modes the

@@ -80,11 +80,13 @@ def test_track_ts_off_yields_none(muller_brown_setup):
     assert out.samples is None
 
 
-def test_max_batch_left_to_padaquad(muller_brown_setup):
-    """With ``max_batch=None``, padaquad benchmarks the integrand's memory
-    internally on each ``integrate_path``. ``PathIntegrator`` no longer
-    snapshots the benchmarked size onto itself, so ``max_batch`` stays as
-    configured (``None``) across calls and integration still succeeds.
+def test_max_batch_snapshotted_after_first_run(muller_brown_setup):
+    """With ``max_batch=None``, padaquad benchmarks the integrand's memory on
+    the first ``integrate_path``. ``PathIntegrator`` then snapshots that resolved
+    batch size onto itself so every subsequent call passes an explicit
+    ``max_batch`` and the (slow) benchmark fires once per integrator lifetime
+    rather than once per step (padaquad's own ``id(f)`` cache can't help — our
+    integrand closure is rebuilt each call, so its identity never matches).
     """
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(
@@ -96,9 +98,12 @@ def test_max_batch_left_to_padaquad(muller_brown_setup):
     assert integrator.max_batch is None
 
     out = integrator.integrate_path(path)
-    assert integrator.max_batch is None
     assert torch.isfinite(out.integral).all()
+    # Snapshotted from the first run's benchmark (None on CPU where the memory
+    # budget is effectively unbounded; a positive cap on a memory-limited device).
+    snapshotted = integrator.max_batch
+    assert snapshotted is None or snapshotted > 0
 
-    # Unchanged across subsequent calls — not re-discovered or mutated.
+    # Stable across subsequent calls — captured once, not re-discovered.
     integrator.integrate_path(path)
-    assert integrator.max_batch is None
+    assert integrator.max_batch == snapshotted
