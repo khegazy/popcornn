@@ -63,7 +63,7 @@ trainable weights $\theta$, you can:
    path, the energy model, and the integrator, and step an optimizer.
 
 That's the whole training loop. Adaptive quadrature
-([torchpathint](https://github.com/khegazy/torchpathdiffeq))
+([padaquad](https://github.com/khegazy/padaquad))
 chooses where along the path to evaluate, so dense regions get more
 points and flat regions get fewer.
 
