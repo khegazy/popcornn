@@ -247,7 +247,7 @@ class PathIntegrator:
         # (looser) tolerances and keep an independent warm-start mesh. Only
         # needed in integrate_gradient mode; when integrate_gradient=False the
         # main pass already integrates the loss, so .loss comes for free.
-        if self.track_loss and self.integrate_gradient:
+        if self.integrate_gradient:
             self._loss_solver = adaptive_quadrature(
                 sampling_type='uniform',
                 method=self.method,
