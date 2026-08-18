@@ -173,7 +173,7 @@ typically well-separated).
 
 ## Integrator noise budget
 
-The integrator's tolerance pair `(atol, rtol)` (with `tol_mode='l2'`)
+The integrator's tolerance pair `(atol, rtol)` (with `norm='2'`)
 produces a per-step relative noise of
 $\text{noise}/|g|_2 = \text{atol}/|g|_2 + \text{rtol}$. At the trigger
 $|g|_2 = \text{threshold}$, so noise / threshold = $(\text{atol} / \text{threshold}) + \text{rtol}$.

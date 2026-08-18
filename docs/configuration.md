@@ -76,8 +76,8 @@ and `task_name`; NewtonNet needs a `model_path`).
 | `method` | `str` | `"gk7"` | Adaptive Gauss–Kronrod rule. `gk7` is 7-point, the popcornn default. |
 | `rtol` | `float` | `0.5` | Relative tolerance. |
 | `atol` | `float` | `2.5e-3` | Absolute tolerance. |
-| `tol_mode` | `"l2"` or `"per_d"` | `"l2"` | Tolerance-aggregation rule. `"l2"` uses a scalar `atol + rtol·|g|_2` denominator (matches the `|g|_2` convergence trigger). `"per_d"` is the legacy per-component denominator. |
-| `max_batch` | `int` or `None` | `None` | Max batch size at any quadrature step. `None` lets torchpathint auto-size and remember the value across calls. See [Memory & OOM](memory-and-oom.md). |
+| `norm` | `"2"` or `"max"` | `"2"` | Vector norm used both to reduce the integrated gradient to the scalar convergence signal (compared against `threshold`) and as padaquad's panel accept/reject norm. `"2"` is the L2 norm `|g|_2`; `"max"` is the L∞ norm. Quote it in YAML (`norm: '2'`) so it parses as a string. |
+| `max_batch` | `int` or `None` | `None` | Max batch size at any quadrature step. `None` lets padaquad size it from a one-time memory benchmark, snapshotted after the first call. See [Memory & OOM](memory-and-oom.md). |
 
 ### `optimizer_params`
 
@@ -171,5 +171,5 @@ Two stages:
    `threshold` $= \delta \cdot 2 \cdot \sigma_{\min} \cdot F_2 \approx
    0.05 \cdot 2 \cdot 1 \cdot 0.05 = 5\!\times\!10^{-3}$.
 
-Defaults fill in the rest: `method=gk7`, `tol_mode='l2'`, `patience=1`,
+Defaults fill in the rest: `method=gk7`, `norm='2'`, `patience=1`,
 no LR scheduler, `width=128` for the path-MLP.

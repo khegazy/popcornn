@@ -49,11 +49,16 @@ integrator_params:
 This forces every quadrature call to evaluate at most 32 points.
 Slower (more sequential calls), but bounded memory.
 
-torchpathint also remembers what value worked the last time
-`integrate_path` was called on a given `PathIntegrator` instance, so
-the OOM-and-halve cycle only fires once per integrator lifetime, not
-once per optimizer step. Across stages built by
-`Popcornn._optimize` (one fresh integrator per stage), the learned
+With `max_batch` left at `None`, padaquad sizes the batch from a
+one-time memory benchmark, and popcornn snapshots the resolved value
+after the first `integrate_path` call on a given `PathIntegrator`
+instance, so the benchmark fires once per integrator lifetime, not
+once per optimizer step. Unlike the old backend, padaquad does **not**
+auto-shrink the batch on a CUDA OOM — it raises — so for memory-tight
+GPU runs set `max_batch` explicitly rather than leaning on the
+benchmark (which sizes against the integrand's output footprint, not
+its transient autograd-graph peak). Across stages built by
+`Popcornn._optimize` (one fresh integrator per stage), the snapshotted
 value does **not** carry over — that's intentional, since different
 stages typically use different potentials with different memory
 profiles. Multi-stage harnesses that *do* know their later stages
@@ -117,5 +122,5 @@ with:
 - The full traceback, including the actual CUDA allocator message.
 - `nvidia-smi` output showing how much memory the GPU actually has.
 - The full config file you're running.
-- The popcornn and torchpathint commit hashes
-  (`pip show popcornn torchpathint | grep -i 'name\|version'`).
+- The popcornn and padaquad commit hashes
+  (`pip show popcornn padaquad | grep -i 'name\|version'`).
