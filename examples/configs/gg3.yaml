@@ -24,11 +24,11 @@ optimization_params:
       threshold: 0.1
     num_optimizer_iterations: 1000
   - potential_params:
-      # name: uma
-      # model_name: uma-s-1p1
-      # task_name: omol
-      name: newtonnet
-      model_path: /pscratch/sd/e/ericyuan/20240322_Geodesics/20241025_GG/newtonnet/training_35/models/best_model.pt
+      name: uma
+      model_name: uma-s-1p1
+      task_name: omol
+      # name: newtonnet
+      # model_path: /pscratch/sd/e/ericyuan/20240322_Geodesics/20241025_GG/newtonnet/training_35/models/best_model.pt
     integrator_params:
       path_integrand_names: pvre
       rtol: 1.0
