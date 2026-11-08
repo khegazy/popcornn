@@ -129,11 +129,12 @@ class PathIntegrator:
         rtol, atol : float
             Adaptive-quadrature tolerances on the gradient integral.
         norm : str, default='2'
-            Vector norm used to reduce the flat ``[D]`` gradient integral
-            to the scalar ``grad_norm`` convergence signal. ``"2"`` / ``"max"``
-            select L2 / L∞. (padaquad's *internal* adaptive-error norm is a
-            fixed RMS across the integrand's output dimensions and is not
-            configurable here.)
+            Vector norm (``"2"`` / ``"max"`` select L2 / L∞) used for two
+            things: it is passed to padaquad as ``error_norm``, which reduces
+            each panel's ``[D]`` error vector for the accept/reject test
+            against ``atol + rtol·‖integral‖``, and it reduces the flat
+            ``[D]`` gradient integral to the scalar ``grad_norm`` convergence
+            signal read by ``PathOptimizer``.
         max_batch : int, optional
             Hard cap on the number of quadrature points evaluated in
             one batch. ``None`` lets padaquad size the batch from a
