@@ -92,13 +92,13 @@ def test_mlp(dtype, device):
     path = get_path('mlp', images=images, device=torch.device('cpu'), dtype=dtype)
     assert path.mlp.__repr__() == (
         'Sequential(\n'
-        '  (0): Linear(in_features=1, out_features=2, bias=True)\n'
+        '  (0): Linear(in_features=1, out_features=128, bias=True)\n'
         '  (1): GELU(approximate=\'none\')\n'
-        '  (2): Linear(in_features=2, out_features=2, bias=True)\n'
+        '  (2): Linear(in_features=128, out_features=2, bias=True)\n'
         ')'
     )
 
-    path = get_path('mlp', n_embed=1, depth=2, activation='gelu', images=images, device=torch.device('cpu'), dtype=dtype)
+    path = get_path('mlp', width=2, depth=2, activation='gelu', images=images, device=torch.device('cpu'), dtype=dtype)
     assert path.mlp.__repr__() == (
         'Sequential(\n'
         '  (0): Linear(in_features=1, out_features=2, bias=True)\n'
@@ -107,7 +107,7 @@ def test_mlp(dtype, device):
         ')'
     )
 
-    path = get_path('mlp', n_embed=32, depth=3, activation='elu', images=images, device=torch.device('cpu'), dtype=dtype)
+    path = get_path('mlp', width=64, depth=3, activation='elu', images=images, device=torch.device('cpu'), dtype=dtype)
     assert path.mlp.__repr__() == (
         'Sequential(\n'
         '  (0): Linear(in_features=1, out_features=64, bias=True)\n'

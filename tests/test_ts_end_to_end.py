@@ -18,7 +18,7 @@ def test_optimize_path_returns_ts_image():
         images=[[-0.558, 1.442], [0.623, 0.028]],
         path_params={
             'name': 'mlp',
-            'n_embed': 4,
+            'width': 8,
             'depth': 2,
             'activation': 'gelu',
         },
