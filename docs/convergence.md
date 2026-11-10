@@ -150,6 +150,20 @@ Use this for:
   yet.
 - Fixed-iteration-budget runs (benchmarks, schedule-driven sweeps).
 
+## Checking which stages converged
+
+`optimize_path` returns one bool per stage: `True` if the trigger
+fired, `False` if the stage ran out of `num_optimizer_iterations`
+(always `False` when the trigger is disabled). The same list is kept
+on `mep.converged`, so downstream tools can store it alongside the
+path:
+
+```python
+converged = mep.optimize_path(stage0, stage1)
+if not converged[-1]:
+    ...  # final stage hit its iteration cap
+```
+
 ## Monitoring loss and TS
 
 Convergence is driven by the gradient norm. To also see the loss
