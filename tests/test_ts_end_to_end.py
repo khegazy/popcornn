@@ -2,7 +2,7 @@
 
 Verifies that ``Popcornn.optimize_path`` on Muller-Brown actually
 runs ``ts_search`` per-iteration, populates ``path.ts_time``, and
-returns a non-None ``ts_image``. This is a small-iteration smoke
+that ``get_ts`` then returns a non-None ``ts_image``. This is a small-iteration smoke
 test — convergence quality is checked manually by running
 ``examples/run.py`` against the config.
 """
@@ -25,7 +25,7 @@ def test_optimize_path_returns_ts_image():
         device='cpu',
         dtype='float64',
     )
-    final, ts_image = mep.optimize_path(
+    mep.optimize_path(
         {
             'potential_params': {'name': 'muller_brown'},
             'integrator_params': {
@@ -38,8 +38,8 @@ def test_optimize_path_returns_ts_image():
             },
             'num_optimizer_iterations': 10,
         },
-        output_ase_atoms=False,
     )
+    ts_image = mep.get_ts(output_ase_atoms=False)
     assert ts_image is not None
     assert mep.path.ts_time is not None
     ts_t = float(mep.path.ts_time)
