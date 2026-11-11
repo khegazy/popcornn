@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
@@ -242,5 +243,5 @@ def animate_optimization_2d(
     print("Plotting animation", len(paths), paths[0].shape)
     ani = animation.FuncAnimation(fig, animation_function, frames=paths)
     os.makedirs(plot_dir, exist_ok=True)
-    ani.save(os.path.join(plot_dir, contour_file + ".gif"))
+    ani.save(Path(plot_dir) / (contour_file + ".gif"))
 

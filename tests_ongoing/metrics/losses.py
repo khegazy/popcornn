@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import os
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -16,7 +16,7 @@ def test_losses():
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
         # Get config file
-        config_path = os.path.join("configs", f"loss_{potential}.yaml")
+        config_path = Path("configs") / f"loss_{potential}.yaml"
         config = tools.import_run_config(config_path)
         optimization_params = config["optimization_params"][0]
         optimization_params["integrator_params"]["path_loss_name"] = "growing_string"

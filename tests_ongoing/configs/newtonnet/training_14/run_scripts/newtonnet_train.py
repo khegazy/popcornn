@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
 
 import torch
 import wandb
@@ -42,9 +43,9 @@ if checkpoint is None:
     config = args.config
 else:
     assert args.config is None, "Cannot resume and train from scratch at the same time."
-    configs = [file for file in os.listdir(os.path.join(checkpoint, "run_scripts")) if any(file.endswith(ext) for ext in [".yaml", ".yml"])]
+    configs = [file for file in os.listdir(Path(checkpoint) / "run_scripts") if any(file.endswith(ext) for ext in [".yaml", ".yml"])]
     assert len(configs) == 1, f"Found {len(configs)} config files in {checkpoint}."
-    config = os.path.join(checkpoint, "run_scripts", configs[0])
+    config = Path(checkpoint) / "run_scripts" / configs[0]
 
 # locate files
 settings_path = os.path.abspath(config)
