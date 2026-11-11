@@ -1,0 +1,22 @@
+name: lint
+on: push  # every push, on every branch
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Keep this version in sync with the ruff-pre-commit rev in .pre-commit-config.yaml.
+      - name: Install ruff
+        run: pip install ruff==0.17.4
+
+      # Rules are configured in [tool.ruff] in pyproject.toml.
+      - name: Run ruff
+        run: ruff check --output-format=github .

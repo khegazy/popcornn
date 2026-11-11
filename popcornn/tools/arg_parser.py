@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import argparse
-from typing import Optional
 
 
 def build_default_arg_parser() -> argparse.ArgumentParser:

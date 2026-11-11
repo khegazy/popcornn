@@ -1,5 +1,7 @@
-import pytest
+from __future__ import annotations
+
 import numpy as np
+import pytest
 import torch
 from ase import Atoms
 from ase.io import read
@@ -8,21 +10,21 @@ from popcornn.tools import process_images
 
 
 @pytest.mark.parametrize(
-    'raw_images',
-    [[[-0.558, 1.442], [-0.050, 0.467]], 'tests/images/muller_brown.json']
+    "raw_images",
+    [[[-0.558, 1.442], [-0.050, 0.467]], "tests/images/muller_brown.json"]
 )
 @pytest.mark.parametrize(
-    'dtype',
+    "dtype",
     [torch.float32, torch.float64]
 )
 @pytest.mark.parametrize(
-    'device', 
-    [torch.device('cpu'), torch.device('cuda')]
+    "device",
+    [torch.device("cpu"), torch.device("cuda")]
 )
 def test_list(raw_images, dtype, device):
-    if device.type == 'cuda' and not torch.cuda.is_available():
-        pytest.skip(reason='CUDA is not available, skipping test.')
-        
+    if device.type == "cuda" and not torch.cuda.is_available():
+        pytest.skip(reason="CUDA is not available, skipping test.")
+
     images = process_images(raw_images, device=device, dtype=dtype)
     assert images.image_type is list
     assert images.positions.shape == (2, 2)
@@ -43,21 +45,21 @@ def test_list(raw_images, dtype, device):
 
 
 @pytest.mark.parametrize(
-    'raw_images', 
-    [np.array([[-0.558, 1.442], [-0.050, 0.467]]), 'tests/images/muller_brown.npy']
+    "raw_images",
+    [np.array([[-0.558, 1.442], [-0.050, 0.467]]), "tests/images/muller_brown.npy"]
 )
 @pytest.mark.parametrize(
-    'dtype',
+    "dtype",
     [torch.float32, torch.float64]
 )
 @pytest.mark.parametrize(
-    'device',
-    [torch.device('cpu'), torch.device('cuda')]
+    "device",
+    [torch.device("cpu"), torch.device("cuda")]
 )
 def test_numpy(raw_images, dtype, device):
-    if device.type == 'cuda' and not torch.cuda.is_available():
-        pytest.skip(reason='CUDA is not available, skipping test.')
-        
+    if device.type == "cuda" and not torch.cuda.is_available():
+        pytest.skip(reason="CUDA is not available, skipping test.")
+
     images = process_images(raw_images, device=device, dtype=dtype)
     assert images.image_type is np.ndarray
     assert images.positions.shape == (2, 2)
@@ -78,21 +80,21 @@ def test_numpy(raw_images, dtype, device):
 
 
 @pytest.mark.parametrize(
-    'raw_images',
-    [torch.tensor([[-0.558, 1.442], [-0.050, 0.467]]), 'tests/images/muller_brown.pt']
+    "raw_images",
+    [torch.tensor([[-0.558, 1.442], [-0.050, 0.467]]), "tests/images/muller_brown.pt"]
 )
 @pytest.mark.parametrize(
-    'dtype',
+    "dtype",
     [torch.float32, torch.float64]
 )
 @pytest.mark.parametrize(
-    'device', 
-    [torch.device('cpu'), torch.device('cuda')]
+    "device",
+    [torch.device("cpu"), torch.device("cuda")]
 )
 def test_torch(raw_images, dtype, device):
-    if device.type == 'cuda' and not torch.cuda.is_available():
-        pytest.skip(reason='CUDA is not available, skipping test.')
-        
+    if device.type == "cuda" and not torch.cuda.is_available():
+        pytest.skip(reason="CUDA is not available, skipping test.")
+
     images = process_images(raw_images, device=device, dtype=dtype)
     assert images.image_type is torch.Tensor
     assert images.positions.shape == (2, 2)
@@ -113,21 +115,21 @@ def test_torch(raw_images, dtype, device):
 
 
 @pytest.mark.parametrize(
-    'raw_images',
-    [read('tests/images/OC20NEB.xyz', index=':'), 'tests/images/OC20NEB.xyz']
+    "raw_images",
+    [read("tests/images/OC20NEB.xyz", index=":"), "tests/images/OC20NEB.xyz"]
 )
 @pytest.mark.parametrize(
-    'dtype',
+    "dtype",
     [torch.float32, torch.float64]
 )
 @pytest.mark.parametrize(
-    'device',
-    [torch.device('cpu'), torch.device('cuda')]
+    "device",
+    [torch.device("cpu"), torch.device("cuda")]
 )
 def test_xyz(raw_images, dtype, device):
-    if device.type == 'cuda' and not torch.cuda.is_available():
-        pytest.skip(reason='CUDA is not available, skipping test.')
-        
+    if device.type == "cuda" and not torch.cuda.is_available():
+        pytest.skip(reason="CUDA is not available, skipping test.")
+
     images = process_images(raw_images, device=device, dtype=dtype)
     assert images.image_type is Atoms
     assert images.positions.shape == (2, 42)
@@ -157,20 +159,20 @@ def test_xyz(raw_images, dtype, device):
                 26.668565  ,  7.13484263,  2.24811624, 24.82548202,  6.5237351 ,
                  2.95101175, 25.11474215
             ]
-        ], 
+        ],
         device=device, dtype=dtype
     ))
     assert images.fix_positions.shape == (42,)
     assert images.fix_positions.device.type == device.type
     assert images.fix_positions.dtype == torch.bool
     assert torch.all(images.fix_positions == torch.tensor(
-        [ 
+        [
              True,  True,  True,  True,  True,  True,  True,  True,  True,
              True,  True,  True, False, False, False, False, False, False,
             False, False, False,  True,  True,  True, False, False, False,
             False, False, False, False, False, False, False, False, False,
             False, False, False, False, False, False
-        ], 
+        ],
         device=device, dtype=torch.bool
     ))
     assert images.atomic_numbers is not None
@@ -220,21 +222,21 @@ def test_xyz(raw_images, dtype, device):
 
 
 @pytest.mark.parametrize(
-    'raw_images',
-    [read('tests/images/OC20NEB.traj', index=':'), 'tests/images/OC20NEB.traj']
+    "raw_images",
+    [read("tests/images/OC20NEB.traj", index=":"), "tests/images/OC20NEB.traj"]
 )
 @pytest.mark.parametrize(
-    'dtype',
+    "dtype",
     [torch.float32, torch.float64]
 )
 @pytest.mark.parametrize(
-    'device',
-    [torch.device('cpu'), torch.device('cuda')]
+    "device",
+    [torch.device("cpu"), torch.device("cuda")]
 )
 def test_traj(raw_images, dtype, device):
-    if device.type == 'cuda' and not torch.cuda.is_available():
-        pytest.skip(reason='CUDA is not available, skipping test.')
-        
+    if device.type == "cuda" and not torch.cuda.is_available():
+        pytest.skip(reason="CUDA is not available, skipping test.")
+
     images = process_images(raw_images, device=device, dtype=dtype)
     assert images.image_type is Atoms
     assert images.positions.shape == (2, 42)
@@ -271,13 +273,13 @@ def test_traj(raw_images, dtype, device):
     assert images.fix_positions.device.type == device.type
     assert images.fix_positions.dtype == torch.bool
     assert torch.all(images.fix_positions == torch.tensor(
-        [ 
+        [
              True,  True,  True,  True,  True,  True,  True,  True,  True,
              True,  True,  True, False, False, False, False, False, False,
             False, False, False,  True,  True,  True, False, False, False,
             False, False, False, False, False, False, False, False, False,
             False, False, False, False, False, False
-        ], 
+        ],
         device=device, dtype=torch.bool
     ))
     assert images.atomic_numbers is not None
@@ -327,11 +329,11 @@ def test_traj(raw_images, dtype, device):
 
 
 @pytest.mark.parametrize(
-    'raw_images',
-    [[[-0.558, 1.442], [0.623, 0.028], [-0.050, 0.467]], 'tests/images/muller_brown_all.json']
+    "raw_images",
+    [[[-0.558, 1.442], [0.623, 0.028], [-0.050, 0.467]], "tests/images/muller_brown_all.json"]
 )
 def test_list_with_intermediates(raw_images):
-    images = process_images(raw_images, device=torch.device('cpu'), dtype=torch.float32)
+    images = process_images(raw_images, device=torch.device("cpu"), dtype=torch.float32)
     assert images.image_type is list
     assert images.positions.shape == (3, 2)
     assert torch.allclose(images.positions, torch.tensor([[-0.558, 1.442], [0.623, 0.028], [-0.050, 0.467]]))
@@ -347,11 +349,11 @@ def test_list_with_intermediates(raw_images):
 
 
 @pytest.mark.parametrize(
-    'raw_images',
-    [read('tests/images/OC20NEB_all.xyz', index=':'), 'tests/images/OC20NEB_all.xyz']
+    "raw_images",
+    [read("tests/images/OC20NEB_all.xyz", index=":"), "tests/images/OC20NEB_all.xyz"]
 )
 def test_xyz_with_intermediates(raw_images):
-    images = process_images(raw_images, device=torch.device('cpu'), dtype=torch.float32)
+    images = process_images(raw_images, device=torch.device("cpu"), dtype=torch.float32)
     assert images.image_type is Atoms
     assert images.positions.shape == (10, 42)
     assert torch.allclose(images.positions, torch.tensor(
@@ -533,13 +535,13 @@ def test_xyz_with_intermediates(raw_images):
     ))
     assert images.fix_positions.shape == (42,)
     assert torch.all(images.fix_positions == torch.tensor(
-        [ 
+        [
              True,  True,  True,  True,  True,  True,  True,  True,  True,
              True,  True,  True, False, False, False, False, False, False,
             False, False, False,  True,  True,  True, False, False, False,
             False, False, False, False, False, False, False, False, False,
             False, False, False, False, False, False
-        ], 
+        ],
         dtype=torch.bool
     ))
     assert images.atomic_numbers is not None
@@ -576,14 +578,14 @@ def test_xyz_with_intermediates(raw_images):
 
 
 @pytest.mark.parametrize(
-    'device',
-    [torch.device('cpu'), torch.device('cuda')]
+    "device",
+    [torch.device("cpu"), torch.device("cuda")]
 )
 def test_charge_spin(device):
-    if device.type == 'cuda' and not torch.cuda.is_available():
-        pytest.skip(reason='CUDA is not available, skipping test.')
-        
-    images = process_images('tests/images/T1x.xyz', device=device, dtype=torch.float32)
+    if device.type == "cuda" and not torch.cuda.is_available():
+        pytest.skip(reason="CUDA is not available, skipping test.")
+
+    images = process_images("tests/images/T1x.xyz", device=device, dtype=torch.float32)
     assert images.charge is not None
     assert images.charge.shape == ()
     assert images.charge.device.type == device.type
@@ -597,23 +599,23 @@ def test_charge_spin(device):
 
 
 def test_empty():
-    with pytest.raises(AssertionError, match='Must have at least two images.'):
-        images = process_images([], device=torch.device('cpu'), dtype=torch.float32)
+    with pytest.raises(AssertionError, match="Must have at least two images."):
+        images = process_images([], device=torch.device("cpu"), dtype=torch.float32)
 
-    with pytest.raises(ValueError, match='Cannot handle file type for invalid.txt.'):
-        images = process_images('invalid.txt', device=torch.device('cpu'), dtype=torch.float32)
+    with pytest.raises(ValueError, match="Cannot handle file type for invalid.txt."):
+        images = process_images("invalid.txt", device=torch.device("cpu"), dtype=torch.float32)
 
 
 def test_unwrap(caplog):
     UNWRAP_WARNING = (
-        'Unwrapping atom positions. Assuming no atoms move more than half the box length.'
+        "Unwrapping atom positions. Assuming no atoms move more than half the box length."
     )
     NO_UNWRAP_WARNING = (
-        'Not unwrapping atom positions. Assuming atoms are already unwrapped or do not travel across period boundaries.'
+        "Not unwrapping atom positions. Assuming atoms are already unwrapped or do not travel across period boundaries."
     )
 
     caplog.clear()
-    images = process_images('tests/images/LJ35.xyz', device=torch.device('cpu'), dtype=torch.float32, unwrap_positions=True)
+    images = process_images("tests/images/LJ35.xyz", device=torch.device("cpu"), dtype=torch.float32, unwrap_positions=True)
     assert UNWRAP_WARNING in caplog.text
     assert NO_UNWRAP_WARNING not in caplog.text
     assert torch.allclose(images.positions, torch.tensor(
@@ -668,7 +670,7 @@ def test_unwrap(caplog):
     ))
 
     caplog.clear()
-    images = process_images('tests/images/LJ35.xyz', device=torch.device('cpu'), dtype=torch.float32, unwrap_positions=False)
+    images = process_images("tests/images/LJ35.xyz", device=torch.device("cpu"), dtype=torch.float32, unwrap_positions=False)
     assert UNWRAP_WARNING not in caplog.text
     assert NO_UNWRAP_WARNING in caplog.text
     assert torch.allclose(images.positions, torch.tensor(
@@ -719,12 +721,12 @@ def test_unwrap(caplog):
                  1.37472964,  1.68369307,  2.26818818,  0.45824321,  1.12246205,
                  2.59221506,  3.20770249,  1.68369307,  2.26818818,  2.29121606
             ]
-        ], 
+        ],
         dtype=torch.float32
     ))
 
     caplog.clear()
-    images = process_images('tests/images/LJ13.xyz', device=torch.device('cpu'), dtype=torch.float32, unwrap_positions=True)
+    images = process_images("tests/images/LJ13.xyz", device=torch.device("cpu"), dtype=torch.float32, unwrap_positions=True)
     assert UNWRAP_WARNING not in caplog.text
     assert NO_UNWRAP_WARNING not in caplog.text
     assert torch.allclose(images.positions, torch.tensor(
@@ -737,7 +739,7 @@ def test_unwrap(caplog):
                 -0.92192944,  1.06812768, -0.17139279,  0.01009198, -1.06812768,
                  0.17139279, -0.01009198,  0.53220336,  0.20878949, -0.91844467,
                 -0.34918998,  0.8434986 , -0.58047443,  0.63106228,  0.87870054,
-                -0.00445351,  0.        ,  0.        ,  0.        
+                -0.00445351,  0.        ,  0.        ,  0.
             ],
             [
                  0.22835074, -0.51795379,  0.92192944, -0.17139279, -1.06812768,
@@ -747,14 +749,14 @@ def test_unwrap(caplog):
                 -0.55693933,  0.87870054, -0.63106228, -0.00445351, -0.87870054,
                  0.63106228,  0.00445351,  0.8434986 ,  0.34918998, -0.58047443,
                 -0.22835074,  0.51795379, -0.92192944,  0.17139279,  1.06812768,
-                -0.01009198,  0.        , -0.        ,  0.        
+                -0.01009198,  0.        , -0.        ,  0.
             ]
-        ], 
+        ],
         dtype=torch.float32
     ))
 
     caplog.clear()
-    images = process_images('tests/images/LJ13.xyz', device=torch.device('cpu'), dtype=torch.float32, unwrap_positions=False)
+    images = process_images("tests/images/LJ13.xyz", device=torch.device("cpu"), dtype=torch.float32, unwrap_positions=False)
     assert UNWRAP_WARNING not in caplog.text
     assert NO_UNWRAP_WARNING not in caplog.text
     assert torch.allclose(images.positions, torch.tensor(
@@ -767,7 +769,7 @@ def test_unwrap(caplog):
                 -0.92192944,  1.06812768, -0.17139279,  0.01009198, -1.06812768,
                  0.17139279, -0.01009198,  0.53220336,  0.20878949, -0.91844467,
                 -0.34918998,  0.8434986 , -0.58047443,  0.63106228,  0.87870054,
-                -0.00445351,  0.        ,  0.        ,  0.        
+                -0.00445351,  0.        ,  0.        ,  0.
             ],
             [
                  0.22835074, -0.51795379,  0.92192944, -0.17139279, -1.06812768,
@@ -777,8 +779,8 @@ def test_unwrap(caplog):
                 -0.55693933,  0.87870054, -0.63106228, -0.00445351, -0.87870054,
                  0.63106228,  0.00445351,  0.8434986 ,  0.34918998, -0.58047443,
                 -0.22835074,  0.51795379, -0.92192944,  0.17139279,  1.06812768,
-                -0.01009198,  0.        , -0.        ,  0.        
+                -0.01009198,  0.        , -0.        ,  0.
             ]
-        ], 
+        ],
         dtype=torch.float32
     ))

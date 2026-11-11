@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import torch
 from torch.nn.functional import one_hot
 from torch_geometric.data import Data
 
 from .base_potential import BasePotential, PotentialOutput
+
 
 class LeftNetPotential(BasePotential):
     """Wrapper around LEFTNet — equivariant message-passing MLIP."""
@@ -23,7 +26,7 @@ class LeftNetPotential(BasePotential):
         self.n_eval = 0
         self.one_hots = one_hot(self.atomic_numbers, num_classes=118)[:, [1, 6, 7, 8, 0]].double()
 
-    
+
     def forward(self, positions):
         data = self.data_formatter(positions)
         if self.use_autograd:
@@ -37,14 +40,14 @@ class LeftNetPotential(BasePotential):
         # return PotentialOutput(energies=energies)
         forces = forces.view(*positions.shape)
         return PotentialOutput(energies=energies, forces=forces)
-        
+
 
     def load_model(self, model_path):
         model = torch.load(model_path, weights_only=False, map_location=self.device).double()
         model.eval()
         model.requires_grad_(False)
         return model
-    
+
     def data_formatter(self, pos):
         n_atoms = torch.tensor(self.n_atoms, device=self.device)
         n_data = pos.numel() // (n_atoms * 3)

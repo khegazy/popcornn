@@ -1,8 +1,7 @@
-import torch
+from __future__ import annotations
+
 import numpy as np
-import numpy.random as rnd
-import matplotlib.pyplot as plt
-from typing import Union
+import torch
 
 
 def randomly_initialize_path(
@@ -10,7 +9,7 @@ def randomly_initialize_path(
         n_points: int,
         order_points: bool = False,
         seed: int = 1910
-) -> Union[torch.Tensor, np.ndarray]:
+) -> torch.Tensor | np.ndarray:
     """
     Initialize the path through randomly drawn intermediate points.
 
@@ -89,8 +88,8 @@ def loss_init(
     if path.transform is not None:
         disp = path.transform(disp, center=1.0)
     return torch.mean(disp ** 2)
-    
-    
+
+
 
 
 def initialize_path(

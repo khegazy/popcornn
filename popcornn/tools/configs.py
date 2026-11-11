@@ -1,14 +1,11 @@
-import os
+from __future__ import annotations
+
 import yaml
-import numpy as np
-from dataclasses import dataclass
-from typing import Dict, Tuple
-from ase.io import read, write
 
 
 def import_yaml(address):
     """Load a YAML file. Thin ``yaml.safe_load`` wrapper."""
-    with open(address, 'r') as file:
+    with open(address) as file:
         loaded_yaml = yaml.safe_load(file)
     return loaded_yaml
 

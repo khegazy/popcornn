@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import torch
 from torchani.units import HARTREE_TO_EV
 
 from .base_potential import BasePotential, PotentialOutput
+
 
 class AniPotential(BasePotential):
     """
@@ -21,7 +24,7 @@ class AniPotential(BasePotential):
         self.model = self.load_model(model_path)
         self.n_eval = 0
 
-    
+
     def forward(self, positions):
         data = self.data_formatter(positions)
         pred = self.model(data)
@@ -29,7 +32,7 @@ class AniPotential(BasePotential):
         energies = pred.energies.view(*positions.shape[:-1], 1) * HARTREE_TO_EV
         forces = self.calculate_conservative_forces(energies, positions)
         return PotentialOutput(energies=energies, forces=forces)
-        
+
 
     def load_model(self, model_path):
         # calc = ANICalculator(model_path)
@@ -38,7 +41,7 @@ class AniPotential(BasePotential):
         model.eval()
         model.requires_grad_(False)
         return model
-    
+
     def data_formatter(self, pos):
         n_atoms = self.n_atoms
         n_data = pos.numel() // (n_atoms * 3)

@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import os
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'  # TODO: move this to the integrator
+
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"  # TODO: move this to the integrator
 import json
 import time as time
 from typing import Any
@@ -7,12 +10,10 @@ from typing import Any
 import torch
 from ase import Atoms
 
+from popcornn.optimization import PathOptimizer, initialize_path
 from popcornn.paths import get_path
-from popcornn.optimization import initialize_path
-from popcornn.optimization import PathOptimizer
-from popcornn.tools import process_images, output_to_atoms
-from popcornn.tools import PathIntegrator
 from popcornn.potentials import get_potential
+from popcornn.tools import PathIntegrator, output_to_atoms, process_images
 
 
 class _StageLogger:
@@ -54,7 +55,7 @@ class _StageLogger:
             parent = os.path.dirname(log_path)
             if parent:
                 os.makedirs(parent, exist_ok=True)
-            self._metrics_fh = open(log_path, 'w')
+            self._metrics_fh = open(log_path, "w")
 
     def row(self, it, loss, grad_norm, step_s, barrier=None, ts_force=None, ts_time=None, n_crossings=None):
         loss_str = "—" if loss is None else f"{loss:12.4e}"
@@ -129,7 +130,7 @@ class Popcornn:
        active) a single predicted transition-state frame.
     """
     def __init__(
-            self, 
+            self,
             images: list[Atoms],
             unwrap_positions: bool = True,
             path_params: dict[str, Any] = {},
@@ -157,10 +158,10 @@ class Popcornn:
         """
         # Set device
         if device is None:
-            device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+            device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         if isinstance(device, str):
             device = torch.device(device)
-        if device.type == 'cuda':
+        if device.type == "cuda":
             torch.cuda.empty_cache()
         self.device = device
 
@@ -185,7 +186,7 @@ class Popcornn:
         # Fit the path to the intermediate images, otherwise a straight line
         if len(self.images) > 2:  #TODO: make this spline or bezier instead of fitting
             self.path = initialize_path(
-                path=self.path, 
+                path=self.path,
                 times=torch.linspace(self.path.t_init.item(), self.path.t_final.item(), len(self.images), device=self.device, dtype=self.dtype),
                 init_points=self.images.positions,
             )
@@ -361,14 +362,14 @@ class Popcornn:
         #     os.makedirs(output_dir, exist_ok=True)
         #     log_dir = os.path.join(output_dir, "logs")
         #     os.makedirs(log_dir, exist_ok=True)
-        
+
         # Per-stage progress logger: header now, sparse rows during the loop,
         # convergence/stage-end summary on exit. Optional JSONL written
         # via the same logger when metrics_log_path is set.
         logger = _StageLogger(
             stage_idx=stage_idx,
             integrand_terms=integrator._terms,
-            lr=optimizer.optimizer.param_groups[0]['lr'],
+            lr=optimizer.optimizer.param_groups[0]["lr"],
             threshold=optimizer.threshold,
             n_iter=num_optimizer_iterations,
             n_params=sum(p.numel() for p in self.path.parameters() if p.requires_grad),
@@ -383,7 +384,7 @@ class Popcornn:
 
         # Optimize the path
         for optim_idx in range(num_optimizer_iterations):
-            lr = optimizer.optimizer.param_groups[0]['lr']
+            lr = optimizer.optimizer.param_groups[0]["lr"]
             t_step = time.perf_counter()
             try:
                 integral_output = optimizer.optimization_step(self.path, integrator)
@@ -392,7 +393,7 @@ class Popcornn:
                 raise e
             step_s = time.perf_counter() - t_step
 
-            loss_attr = getattr(integral_output, 'loss', None)
+            loss_attr = getattr(integral_output, "loss", None)
             loss_v = float(loss_attr[0].item()) if loss_attr is not None else None
             grad_norm = integral_output.grad_norm.item()
 
@@ -403,11 +404,11 @@ class Popcornn:
             ts_time = None
             n_crossings = None
             if self.track_ts:
-                b = getattr(self.path, 'barrier', None)
+                b = getattr(self.path, "barrier", None)
                 barrier = b.item() if b is not None else None
-                ts_force = getattr(self.path, 'ts_force', None)
-                ts_time = getattr(self.path, 'ts_time', None)
-                n_crossings = getattr(self.path, 'n_crossings', None)
+                ts_force = getattr(self.path, "ts_force", None)
+                ts_time = getattr(self.path, "ts_time", None)
+                n_crossings = getattr(self.path, "n_crossings", None)
 
             logger.row(optim_idx, loss_v, grad_norm, step_s, barrier=barrier, ts_force=ts_force, ts_time=ts_time, n_crossings=n_crossings)
 

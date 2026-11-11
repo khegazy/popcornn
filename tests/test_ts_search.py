@@ -1,9 +1,12 @@
-import torch
+from __future__ import annotations
+
 import numpy as np
-from popcornn.tools.images import Images
-from popcornn.tools import SamplesCache
-from popcornn.potentials.base_potential import BasePotential, PotentialOutput
+import torch
+
 from popcornn.paths.base_path import BasePath
+from popcornn.potentials.base_potential import BasePotential, PotentialOutput
+from popcornn.tools import SamplesCache
+from popcornn.tools.images import Images
 
 
 class LegendrePotential(BasePotential):
@@ -36,7 +39,7 @@ def test_ts_search():
     # Setup environment
     torch.manual_seed(2025)
     np.random.seed(2025)
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float64
 
     # Create initial/end points

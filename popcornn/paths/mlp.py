@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 import torch
 from torch import nn
 
 from .base_path import BasePath
 from .linear import LinearPath
-
 
 # Bounded-output activations need σ(κz) (no outer 1/κ) to preserve their
 # ±C saturation at large |z|. Unbounded/linear-asymptote activations need
@@ -40,8 +41,8 @@ class TemperedSoftmax(nn.Module):
         return torch.softmax(self.tau * z, dim=-1)
 
     def extra_repr(self):
-        return f'tau={self.tau}'
-    
+        return f"tau={self.tau}"
+
 class SquaredSoftmax(nn.Module):
     """``softmax(τ·z)`` along the last (hidden) dim.
 
@@ -68,7 +69,7 @@ class SquaredSoftmax(nn.Module):
         return torch.softmax(- self.tau * z ** 2, dim=-1)
 
     def extra_repr(self):
-        return f'tau={self.tau}'
+        return f"tau={self.tau}"
 
 
 class SharpActivation(nn.Module):
@@ -111,7 +112,7 @@ class SharpActivation(nn.Module):
         return self.base(self.kappa * z) / self.kappa
 
     def extra_repr(self):
-        return f'kappa={self.kappa}, bounded={self.bounded}'
+        return f"kappa={self.kappa}, bounded={self.bounded}"
 
 
 class MLPpath(BasePath):
@@ -180,7 +181,7 @@ class MLPpath(BasePath):
     ):
         super().__init__(**kwargs)
 
-        if activation.lower() == 'softmax':
+        if activation.lower() == "softmax":
             # Special case: competitive-normalized basis. ``kappa`` is
             # reinterpreted as softmax temperature τ. See ``TemperedSoftmax``.
             if depth != 2:
@@ -190,7 +191,7 @@ class MLPpath(BasePath):
                 )
             self.activation = SquaredSoftmax(tau=kappa)
         else:
-            activation_dict = {key.lower(): key for key in dir(nn) if not key.startswith('_')}
+            activation_dict = {key.lower(): key for key in dir(nn) if not key.startswith("_")}
             name = activation_dict[activation.lower()]
             activation_class = getattr(nn, name)
             base_activation = activation_class()
@@ -208,7 +209,7 @@ class MLPpath(BasePath):
             ) if i%2 == 0 else self.activation\
             for i in range(depth*2 - 1)
         ]
-       
+
         self.mlp = nn.Sequential(*self.layers)
         self.mlp.to(self.device)
 
@@ -222,7 +223,7 @@ class MLPpath(BasePath):
         self.neval = 0
 
         self.base = base if base is not None else LinearPath(**kwargs)
-        
+
         print("Number of trainable parameters in MLP:", sum(p.numel() for p in self.parameters() if p.requires_grad))
         print(self.mlp)
 
@@ -248,7 +249,7 @@ class MLPpath(BasePath):
         # profile and a system-independent fresh-init σ_min calibration.
         out = self.mlp(2 * time - 1) * (1 - time) * time
         # mlp_out = (
-        #     self.mlp(2 * time - 1) 
+        #     self.mlp(2 * time - 1)
         #     - self.mlp(torch.tensor([1], device=time.device, dtype=self.dtype)) * time
         #     - self.mlp(torch.tensor([-1], device=time.device, dtype=self.dtype)) * (1 - time)
         # )
@@ -278,7 +279,7 @@ class MLPpath(BasePath):
 
 #     def forward(self, x):
 #         return x + self.layer(x)
-    
+
 # class SwiGLU(nn.Module):
 #     def __init__(self, in_features, out_features):
 #         super().__init__()

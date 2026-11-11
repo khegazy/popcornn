@@ -1,7 +1,9 @@
-from .mlp import MLPpath
+from __future__ import annotations
+
 from .linear import LinearPath
-from .soft_one_hot import SoftOneHotPath
+from .mlp import MLPpath
 from .planted_softmax import PlantedSoftmaxPath
+from .soft_one_hot import SoftOneHotPath
 from .softmax import SoftMaxPath
 
 path_dict = {

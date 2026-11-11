@@ -1,11 +1,8 @@
-import matplotlib.pyplot as plt
+from __future__ import annotations
+
 import torch
 from torch import optim
 from torch.optim import lr_scheduler
-from popcornn.tools import scheduler
-from popcornn.tools.scheduler import get_schedulers
-
-from popcornn.tools.integrand import build_integrand_terms, evaluate_integrand_sum
 
 
 def _update_term_scales(terms, scales: dict) -> None:
@@ -17,7 +14,7 @@ def _update_term_scales(terms, scales: dict) -> None:
                 break
 
 
-class PathOptimizer():
+class PathOptimizer:
     """
     Single-stage path optimizer.
 
@@ -39,7 +36,7 @@ class PathOptimizer():
             # ts_time_loss_schedulers=None,
             threshold=None,
             patience=1,
-            device='cpu',
+            device="cpu",
             dtype=None,
             **config
         ):
@@ -100,7 +97,7 @@ class PathOptimizer():
         #####  Initialize schedulers  #####
         # self.integrand_schedulers = get_schedulers(path_integrand_schedulers)
         # self.ts_time_loss_schedulers = get_schedulers(ts_time_loss_schedulers)
-        
+
         #####  Initialize optimizer  #####
         self.path = path
         if optimizer is not None:
@@ -123,7 +120,7 @@ class PathOptimizer():
         — i.e. ``"adam"`` finds ``torch.optim.Adam``, ``"lbfgs"`` finds
         ``torch.optim.LBFGS``. Extra kwargs forward to the constructor.
         """
-        optimizer_dict = {key.lower(): key for key in dir(optim) if not key.startswith('_')}
+        optimizer_dict = {key.lower(): key for key in dir(optim) if not key.startswith("_")}
         name = optimizer_dict[name.lower()]
         optimizer_class = getattr(optim, name)
         self.optimizer = optimizer_class(self.path.parameters(), **config)
@@ -133,14 +130,14 @@ class PathOptimizer():
         Attach a ``torch.optim.lr_scheduler`` by class name. Same
         case-insensitive name resolution as ``set_optimizer``.
         """
-        scheduler_dict = {key.lower(): key for key in dir(lr_scheduler) if not key.startswith('_')}
+        scheduler_dict = {key.lower(): key for key in dir(lr_scheduler) if not key.startswith("_")}
         assert name.lower() in scheduler_dict,\
             f"Scheduler class does not support '{name}', either add this functionality or select from {list(scheduler_dict.keys())}"
         name = scheduler_dict[name.lower()]
         scheduler_class = getattr(lr_scheduler, name)
         self.lr_scheduler = scheduler_class(self.optimizer, **config)
 
-    
+
     def optimization_step(
             self,
             path,
@@ -240,4 +237,3 @@ class PathOptimizer():
 
         return integral_output
 
-    

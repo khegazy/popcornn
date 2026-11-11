@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import torch
-from torch_geometric.nn import radius_graph
 from torch.nn.functional import one_hot
 from torch_geometric.data import Data
+from torch_geometric.nn import radius_graph
 
 from .base_potential import BasePotential, PotentialOutput
+
 
 class CHGNetPotential(BasePotential):
     """
@@ -21,17 +24,17 @@ class CHGNetPotential(BasePotential):
         self.n_eval = 0
         self.node_attrs = one_hot(self.atomic_numbers, num_classes=118)[:, self.model.atomic_numbers].double()
 
-    
+
     def forward(self, positions):
         data = self.data_formatter(positions)
         pred = self.model(data.to_dict(), compute_force=False)
         self.n_eval += 1
-        energies = pred['energy'].view(*positions.shape[:-1], 1)
+        energies = pred["energy"].view(*positions.shape[:-1], 1)
         # forces = pred['forces'].view(*positions.shape)
         return PotentialOutput(energies=energies)
         # forces = forces.view(*positions.shape)
         # return PotentialOutput(energies=energies, forces=forces)
-        
+
 
     def load_model(self, model_path):
         model = mace_off(device=self.device).models[0]
@@ -40,11 +43,11 @@ class CHGNetPotential(BasePotential):
         model.eval()
         model.requires_grad_(False)
         return model
-    
+
     def data_formatter(self, pos):
         n_atoms = self.n_atoms
         n_data = pos.numel() // (n_atoms * 3)
-        
+
         positions = pos.view(n_data * n_atoms, 3)
         cell = self.cell.repeat(n_data, 1)
         node_attrs = self.node_attrs.repeat(n_data, 1)

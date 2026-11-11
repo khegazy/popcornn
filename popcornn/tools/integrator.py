@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import torch
-
 from padaquad import adaptive_quadrature
 
 from .integrand import build_integrand_terms, evaluate_integrand_sum
@@ -66,14 +67,14 @@ class PathIntegrator:
 
     def __init__(
             self,
-            method='gk7',
+            method="gk7",
             integrate_gradient=True,
             path_integrand_names=None,
             path_integrand_scales=None,
             path_integrand_kwargs=None,
             rtol=1.0,
             atol=0.0,
-            norm='2',
+            norm="2",
             max_batch=None,
             max_iter=5,
             track_loss=False,
@@ -228,7 +229,7 @@ class PathIntegrator:
         # (mesh and batch size, used by same_f=True) persists for the
         # integrator's lifetime.
         self._solver = adaptive_quadrature(
-            sampling_type='uniform',          # str -> steps.ADAPTIVE_UNIFORM
+            sampling_type="uniform",          # str -> steps.ADAPTIVE_UNIFORM
             method=self.method,
             atol=self.atol,
             rtol=self.rtol,
@@ -244,7 +245,7 @@ class PathIntegrator:
         # main pass already integrates the loss, so .loss comes for free.
         if self.integrate_gradient:
             self._loss_solver = adaptive_quadrature(
-                sampling_type='uniform',
+                sampling_type="uniform",
                 method=self.method,
                 atol=self.loss_atol,
                 rtol=self.loss_rtol,
@@ -324,7 +325,7 @@ class PathIntegrator:
         params = [p for p in path.parameters() if p.requires_grad]
         sizes = [p.numel() for p in params]
 
-        also_resolve = ('energies', 'forces', 'velocities') if self.track_ts else ()
+        also_resolve = ("energies", "forces", "velocities") if self.track_ts else ()
 
         def _loss_and_tracked(t):
             """Evaluate the graph-live weighted integrand sum (``[N]``) and,
@@ -338,9 +339,9 @@ class PathIntegrator:
             tracked = None
             if self.track_ts:
                 dEdt = -torch.sum(
-                    variables['forces'] * variables['velocities'], dim=-1
+                    variables["forces"] * variables["velocities"], dim=-1
                 )
-                tracked = (variables['energies'], dEdt)
+                tracked = (variables["energies"], dEdt)
             return l, tracked
 
         if self.integrate_gradient:
@@ -416,9 +417,9 @@ class PathIntegrator:
         # PathOptimizer's threshold check. L∞ is closer to MLP-size-independent
         # than L2 — the latter scales with √D and forces the threshold to be
         # retuned per parameter count.
-        if self.norm == '2':
+        if self.norm == "2":
             integral_output.grad_norm = flat.norm()
-        elif self.norm == 'max':
+        elif self.norm == "max":
             integral_output.grad_norm = flat.abs().max()
         else:
             raise ValueError(f"Unsupported norm {self.norm!r} (choose '2' or 'max').")

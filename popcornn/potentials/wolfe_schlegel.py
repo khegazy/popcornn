@@ -1,7 +1,7 @@
-
-import torch
+from __future__ import annotations
 
 from .base_potential import BasePotential, PotentialOutput
+
 
 class WolfeSchlegel(BasePotential):  # TODO: rename to Wolfe-Quapp potential
     """

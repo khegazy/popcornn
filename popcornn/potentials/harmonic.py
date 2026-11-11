@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import torch
 from ase.data import covalent_radii
 
 from .base_potential import BasePotential, PotentialOutput
+
 
 class HarmonicPotential(BasePotential):
     """
@@ -29,7 +32,7 @@ class HarmonicPotential(BasePotential):
         self.r_max = r_max
         self.skin = skin
         self.r0 = None
-    
+
     def forward(self, positions):
         if self.r0 is None:
             self.set_r0(self.atomic_numbers)
@@ -46,7 +49,7 @@ class HarmonicPotential(BasePotential):
             forces=forces,
             forces_decomposed=forces_decomposed
         )
-    
+
     def set_r0(self, atomic_numbers):
         """
         Set the r0_ij values for the potential
