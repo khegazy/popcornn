@@ -38,10 +38,15 @@ class UMAPotential(BasePotential):
         """Make ``self.device`` the current CUDA device inside a ``with`` block.
 
         fairchem accepts only ``"cpu"``/``"cuda"`` and takes the GPU index from
-        ``torch.cuda.current_device()`` when the predictor is built, and UMA's
-        Triton kernels launch on the current device, so a GPU index such as
-        ``cuda:1`` is honored only inside this context. ``torch.cuda.device``
-        raises when no GPU is visible, so CPU runs get a no-op context.
+        ``torch.cuda.current_device()`` when the predictor is built, so a GPU
+        index such as ``cuda:1`` is honored only if the predictor is built
+        inside this context. ``predict`` also runs inside it as a safeguard:
+        with the ``InferenceSettings`` used here
+        (``activation_checkpointing=True``) fairchem runs its pure-PyTorch
+        backend, which follows the tensors' device, not its Triton backend
+        (``umas_fast_gpu``), whose kernels launch on the current device.
+        ``torch.cuda.device`` raises when no GPU is visible, so CPU runs get a
+        no-op context.
         """
         if self.device.type == 'cuda':
             return torch.cuda.device(self.device)  # index-less 'cuda' keeps the current GPU
