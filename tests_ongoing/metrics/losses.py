@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
 import torch
 
 from popcornn import Popcornn, tools
@@ -12,7 +11,6 @@ def test_losses():
     for potential in ["wolfe_schlegel", "morse"]:
         # Setup environment
         torch.manual_seed(2025)
-        np.random.seed(2025)
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
         # Get config file

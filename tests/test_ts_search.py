@@ -38,7 +38,6 @@ class LegendrePotential(BasePotential):
 def test_ts_search():
     # Setup environment
     torch.manual_seed(2025)
-    np.random.seed(2025)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float64
 
