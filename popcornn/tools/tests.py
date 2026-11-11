@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -36,9 +37,7 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
     E_atol, E_rtol = 1e-4, 1e-5
     F_atol, F_rtol = 1e-4, 1e-5
 
-    path_benchmark_filename = os.path.join(
-        benchmark_path, f"{name}_path.json"
-    )
+    path_benchmark_filename = Path(benchmark_path) / f"{name}_path.json"
     if save_results:
         if path_output.energies_decomposed is None:
             energies_decomposed = None
@@ -109,9 +108,7 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
 
 
     # Compare TS output with benchmark
-    ts_benchmark_filename = os.path.join(
-        benchmark_path, f"{name}_ts.json"
-    )
+    ts_benchmark_filename = Path(benchmark_path) / f"{name}_ts.json"
     if save_results:
         if ts_output.energies_decomposed is None:
             energies_decomposed = None

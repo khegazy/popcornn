@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import os
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -26,15 +26,11 @@ def test_cosine_scheduler():
             "Cosine scheduler value does not match expected"
         scheduler.step()
 
-    benchmark_path = os.path.join(
-        "optimization", "benchmarks"
-    )
+    benchmark_path = Path("optimization") / "benchmarks"
     for potential in ["wolfe_schlegel", "morse"]:
         # Test high level functionality
         name = f"scheduler_cosine_{potential}"
-        config_path = os.path.join(
-            "configs", f"{name}.yaml"
-        )
+        config_path = Path("configs") / f"{name}.yaml"
         mep, _, _ = popcornn_run_test(name, config_path, benchmark_path)
 
         # Test scheduler effects match calculated scheduled weights
