@@ -251,10 +251,7 @@ class BasePath(torch.nn.Module):
         else:
             potential_output = PotentialOutput()
 
-        if return_velocities:
-            velocities = self.calculate_velocities(time)
-        else:
-            velocities = None
+        velocities = self.calculate_velocities(time) if return_velocities else None
 
         return PathOutput(
             time=self._reshape_out(time),
@@ -285,10 +282,8 @@ class BasePath(torch.nn.Module):
             time = rearrange(time, "b c t -> (b c) t")
         elif len(time.shape) == 2:
             self._inp_reshaped = False
-            B, C, = None, None
         elif len(time.shape) == 1:
             self._inp_reshaped = False
-            B, C, = None, None
             time = torch.unsqueeze(time, -1)
         else:
             raise ValueError(f"Input path time must be of dimensions [B, C, T], [B, T], or [B] where T is the time dimsion and is generally 1: instead got {time.shape}")

@@ -108,7 +108,8 @@ def test_batch_size_measured_once(muller_brown_setup, monkeypatch):
     out = integrator.integrate_path(path)
     assert torch.isfinite(out.integral).all()
     measured = integrator._solver.previous_max_batch
-    assert isinstance(measured, int) and measured > 0
+    assert isinstance(measured, int)
+    assert measured > 0
 
     integrator.integrate_path(path)
     assert n_measurements == {"main": 1, "loss": 0}

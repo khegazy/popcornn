@@ -259,7 +259,7 @@ class PathIntegrator:
         """Replace one or more per-term scales. Used by schedulers to ramp
         terms up/down between iterations."""
         for name, scale in kwargs.items():
-            for i, term in enumerate(self._terms):
+            for term in self._terms:
                 if term.name == name:
                     term.scale = float(scale)
                     break
@@ -273,8 +273,8 @@ class PathIntegrator:
             self,
             path,
             integrand_scales=None,
-            t_init=torch.tensor([0.]),
-            t_final=torch.tensor([1.]),
+            t_init=0.0,
+            t_final=1.0,
         ):
         """
         Compute the path gradient and write it into ``param.grad``.
@@ -304,7 +304,7 @@ class PathIntegrator:
             Holds the trainable parameters and potential.
         integrand_scales : dict, optional
             Updated values for per-term scales (from schedulers).
-        t_init, t_final : torch.Tensor
+        t_init, t_final : float or torch.Tensor, default 0.0 and 1.0
             Integration bounds, in [0, 1]. Passed to padaquad as 1-D
             ``[1]`` mesh bounds.
         """
@@ -333,7 +333,7 @@ class PathIntegrator:
             padaquad carries to the accepted nodes. padaquad passes nodes as
             ``[N, 1]`` (already 2-D) — no unsqueeze. ``dE/dt = -(F·v).sum(-1)``
             reuses the forces/velocities already resolved for the loss."""
-            l, variables = evaluate_integrand_sum(
+            loss, variables = evaluate_integrand_sum(
                 self._terms, t, path, also_resolve=also_resolve,
             )
             tracked = None
@@ -342,7 +342,7 @@ class PathIntegrator:
                     variables["forces"] * variables["velocities"], dim=-1
                 )
                 tracked = (variables["energies"], dEdt)
-            return l, tracked
+            return loss, tracked
 
         if self.integrate_gradient:
             # Integrate-the-gradient: the integrand returns the per-point
@@ -369,8 +369,8 @@ class PathIntegrator:
             # take_gradient=True and calls .backward() on the loss integral
             # per batch, accumulating ``∫∂L/∂θ dt`` into param.grad via autograd.
             def f(t):
-                l, tracked = _loss_and_tracked(t)
-                return l, tracked  # [N, 1], graph live
+                loss, tracked = _loss_and_tracked(t)
+                return loss, tracked  # [N, 1], graph live
             take_gradient = True
 
         # same_f=True: padaquad starts from the mesh and batch size it stored at
@@ -398,7 +398,7 @@ class PathIntegrator:
             # between optimizer.zero_grad() compose.
             flat = result.integral.detach()
             offset = 0
-            for p, k in zip(params, sizes):
+            for p, k in zip(params, sizes, strict=True):
                 chunk = flat[offset:offset + k].reshape(p.shape)
                 p.grad = chunk if p.grad is None else p.grad + chunk
                 offset += k
@@ -409,7 +409,7 @@ class PathIntegrator:
             flat = torch.cat([
                 p.grad.reshape(-1) if p.grad is not None
                 else p.new_zeros(k).reshape(-1)
-                for p, k in zip(params, sizes)
+                for p, k in zip(params, sizes, strict=True)
             ]).detach()
         integral_output.grad_integral = flat
 
@@ -438,8 +438,8 @@ class PathIntegrator:
             # The main pass integrated the gradient, not the loss, so run a
             # separate detached loss integral on its own solver (own tolerances).
             def fval(t):
-                l, _ = evaluate_integrand_sum(self._terms, t, path)
-                return l.reshape(t.shape[0], -1).detach()  # [N, 1], bare tensor
+                loss, _ = evaluate_integrand_sum(self._terms, t, path)
+                return loss.reshape(t.shape[0], -1).detach()  # [N, 1], bare tensor
             loss_result = self._loss_solver.integrate(
                 fval,
                 same_f=True,

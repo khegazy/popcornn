@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 import torch
 
 from popcornn.tools import (
@@ -135,7 +136,8 @@ def test_pvre_huber_matches_manual():
     )
     assert torch.allclose(huber, expected)
     # Spans both regimes for this random sample.
-    assert (abs_overlap <= delta).any() and (abs_overlap > delta).any()
+    assert (abs_overlap <= delta).any()
+    assert (abs_overlap > delta).any()
 
 
 def test_pvre_huber_limit_behaviors():
@@ -286,27 +288,15 @@ def test_path_integrand_kwargs_reach_constructor():
 
 def test_stray_kwargs_key_raises():
     """A name in ``kwargs`` that isn't in ``names`` is a typo, not silent."""
-    try:
+    with pytest.raises(ValueError, match="pvre_huber"):
         build_integrand_terms(["pvre"], kwargs={"pvre_huber": {"delta": 1.0}})
-    except ValueError as e:
-        assert "pvre_huber" in str(e)
-    else:
-        raise AssertionError("Expected ValueError for stray kwargs key")
 
 
 def test_unknown_name_raises():
-    try:
+    with pytest.raises(ValueError, match="Unknown integrand"):
         build_integrand_terms(["not_a_real_integrand"])
-    except ValueError as e:
-        assert "Unknown integrand" in str(e)
-    else:
-        raise AssertionError("Expected ValueError for unknown integrand name")
 
 
 def test_duplicate_name_raises():
-    try:
+    with pytest.raises(ValueError, match="twice"):
         build_integrand_terms(["F_mag", "F_mag"])
-    except ValueError as e:
-        assert "twice" in str(e)
-    else:
-        raise AssertionError("Expected ValueError for duplicate integrand name")

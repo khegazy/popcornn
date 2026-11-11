@@ -49,7 +49,7 @@ class RepelPotential(BasePotential):
 
     def forward(self, positions):
         positions_3d = positions.view(-1, self.n_atoms, 3)
-        n_data, n_atoms, _ = positions_3d.shape
+        _, n_atoms, _ = positions_3d.shape
         graph_dict = radius_graph(
             positions=positions_3d,
             cell=self.cell,
@@ -82,4 +82,3 @@ class RepelPotential(BasePotential):
             forces=forces,
             forces_decomposed=forces_decomposed,
         )
-

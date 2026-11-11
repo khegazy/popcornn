@@ -103,6 +103,4 @@ class UMAPotential(BasePotential):
             )
             data.dataset = self.task_name
             data_list.append(data)
-        batch = data_list_collater(data_list, otf_graph=True)
-
-        return batch
+        return data_list_collater(data_list, otf_graph=True)

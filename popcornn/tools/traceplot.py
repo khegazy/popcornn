@@ -31,14 +31,18 @@ The locked layout (used across the fp32 3-seed plots) is:
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from matplotlib.axes import Axes
 
 __all__ = [
     "Panel",
@@ -82,11 +86,11 @@ class Panel:
 def read_jsonl(path: str | Path) -> list[dict]:
     """Read a JSONL file into a list of dicts (one per line)."""
     rows: list[dict] = []
-    with open(path) as f:
+    with Path(path).open() as f:
         for line in f:
-            line = line.strip()
-            if line:
-                rows.append(json.loads(line))
+            stripped = line.strip()
+            if stripped:
+                rows.append(json.loads(stripped))
     return rows
 
 
@@ -230,7 +234,7 @@ def plot_stacked_traces(
     fig, axes = plt.subplots(len(panels), 1, figsize=figsize, sharex=sharex)
     if len(panels) == 1:
         axes = [axes]
-    for i, (ax, panel) in enumerate(zip(axes, panels)):
+    for i, (ax, panel) in enumerate(zip(axes, panels, strict=True)):
         is_last = (i == len(panels) - 1)
         # Only the last panel gets an xlabel when sharex (default), all panels otherwise.
         _draw_panel(ax, panel, series,
@@ -256,7 +260,7 @@ def plot_stacked_traces(
                     ha="right" if annotation_loc[0] > 0.5 else "left",
                     va="bottom" if annotation_loc[1] < 0.5 else "top",
                     family="monospace",
-                    bbox=dict(facecolor="white", alpha=0.85, edgecolor="0.6"))
+                    bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "0.6"})
 
     ax_top.set_title(title)
     fig.tight_layout()

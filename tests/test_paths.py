@@ -334,11 +334,9 @@ def test_set_potential(path_name, dtype, device):
     path_output = path(torch.tensor([0.5], requires_grad=True, device=device, dtype=dtype), return_energies_decomposed=True)
     assert path_output.energies_decomposed is not None
     # assert path_output.energies_decomposed.shape == (1, 4316)
-    assert (
-        path_output.energies_decomposed.ndim == 2
-        and path_output.energies_decomposed.shape[0] == 1
-        # and 4000 < path_output.energies_decomposed.shape[1] < 4500  # TODO: Fix shape check
-    )
+    assert path_output.energies_decomposed.ndim == 2
+    assert path_output.energies_decomposed.shape[0] == 1
+    # assert 4000 < path_output.energies_decomposed.shape[1] < 4500  # TODO: Fix shape check
     assert path_output.energies_decomposed.device.type == device.type
     assert path_output.energies_decomposed.dtype == dtype
     assert torch.allclose(
@@ -361,12 +359,10 @@ def test_set_potential(path_name, dtype, device):
     path_output = path(torch.tensor([0.5], requires_grad=True, device=device, dtype=dtype), return_forces_decomposed=True)
     assert path_output.forces_decomposed is not None
     # assert path_output.forces_decomposed.shape == (1, 4316, 105)
-    assert (
-        path_output.forces_decomposed.ndim == 3
-        and path_output.forces_decomposed.shape[0] == 1
-        # and 4000 < path_output.forces_decomposed.shape[1] < 4500  # TODO: Fix shape check
-        and path_output.forces_decomposed.shape[2] == 105
-    )
+    assert path_output.forces_decomposed.ndim == 3
+    assert path_output.forces_decomposed.shape[0] == 1
+    # assert 4000 < path_output.forces_decomposed.shape[1] < 4500  # TODO: Fix shape check
+    assert path_output.forces_decomposed.shape[2] == 105
     assert path_output.forces_decomposed.device.type == device.type
     assert path_output.forces_decomposed.dtype == dtype
     assert torch.allclose(

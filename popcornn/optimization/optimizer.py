@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import torch
 from torch import optim
 from torch.optim import lr_scheduler
 
@@ -142,8 +141,8 @@ class PathOptimizer:
             self,
             path,
             integrator,
-            t_init=torch.tensor([0.]),
-            t_final=torch.tensor([1.]),
+            t_init=0.0,
+            t_final=1.0,
             update_path=True
         ):
         """
@@ -171,8 +170,6 @@ class PathOptimizer:
             popcornn-level fields attached.
         """
         self.optimizer.zero_grad()
-        t_init = t_init.to(self.dtype).to(self.device)
-        t_final = t_final.to(self.dtype).to(self.device)
         # integrand_scales = {
         #     name : schd.get_value() for name, schd in self.integrand_schedulers.items()
         # }
@@ -236,4 +233,3 @@ class PathOptimizer:
         self.iteration = self.iteration + 1
 
         return integral_output
-

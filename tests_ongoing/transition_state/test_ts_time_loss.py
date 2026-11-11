@@ -11,4 +11,4 @@ def test_ts_time_loss():
         # Test high level functionality
         name = f"ts_time_loss_{potential}"
         config_path = Path("configs") / f"{name}.yaml"
-        mep, _, _ = popcornn_run_test(name, config_path, benchmark_path)
+        popcornn_run_test(name, config_path, benchmark_path)

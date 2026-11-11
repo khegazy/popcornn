@@ -61,17 +61,17 @@ def test_ts_search():
         4: (0.5, 0.375),
     }
 
-    for l in [2, 3, 4]:
-        # Build a fresh BasePath + LegendrePotential per l so the fresh
+    for degree in [2, 3, 4]:
+        # Build a fresh BasePath + LegendrePotential per degree so the fresh
         # forward inside ts_search has a working potential.
         base_path = BasePath(images=images, dtype=dtype, device=device)
-        potential = LegendrePotential(images, device=device, dtype=dtype, n=l)
+        potential = LegendrePotential(images, device=device, dtype=dtype, n=degree)
         base_path.set_potential(potential)
         # Override get_positions so the linear-interp `path(t)` drives
         # the fresh forward as well as the sample construction.
-        base_path.get_positions = lambda t: path(t)
+        base_path.get_positions = path
         # calculate_velocities uses autograd-jacobian over get_positions,
-        # which works on the lambda above.
+        # which works on the function assigned above.
 
         # Build samples on a 13-pt mesh.
         time = torch.linspace(
@@ -79,9 +79,9 @@ def test_ts_search():
         ).unsqueeze(-1)
         positions = path(time)
         s = positions.sum(dim=-1, keepdim=True)
-        if l == 2:
+        if degree == 2:
             E = -1 * (3 * s ** 2 - 1) / 2.
-        elif l == 3:
+        elif degree == 3:
             E = (5 * s ** 3 - 2 * s ** 2 - 3 * s) / 2.
         else:
             E = (35 * s ** 4 - 30 * s ** 2 + 3) / 8. - 0.75 * s ** 2
@@ -96,21 +96,21 @@ def test_ts_search():
         )
         base_path.ts_search(samples)
 
-        ts_time_truth, ts_energy_truth = truth[l]
+        ts_time_truth, ts_energy_truth = truth[degree]
         assert np.isclose(
             ts_time_truth, base_path.ts_time.cpu().item(), atol=1e-2, rtol=1e-4
         ), (
-            f"Did not match TS times for legendre {l}, got "
+            f"Did not match TS times for legendre {degree}, got "
             f"{base_path.ts_time.item()}, expected {ts_time_truth}"
         )
         assert np.isclose(
             ts_energy_truth, base_path.ts_energy.flatten().cpu().item(),
             atol=1e-3,
         ), (
-            f"Did not match TS energy for legendre {l}, got "
+            f"Did not match TS energy for legendre {degree}, got "
             f"{base_path.ts_energy.item()}, expected {ts_energy_truth}"
         )
         assert base_path.ts_force_mag.item() < 1e-3, (
             f"Did not find sufficiently small TS force magnitude for "
-            f"legendre {l}, got {base_path.ts_force_mag.item()}"
+            f"legendre {degree}, got {base_path.ts_force_mag.item()}"
         )

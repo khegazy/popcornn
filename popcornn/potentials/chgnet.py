@@ -56,7 +56,7 @@ class CHGNetPotential(BasePotential):
         edge_index = radius_graph(positions, r=self.model.r_max, batch=batch)
         shifts = torch.zeros(edge_index.shape[1], 3, device=self.device)
         unit_shifts = torch.zeros(edge_index.shape[1], 3, device=self.device)
-        data = Data(
+        return Data(
             positions=positions,
             cell=cell,
             node_attrs=node_attrs,
@@ -66,4 +66,3 @@ class CHGNetPotential(BasePotential):
             batch=batch,
             ptr=ptr,
         )
-        return data

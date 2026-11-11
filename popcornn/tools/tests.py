@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import numpy as np
@@ -18,7 +17,7 @@ from popcornn.tools.integrator import PathIntegrator
 
 def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
     # Setup environment
-    os.makedirs(benchmark_path, exist_ok=True)
+    Path(benchmark_path).mkdir(parents=True, exist_ok=True)
     torch.manual_seed(2025)
     np.random.seed(2025)
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -45,7 +44,7 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
         else:
            energies_decomposed = path_output.energies_decomposed.tolist()
            forces_decomposed = path_output.forces_decomposed.tolist()
-        with open(path_benchmark_filename, "w") as file:
+        with path_benchmark_filename.open("w") as file:
             json.dump(
                 {
                     "time" : path_output.time.tolist(),
@@ -58,7 +57,7 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
                 },
                 file
             )
-    with open(path_benchmark_filename) as file:
+    with path_benchmark_filename.open() as file:
         path_benchmark = json.load(file)
 
     time_test = torch.allclose(
@@ -116,7 +115,7 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
         else:
            energies_decomposed = ts_output.energies_decomposed.tolist()
            forces_decomposed = ts_output.forces_decomposed.tolist()
-        with open(ts_benchmark_filename, "w") as file:
+        with ts_benchmark_filename.open("w") as file:
             json.dump(
                 {
                     "time" : ts_output.time.tolist(),
@@ -129,7 +128,7 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
                 },
                 file
             )
-    with open(ts_benchmark_filename) as file:
+    with ts_benchmark_filename.open() as file:
         ts_benchmark = json.load(file)
 
     time_test = torch.allclose(
@@ -199,7 +198,7 @@ def scheduler_test(path, config, schedule_fxn, device):
 
     time = None
     scheduled_evals = []
-    for i in range(scheduler_config[fxn2_name]["last_step"]):
+    for _ in range(scheduler_config[fxn2_name]["last_step"]):
         integral_output = optimizer.optimization_step(
             path, integrator, time=time, update_path=False
         )

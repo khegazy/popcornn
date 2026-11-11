@@ -66,5 +66,4 @@ class SoftMaxPath(BasePath):
         if self.fix_positions is not None:
             mlp_out[:, self.fix_positions] = 0.0
         base_out = self.base.get_positions(time)
-        out = base_out + mlp_out
-        return out
+        return base_out + mlp_out

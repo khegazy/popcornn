@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 
 import ase
 import numpy as np
@@ -11,6 +12,8 @@ from ase.constraints import FixAtoms
 from ase.io import read
 
 from popcornn.tools import unwrap_atoms
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -100,15 +103,15 @@ def process_images(raw_images, device, dtype, unwrap_positions=True):
     Images
         Validated, on-device, with consistent shape across frames.
     """
-    if type(raw_images) == str:
+    if isinstance(raw_images, str):
         if raw_images.endswith(".json"):
-            with open(raw_images) as f:
+            with Path(raw_images).open() as f:
                 raw_images = json.load(f)
         elif raw_images.endswith(".npy"):
             raw_images = np.load(raw_images)
         elif raw_images.endswith(".pt"):
             raw_images = torch.load(raw_images)
-        elif raw_images.endswith(".xyz") or raw_images.endswith(".traj"):
+        elif raw_images.endswith((".xyz", ".traj")):
             raw_images = read(raw_images, index=":")
         else:
             raise ValueError(f"Cannot handle file type for {raw_images}.")
@@ -134,10 +137,10 @@ def process_images(raw_images, device, dtype, unwrap_positions=True):
     elif issubclass(image_type, ase.Atoms):
         if raw_images[0].pbc.any():
             if unwrap_positions:
-                logging.warning("Unwrapping atom positions. Assuming no atoms move more than half the box length.")
+                logger.warning("Unwrapping atom positions. Assuming no atoms move more than half the box length.")
                 raw_images = unwrap_atoms(raw_images)
             else:
-                logging.warning("Not unwrapping atom positions. Assuming atoms are already unwrapped or do not travel across period boundaries.")
+                logger.warning("Not unwrapping atom positions. Assuming atoms are already unwrapped or do not travel across period boundaries.")
         assert np.all(image.get_positions().shape == raw_images[0].get_positions().shape for image in raw_images), "All images must have the same shape."
         positions = torch.tensor(np.array([image.get_positions().flatten() for image in raw_images]), device=device, dtype=dtype)
         assert np.all(image.get_atomic_numbers() == raw_images[0].get_atomic_numbers() for image in raw_images), "All images must have the same atomic atomic_numbers."
@@ -175,10 +178,4 @@ def process_images(raw_images, device, dtype, unwrap_positions=True):
     else:
         raise ValueError(f"Cannot handle data type {dtype}.")
 
-    processed_images = processed_images.to(device)
-    return processed_images
-
-
-
-
-
+    return processed_images.to(device)

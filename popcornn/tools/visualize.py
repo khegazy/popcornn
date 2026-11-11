@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import matplotlib.animation as animation
@@ -42,9 +41,9 @@ def eval_contour_vals(
 ):
     x_vals = np.linspace(x_min, x_max, num_points)
     y_vals = np.linspace(y_min, y_max, num_points)
-    l,r = np.meshgrid(x_vals, y_vals)
+    xx, yy = np.meshgrid(x_vals, y_vals)
     size = len(x_vals)
-    args = np.reshape(np.stack([l,r],axis=2), (-1, 2))
+    args = np.reshape(np.stack([xx, yy], axis=2), (-1, 2))
     if add_dof:
         args = np.concatenate([args, np.zeros((args.shape[0], 1))], axis=1)
         #    jnp.array([x_vals, y_vals, jnp.zeros(len(x_vals))]).transpose()
@@ -106,7 +105,7 @@ def _plot_added_rot_dof(
     )
     fig_size = (plot_params["fig_size"][0], plot_params["fig_size"][0]*1.2)
     _gridspec = dict(gridspec)
-    _gridspec["height_ratios"] = _gridspec["height_ratios"][:] + [1]
+    _gridspec["height_ratios"] = [*_gridspec["height_ratios"], 1]
     path_th = np.array(np.arctan2(path[:,0], path[:,-1]))
     time = np.linspace(0, 1, len(path_th))
 
@@ -192,7 +191,7 @@ def plot_path(
         force,
         loss,
     ):
-    fig, axs = plt.subplots(6, 1, figsize=(4, 6), sharex=True)
+    _fig, axs = plt.subplots(6, 1, figsize=(4, 6), sharex=True)
     axs[0].plot(time)
     axs[0].set_ylabel("Time")
     axs[1].plot(np.linalg.norm(positions, axis=1))
@@ -242,6 +241,5 @@ def animate_optimization_2d(
 
     print("Plotting animation", len(paths), paths[0].shape)
     ani = animation.FuncAnimation(fig, animation_function, frames=paths)
-    os.makedirs(plot_dir, exist_ok=True)
+    Path(plot_dir).mkdir(parents=True, exist_ok=True)
     ani.save(Path(plot_dir) / (contour_file + ".gif"))
-

@@ -31,7 +31,7 @@ if __name__ == "__main__":
     else:
         path, ts = np.array(final_images), np.array(ts_image["ts_positions"])
         pad = np.ptp(path, axis=0).max() / 3
-        x, y = np.meshgrid(*[np.linspace(lo - pad, hi + pad, 256) for lo, hi in zip(path.min(axis=0), path.max(axis=0))])
+        x, y = np.meshgrid(*[np.linspace(lo - pad, hi + pad, 256) for lo, hi in zip(path.min(axis=0), path.max(axis=0), strict=True)])
         grid = torch.tensor(np.stack([x.ravel(), y.ravel()], axis=-1), device=my_path.device, dtype=my_path.dtype, requires_grad=True)
         energies = my_path.path.potential(grid).energies.detach().cpu().numpy().reshape(x.shape)
         ts_energy = ts_image["ts_energies"][0][0]

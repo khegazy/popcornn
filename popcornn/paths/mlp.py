@@ -96,7 +96,7 @@ class SharpActivation(nn.Module):
     — bounded form needed; broken form ``(1/κ)·tanh(κz)`` shrinks the
     saturated magnitude to ±1/κ and pins the path to the linear base.
     """
-    def __init__(self, base_activation: nn.Module, kappa: float, bounded: bool = None):
+    def __init__(self, base_activation: nn.Module, kappa: float, bounded: bool | None = None):
         super().__init__()
         self.base = base_activation
         self.kappa = float(kappa)
@@ -202,7 +202,7 @@ class MLPpath(BasePath):
         self.kappa = float(kappa)
         # Hidden width is `width` (default 128). System-independent.
         input_sizes = [1] + [width]*(depth - 1)
-        output_sizes = input_sizes[1:] + [self.final_position.shape[-1]]
+        output_sizes = [*input_sizes[1:], self.final_position.shape[-1]]
         self.layers = [
             nn.Linear(
                 input_sizes[i//2], output_sizes[i//2], dtype=self.dtype, bias=True
@@ -258,8 +258,7 @@ class MLPpath(BasePath):
         if self.fix_positions is not None:
             out[:, self.fix_positions] = 0.0
         base_out = self.base.get_positions(time)
-        out = base_out + out
-        return out
+        return base_out + out
 
 # class ResNetLayer(nn.Module):
 #     def __init__(

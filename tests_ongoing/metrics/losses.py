@@ -30,5 +30,5 @@ def test_losses():
 
             # Run the optimization
             mep = Popcornn(device=device, **config.get("initialization_params", {}))
-            path_output, ts_outpuit = mep.optimize_path(*config.get("optimization_params", []), output_ase_atoms=False)
+            mep.optimize_path(*config.get("optimization_params", []), output_ase_atoms=False)
 test_losses()
