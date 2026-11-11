@@ -77,7 +77,7 @@ and `task_name`; NewtonNet needs a `model_path`).
 | `rtol` | `float` | `0.5` | Relative tolerance. |
 | `atol` | `float` | `2.5e-3` | Absolute tolerance. |
 | `norm` | `"2"` or `"max"` | `"2"` | Vector norm used both to reduce the integrated gradient to the scalar convergence signal (compared against `threshold`) and as padaquad's panel accept/reject norm. `"2"` is the L2 norm `|g|_2`; `"max"` is the L∞ norm. Quote it in YAML (`norm: '2'`) so it parses as a string. |
-| `max_batch` | `int` or `None` | `None` | Max batch size at any quadrature step. `None` lets padaquad size it from a one-time memory benchmark, snapshotted after the first call. See [Memory & OOM](memory-and-oom.md). |
+| `max_batch` | `int` or `None` | `None` | Max number of points passed to the path and potential in one call (limits per-call memory, not the total). `None` lets padaquad size it from a memory measurement on the first call, reused on every later call; a size reduced after an out-of-memory error is kept for the rest of the stage. See [Memory & OOM](memory-and-oom.md). |
 
 ### `optimizer_params`
 

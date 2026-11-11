@@ -67,12 +67,14 @@ $$\text{atol} = \text{threshold} / 2, \qquad \text{rtol} = 0.5, \qquad \text{nor
 
 `norm: '2'` makes padaquad reduce each panel's error vector with the
 L2 norm and accept the panel once that error drops below
-`atol + rtol·|g|_2` — the same scalar metric the `|g|_2` trigger uses.
-With this pair the total integrator noise at the trigger is
-`atol + rtol·|g|_2 ≈ threshold/2 + 0.5·threshold = threshold` —
-comparable to the trigger itself, which is loose enough that the
-quadrature doesn't over-subdivide but tight enough that the trigger
-fires cleanly.
+`max(atol, rtol·|g|_2)`, where `|g|_2` is the L2 norm of the integrated
+gradient — the same scalar metric the `|g|_2` trigger uses. (With
+`integrate_gradient: false` padaquad integrates the loss instead, so the
+`rtol` term multiplies the loss integral.) With this pair the per-panel
+tolerance at the trigger is
+`max(threshold/2, 0.5·threshold) = threshold/2` — half the trigger
+itself, which is loose enough that the quadrature doesn't
+over-subdivide but tight enough that the trigger fires cleanly.
 
 ## Worked example
 

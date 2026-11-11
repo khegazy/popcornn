@@ -174,11 +174,13 @@ typically well-separated).
 ## Integrator noise budget
 
 The integrator's tolerance pair `(atol, rtol)` (with `norm='2'`)
-produces a per-step relative noise of
-$\text{noise}/|g|_2 = \text{atol}/|g|_2 + \text{rtol}$. At the trigger
-$|g|_2 = \text{threshold}$, so noise / threshold = $(\text{atol} / \text{threshold}) + \text{rtol}$.
+accepts a quadrature panel when its error is below the per-panel
+tolerance $\text{tol} = \max(\text{atol},\ \text{rtol}\cdot|g|_2)$
+(padaquad's rule, the same as `scipy.integrate.quad_vec`). At the
+trigger $|g|_2 = \text{threshold}$, so
+tol / threshold $= \max(\text{atol}/\text{threshold},\ \text{rtol})$.
 The "half-EXTREME" choice $\text{atol} = \text{threshold}/2$,
-$\text{rtol} = 1/2$ gives noise / threshold $= 1$ — comparable to the
+$\text{rtol} = 1/2$ gives tol / threshold $= 1/2$ — half the
 trigger, loose enough that GK doesn't over-subdivide near convergence
 but tight enough that the trigger fires cleanly.
 

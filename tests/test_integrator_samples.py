@@ -13,6 +13,7 @@ import torch
 from popcornn.paths import get_path
 from popcornn.potentials import get_potential
 from popcornn.tools import PathIntegrator, SamplesCache, process_images
+from popcornn.tools.integrand import evaluate_integrand_sum
 
 
 @pytest.fixture
@@ -80,30 +81,121 @@ def test_track_ts_off_yields_none(muller_brown_setup):
     assert out.samples is None
 
 
-def test_max_batch_snapshotted_after_first_run(muller_brown_setup):
-    """With ``max_batch=None``, padaquad benchmarks the integrand's memory on
-    the first ``integrate_path``. ``PathIntegrator`` then snapshots that resolved
-    batch size onto itself so every subsequent call passes an explicit
-    ``max_batch`` and the (slow) benchmark fires once per integrator lifetime
-    rather than once per step (padaquad's own ``id(f)`` cache can't help — our
-    integrand closure is rebuilt each call, so its identity never matches).
+def test_batch_size_measured_once(muller_brown_setup, monkeypatch):
+    """With ``max_batch=None``, padaquad measures the memory of one integrand
+    evaluation (``_setup_memory_checks``) on the first ``integrate_path`` and
+    stores the resulting batch size on the solver (``previous_max_batch``).
+    ``PathIntegrator`` passes ``same_f=True``, so later calls reuse the stored
+    size: the slow measurement runs once per integrator, and never on the loss
+    solver, which starts from the gradient solver's size.
     """
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(
         method='gk21',
         path_integrand_names='pvre',
         rtol=1e-2, atol=1e-2,
+        track_loss=True,
         device=device, dtype=dtype,
     )
-    assert integrator.max_batch is None
+    n_measurements = {'main': 0, 'loss': 0}
+    for name, solver in (('main', integrator._solver), ('loss', integrator._loss_solver)):
+        def counting(*args, _measure=solver._setup_memory_checks, _name=name, **kwargs):
+            n_measurements[_name] += 1
+            return _measure(*args, **kwargs)
+        monkeypatch.setattr(solver, '_setup_memory_checks', counting)
 
     out = integrator.integrate_path(path)
     assert torch.isfinite(out.integral).all()
-    # Snapshotted from the first run's benchmark (None on CPU where the memory
-    # budget is effectively unbounded; a positive cap on a memory-limited device).
-    snapshotted = integrator.max_batch
-    assert snapshotted is None or snapshotted > 0
+    measured = integrator._solver.previous_max_batch
+    assert isinstance(measured, int) and measured > 0
 
-    # Stable across subsequent calls — captured once, not re-discovered.
     integrator.integrate_path(path)
-    assert integrator.max_batch == snapshotted
+    assert n_measurements == {'main': 1, 'loss': 0}
+    assert integrator._solver.previous_max_batch == measured
+
+
+def _simulate_oom(monkeypatch, limit, integrand):
+    """Make one path integrand raise ``torch.OutOfMemoryError`` on batches of
+    more than ``limit`` points, and record that integrand's batch sizes.
+
+    ``integrand`` selects which one: ``'main'`` (the ``_solver`` integrand,
+    which passes ``also_resolve``) or ``'loss'`` (the detached ``track_loss``
+    integrand, which does not). Returns the list the batch sizes are appended to.
+    """
+    batch_sizes = []
+
+    def evaluate_with_limit(terms, t, path, **kwargs):
+        if ('also_resolve' in kwargs) == (integrand == 'main'):
+            batch_sizes.append(t.shape[0])
+            if t.shape[0] > limit:
+                raise torch.OutOfMemoryError(f"simulated out-of-memory error at {t.shape[0]} points")
+        return evaluate_integrand_sum(terms, t, path, **kwargs)
+
+    monkeypatch.setattr(
+        'popcornn.tools.integrator.evaluate_integrand_sum', evaluate_with_limit
+    )
+    return batch_sizes
+
+
+@pytest.mark.parametrize('integrand', ['main', 'loss'])
+def test_oom_batch_reduction_persists(muller_brown_setup, monkeypatch, integrand):
+    """An out-of-memory error makes padaquad shrink the batch and retry. With
+    ``same_f=True`` each solver keeps its reduced size, so the error must not
+    recur on the next ``integrate_path``. ``'main'`` exercises ``_solver``,
+    ``'loss'`` exercises ``_loss_solver`` on its own.
+    """
+    path, device, dtype = muller_brown_setup
+    limit = 50  # more than gk21's 21 nodes per panel, so one panel always fits
+    batch_sizes = _simulate_oom(monkeypatch, limit, integrand)
+    integrator = PathIntegrator(
+        method='gk21',
+        path_integrand_names='pvre',
+        rtol=1e-2, atol=1e-2,
+        max_batch=400,
+        track_loss=True,
+        device=device, dtype=dtype,
+    )
+
+    integrator.integrate_path(path)
+    assert max(batch_sizes) > limit  # the first call hit the simulated error
+
+    batch_sizes.clear()
+    integrator.integrate_path(path)
+    assert max(batch_sizes) <= limit
+
+
+def test_oom_raises_without_integrate_gradient(muller_brown_setup, monkeypatch):
+    """With ``integrate_gradient=False`` padaquad backpropagates through each
+    batch, so it cannot shrink the batch and retry: the error reaches the caller.
+    """
+    path, device, dtype = muller_brown_setup
+    _simulate_oom(monkeypatch, 50, 'main')
+    integrator = PathIntegrator(
+        method='gk21',
+        path_integrand_names='pvre',
+        rtol=1e-2, atol=1e-2,
+        max_batch=400,
+        integrate_gradient=False,
+        device=device, dtype=dtype,
+    )
+    with pytest.raises(torch.OutOfMemoryError):
+        integrator.integrate_path(path)
+
+
+def test_gpu_index_reaches_padaquad(monkeypatch):
+    """The GPU index of ``device`` must reach padaquad, so a ``cuda:1`` run
+    integrates on GPU 1. Runs without a GPU: only the solver construction is
+    intercepted.
+    """
+    devices = []
+
+    def record_device(*args, **kwargs):
+        devices.append(kwargs['device'])
+        return object()
+
+    monkeypatch.setattr('popcornn.tools.integrator.adaptive_quadrature', record_device)
+    PathIntegrator(
+        path_integrand_names='pvre',
+        device=torch.device('cuda', 1), dtype=torch.float64,
+    )
+    assert devices == [torch.device('cuda', 1)] * 2
