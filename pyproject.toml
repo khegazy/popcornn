@@ -153,8 +153,12 @@ lint.unfixable = [
   "T20",  # Removes print statements
   "F841", # Removes unused variables
 ]
-# Math notation in comments/docstrings (RUF001-003): allow the true minus sign.
-lint.allowed-confusables = ["−"]  # U+2212 MINUS SIGN
+# Math notation in comments/docstrings (RUF001-003): allow these symbols.
+lint.allowed-confusables = [
+  "−",  # U+2212 MINUS SIGN
+  "σ",  # U+03C3 GREEK SMALL LETTER SIGMA
+  "×",  # U+00D7 MULTIPLICATION SIGN
+]
 lint.pydocstyle.convention = "numpy"
 lint.isort.known-first-party = ["popcornn"]
 lint.isort.required-imports = ["from __future__ import annotations"]
