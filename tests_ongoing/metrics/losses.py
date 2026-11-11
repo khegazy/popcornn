@@ -26,7 +26,7 @@ def test_losses():
                 "variance_scale" : 2,
                 "weight_scale" : 1
             }
-            print("ENV", envelope)
+            print("ENV", envelope)  # noqa: T201
 
             # Run the optimization
             mep = Popcornn(device=device, **config.get("initialization_params", {}))
