@@ -422,4 +422,20 @@ class BasePath(torch.nn.Module):
         self.ts_time = candidate_times[winner]
         self.ts_energy = energies[winner]
         self.ts_force = forces[winner]
+        self.ts_force_mag = self._ts_fmax(self.ts_force)
         self.barrier = self.ts_energy - energies[0]
+
+    def _ts_fmax(self, force: torch.Tensor) -> torch.Tensor:
+        """Per-atom fmax for atomistic systems; vector L2 norm otherwise.
+
+        Atomistic force is laid out as ``[..., 3 * n_atoms]``; reshape
+        to ``[..., n_atoms, 3]``, take the L2 norm over the xyz axis,
+        and reduce to the per-atom maximum. Toy potentials (no
+        ``n_atoms`` on the potential, e.g. Muller-Brown) get a plain
+        vector L2 norm.
+        """
+        f = force.reshape(-1)
+        n_atoms = getattr(self.potential, 'n_atoms', None) if self.potential is not None else None
+        if n_atoms is None:
+            return torch.linalg.norm(f)
+        return torch.linalg.norm(f.reshape(n_atoms, 3), dim=-1).max()
