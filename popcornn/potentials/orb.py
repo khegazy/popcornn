@@ -85,7 +85,7 @@ class OrbPotential(BasePotential):
             "cell": cell,
         }
 
-        data = AtomGraphs(
+        return AtomGraphs(
             senders,
             recievers,
             n_node,
@@ -94,4 +94,3 @@ class OrbPotential(BasePotential):
             edge_features,
             system_features,
         )
-        return data

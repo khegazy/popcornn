@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from ase import Atoms
 from ase.io import write
@@ -27,10 +28,10 @@ if __name__ == "__main__":
     if isinstance(final_images, list) and isinstance(final_images[0], Atoms):
         write("popcornn_path.xyz", final_images)
     else:
-        with open("popcornn_path.json", "w") as f:
+        with Path("popcornn_path.json").open("w") as f:
             json.dump(final_images, f)
     if isinstance(ts_image, Atoms):
         write("popcornn_ts.xyz", ts_image)
     else:
-        with open("popcornn_ts.json", "w") as f:
+        with Path("popcornn_ts.json").open("w") as f:
             json.dump(ts_image, f)

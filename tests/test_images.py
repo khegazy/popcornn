@@ -599,11 +599,11 @@ def test_charge_spin(device):
 
 
 def test_empty():
-    with pytest.raises(AssertionError, match="Must have at least two images."):
-        images = process_images([], device=torch.device("cpu"), dtype=torch.float32)
+    with pytest.raises(AssertionError, match=r"Must have at least two images\."):
+        process_images([], device=torch.device("cpu"), dtype=torch.float32)
 
-    with pytest.raises(ValueError, match="Cannot handle file type for invalid.txt."):
-        images = process_images("invalid.txt", device=torch.device("cpu"), dtype=torch.float32)
+    with pytest.raises(ValueError, match=r"Cannot handle file type for invalid\.txt\."):
+        process_images("invalid.txt", device=torch.device("cpu"), dtype=torch.float32)
 
 
 def test_unwrap(caplog):

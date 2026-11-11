@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 import numpy as np
 import pytest
 import torch
@@ -241,7 +243,7 @@ def test_repel(dtype, device):
         """
         Revised from ASE LennardJones Calculator to use the repulsive potential
         """
-        implemented_properties = ["energy", "forces"]
+        implemented_properties: ClassVar[list[str]] = ["energy", "forces"]
         def __init__(self, alpha=1.7, beta=0.01, cutoff=3.0, **kwargs):
             super().__init__(**kwargs)
             self.alpha = alpha

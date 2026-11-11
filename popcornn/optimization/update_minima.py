@@ -26,7 +26,7 @@ class MinimaUpdate:
         self.step_size = step_size
         self.n_steps = n_steps
 
-    def find_minima(self, initial_positions=[]):
+    def find_minima(self, initial_positions=()):
         """Relax each point in ``initial_positions`` and return the relaxed list."""
         self.minima = [
             self.find_minimum(torch.tensor(point)) for point in initial_positions
@@ -54,7 +54,7 @@ class MinimaUpdate:
         point.requires_grad = True
         optimizer = torch.optim.SGD([point], lr=self.step_size)
         print(f"computing minima ... {point}")
-        for step in range(self.n_steps):
+        for _ in range(self.n_steps):
             energy = torch.sum(self.potential(point))
             energy.backward()
             optimizer.step()

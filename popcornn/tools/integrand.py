@@ -287,7 +287,7 @@ def build_integrand_terms(names, scales=None, kwargs=None) -> list[IntegrandTerm
 
     seen: set[str] = set()
     terms: list[IntegrandTerm] = []
-    for name, scale in zip(names, scales):
+    for name, scale in zip(names, scales, strict=True):
         if name not in PATH_INTEGRANDS:
             raise ValueError(
                 f"Unknown integrand {name!r}; choose from {sorted(PATH_INTEGRANDS)}."

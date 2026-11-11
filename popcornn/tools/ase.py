@@ -15,7 +15,7 @@ from ase.geometry import find_mic
 def output_to_atoms(output, ref_images):
     """
     Convert output to ase.Atoms.
-    
+
     Parameters:
     -----------
     output : paths.PathOutput
@@ -115,8 +115,8 @@ def radius_graph(
         positions: torch.Tensor,
         cell: torch.Tensor,
         pbc: torch.Tensor,
-        cutoff: float = None,
-        max_neighbors: int = None,
+        cutoff: float | None = None,
+        max_neighbors: int | None = None,
         method: str = "mic",
     ) -> torch.Tensor:
     """
@@ -154,8 +154,8 @@ def radius_graph_mic(
         positions: torch.Tensor,
         cell: torch.Tensor,
         pbc: torch.Tensor,
-        cutoff: float = None,
-        max_neighbors: int = None,
+        cutoff: float | None = None,
+        max_neighbors: int | None = None,
     ) -> torch.Tensor:
     """
     Create a graph of atom pairs within a cutoff distance.
@@ -182,7 +182,6 @@ def radius_graph_mic(
         Graph of atom pairs within the cutoff distance.
     """
     device = positions.device
-    dtype = positions.dtype
     n_data, n_atoms, _ = positions.shape
 
     # Create all-pairs distance matrix
@@ -204,7 +203,6 @@ def radius_graph_mic(
         edge_distance = dist[mask]
         edge_distance_vec = disp[mask]
     else:
-        edge_index = edge_index
         edge_distance = dist
         edge_distance_vec = disp
 
@@ -261,7 +259,7 @@ def radius_graph_fairchem(
 
     device = positions.device
     dtype = positions.dtype
-    n_data, n_atoms, _ = positions.shape
+    _, n_atoms, _ = positions.shape
 
     data_list = []
     for pos in positions:
@@ -287,7 +285,7 @@ def radius_graph_fairchem(
     # batch.cell = batch.cell.to(dtype=dtype)
     # batch.cell_offsets = batch.cell_offsets.to(dtype=dtype)
 
-    graph_dict = generate_graph(
+    return generate_graph(
         batch,
         cutoff=cutoff,
         max_neighbors=max_neighbors,
@@ -295,5 +293,3 @@ def radius_graph_fairchem(
         radius_pbc_version=2,
         pbc=batch.pbc,
     )
-
-    return graph_dict

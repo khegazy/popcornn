@@ -52,7 +52,7 @@ class LeftNetPotential(BasePotential):
         n_atoms = torch.tensor(self.n_atoms, device=self.device)
         n_data = pos.numel() // (n_atoms * 3)
 
-        data = Data(
+        return Data(
             natoms=n_atoms.repeat(n_data),
             pos=pos.view(n_data * n_atoms, 3),
             one_hot=self.one_hots.repeat(n_data, 1),
@@ -60,4 +60,3 @@ class LeftNetPotential(BasePotential):
             batch=torch.arange(n_data, device=self.device).repeat_interleave(n_atoms),
             ae=n_atoms.repeat(n_data),
         )
-        return data

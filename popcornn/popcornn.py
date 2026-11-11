@@ -4,7 +4,8 @@ import os
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"  # TODO: move this to the integrator
 import json
-import time as time
+import time
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -52,10 +53,8 @@ class _StageLogger:
 
         self._metrics_fh = None
         if log_path is not None:
-            parent = os.path.dirname(log_path)
-            if parent:
-                os.makedirs(parent, exist_ok=True)
-            self._metrics_fh = open(log_path, "w")
+            Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+            self._metrics_fh = Path(log_path).open("w")  # noqa: SIM115  (held open for the run; closed by the owner)
 
     def row(self, it, loss, grad_norm, step_s, barrier=None, ts_force=None, ts_time=None, n_crossings=None):
         loss_str = "—" if loss is None else f"{loss:12.4e}"
@@ -133,7 +132,7 @@ class Popcornn:
             self,
             images: list[Atoms],
             unwrap_positions: bool = True,
-            path_params: dict[str, Any] = {},
+            path_params: dict[str, Any] | None = None,
             track_loss: bool = False,
             track_ts: bool = False,
             num_record_points: int = 101,
@@ -181,7 +180,7 @@ class Popcornn:
         self.images = process_images(images, unwrap_positions=unwrap_positions, device=self.device, dtype=self.dtype)
 
         # Get path prediction method
-        self.path = get_path(images=self.images, **path_params, device=self.device, dtype=self.dtype)
+        self.path = get_path(images=self.images, **(path_params or {}), device=self.device, dtype=self.dtype)
 
         # Fit the path to the intermediate images, otherwise a straight line
         if len(self.images) > 2:  #TODO: make this spline or bezier instead of fitting
@@ -271,11 +270,9 @@ class Popcornn:
         time = torch.linspace(self.path.t_init.item(), self.path.t_final.item(), num_record_points, device=self.device, dtype=self.dtype)
         path_output = self.path(time)
         if issubclass(self.images.image_type, Atoms) and output_ase_atoms:
-            images = output_to_atoms(path_output, self.images)
-            return images
+            return output_to_atoms(path_output, self.images)
         else:
-            images = path_output.positions.tolist()
-            return images
+            return path_output.positions.tolist()
 
     def get_ts(self, output_ase_atoms=True):
         """
@@ -285,23 +282,21 @@ class Popcornn:
         time = torch.tensor([self.path.ts_time], device=self.device, dtype=self.dtype)
         path_output = self.path(time, return_velocities=True, return_energies=True, return_forces=True)
         if issubclass(self.images.image_type, Atoms) and output_ase_atoms:
-            image = output_to_atoms(path_output, self.images)[0]
-            return image
+            return output_to_atoms(path_output, self.images)[0]
         else:
-            image = {
+            return {
                 "ts_time": time.tolist(),
                 "ts_positions": path_output.positions.tolist(),
                 "ts_energies": path_output.energies.tolist(),
                 "ts_velocities": path_output.velocities.tolist(),
                 "ts_forces": path_output.forces.tolist(),
             }
-            return image
 
     def _optimize(
             self,
-            potential_params: dict[str, Any] = {},
-            integrator_params: dict[str, Any] = {},
-            optimizer_params: dict[str, Any] = {},
+            potential_params: dict[str, Any] | None = None,
+            integrator_params: dict[str, Any] | None = None,
+            optimizer_params: dict[str, Any] | None = None,
             num_optimizer_iterations: int = 1000,
             # output_dir: str | None = None,
             # output_ase_atoms: bool = True,
@@ -343,14 +338,14 @@ class Popcornn:
         #     os.makedirs(output_dir, exist_ok=True)
 
         # Get potential energy function
-        potential = get_potential(images=self.images, **potential_params, device=self.device, dtype=self.dtype)
+        potential = get_potential(images=self.images, **(potential_params or {}), device=self.device, dtype=self.dtype)
         self.path.set_potential(potential)
 
         # Path optimization tools
-        integrator = PathIntegrator(**integrator_params, track_loss=self.track_loss, track_ts=self.track_ts, device=self.device, dtype=self.dtype)
+        integrator = PathIntegrator(**(integrator_params or {}), track_loss=self.track_loss, track_ts=self.track_ts, device=self.device, dtype=self.dtype)
 
         # Gradient descent path optimizer
-        optimizer = PathOptimizer(path=self.path, **optimizer_params, track_ts=self.track_ts, device=self.device, dtype=self.dtype)
+        optimizer = PathOptimizer(path=self.path, **(optimizer_params or {}), track_ts=self.track_ts, device=self.device, dtype=self.dtype)
 
         # The per-iter big JSON dump (gated on output_dir) reads the quadrature
         # nodes/values off the returned result (padaquad: .nodes / .y).
@@ -491,4 +486,3 @@ class Popcornn:
             ts_force=final_ts_force,
         )
         logger.close()
-

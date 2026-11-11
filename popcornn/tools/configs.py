@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import yaml
 
 
 def import_yaml(address):
     """Load a YAML file. Thin ``yaml.safe_load`` wrapper."""
-    with open(address) as file:
-        loaded_yaml = yaml.safe_load(file)
-    return loaded_yaml
+    with Path(address).open() as file:
+        return yaml.safe_load(file)
 
 
 def import_run_config(name):
@@ -18,5 +19,4 @@ def import_run_config(name):
     function so future config validation can hook in here without
     touching every call site.
     """
-    yaml_config = import_yaml(name)
-    return yaml_config
+    return import_yaml(name)

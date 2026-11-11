@@ -40,7 +40,7 @@ class EScAIPPotential(BasePotential):
     def forward(self, positions):
         data = self.data_formatter(positions)
         pred = self.trainer.model(data)
-        for key in pred.keys():
+        for key in pred:
             pred[key] = self.trainer._denorm_preds(key, pred[key], data)
         energies = pred["energy"].view(-1)
         forces = pred["forces"].view(*positions.shape)
@@ -50,12 +50,11 @@ class EScAIPPotential(BasePotential):
         pos: torch.Tensor = pos.float()
         atomic_numbers: torch.Tensor = self.atomic_numbers
         cell: torch.Tensor = self.cell.float()
-        pbc: torch.Tensor = self.pbc
         tags: torch.Tensor = self.tags
         n_atoms: int = self.n_atoms
         n_data: int = pos.shape[0]
 
-        data = Data(
+        return Data(
             atomic_numbers=atomic_numbers.repeat(n_data),
             pos=pos.view(n_data * n_atoms, 3),
             cell=cell.repeat(n_data, 1, 1),
@@ -64,5 +63,3 @@ class EScAIPPotential(BasePotential):
             num_graphs=n_data,
             tags=tags.repeat(n_data),
         )
-
-        return data
