@@ -359,12 +359,12 @@ def test_repel(dtype, device):
 )
 @pytest.mark.parametrize(
     'device',
-    [torch.device('cpu'), torch.device('cuda')]
+    [torch.device('cpu'), torch.device('cuda'), torch.device('cuda', 1)]
 )
 def test_uma(dtype, device):
     pytest.skip(reason='Give github an UMA license')
-    if device.type == 'cuda' and not torch.cuda.is_available():
-        pytest.skip(reason='CUDA is not available, skipping test.')
+    if device.type == 'cuda' and torch.cuda.device_count() <= (device.index or 0):
+        pytest.skip(reason=f'{device} is not available, skipping test.')
         
     # if dtype == torch.float64:
     #     pytest.skip("UMA potential is not supported for float64 due to precision issues.")
@@ -379,9 +379,11 @@ def test_uma(dtype, device):
     images = process_images('tests/images/T1x.xyz', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
     potential = get_potential('uma', model_name='uma-s-1', task_name='omol', images=images, device=device, dtype=dtype)
-    potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
+    t = torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)
+    positions = path(t).positions
+    potential_output = potential(positions)
     assert potential_output.energies.shape == (3, 1)
-    assert potential_output.energies.device.type == device.type
+    assert potential_output.energies.device == positions.device
     assert potential_output.energies.dtype == dtype
     assert torch.allclose(potential_output.energies,
         torch.tensor([[image.get_potential_energy()] for image in raw_images], device=device, dtype=dtype),
@@ -390,7 +392,7 @@ def test_uma(dtype, device):
     assert potential_output.energies.grad_fn is not None
     assert potential_output.energies_decomposed is None
     assert potential_output.forces.shape == (3, 39)
-    assert potential_output.forces.device.type == device.type
+    assert potential_output.forces.device == positions.device
     assert potential_output.forces.dtype == dtype
     assert torch.allclose(potential_output.forces,
         torch.tensor([image.get_forces().flatten() for image in raw_images], device=device, dtype=dtype),
@@ -398,6 +400,8 @@ def test_uma(dtype, device):
     )
     assert potential_output.forces.grad_fn is not None
     assert potential_output.forces_decomposed is None
+    (grad_t,) = torch.autograd.grad(potential_output.energies.sum(), t)
+    assert grad_t.device == positions.device
 
     raw_images = [read('tests/images/OC20NEB.xyz', index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
@@ -409,9 +413,11 @@ def test_uma(dtype, device):
     images = process_images('tests/images/OC20NEB.xyz', device=device, dtype=dtype)
     path = get_path('linear', images=images, device=device, dtype=dtype)
     potential = get_potential('uma', model_name='uma-s-1', task_name='oc20', images=images, device=device, dtype=dtype)
-    potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
+    t = torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)
+    positions = path(t).positions
+    potential_output = potential(positions)
     assert potential_output.energies.shape == (3, 1)
-    assert potential_output.energies.device.type == device.type
+    assert potential_output.energies.device == positions.device
     assert potential_output.energies.dtype == dtype
     assert torch.allclose(potential_output.energies,
         torch.tensor([[image.get_potential_energy()] for image in raw_images], device=device, dtype=dtype),
@@ -420,7 +426,7 @@ def test_uma(dtype, device):
     assert potential_output.energies.grad_fn is not None
     assert potential_output.energies_decomposed is None
     assert potential_output.forces.shape == (3, 42)
-    assert potential_output.forces.device.type == device.type
+    assert potential_output.forces.device == positions.device
     assert potential_output.forces.dtype == dtype
     assert torch.allclose(potential_output.forces * ~images.fix_positions,
         torch.tensor([image.get_forces().flatten() for image in raw_images], device=device, dtype=dtype),

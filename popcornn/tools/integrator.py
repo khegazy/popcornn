@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import torch
 
-from torchpathint import path_integral
+from padaquad import adaptive_quadrature
 
 from .integrand import build_integrand_terms, evaluate_integrand_sum
 
@@ -11,11 +11,14 @@ from .integrand import build_integrand_terms, evaluate_integrand_sum
 class SamplesCache:
     """Per-quadrature-point energy + dE/dt samples harvested during integration.
 
-    Shape contract:
-    - ``time``: ``[N*K]``, flattened from ``IntegralOutput.t``'s ``[N, K]``.
-    - ``energies``: ``[N*K, E]`` (typically ``E=1``; potentials may emit a
+    Shape contract (``P`` = total accepted quadrature points; padaquad returns
+    its node-level outputs already flattened across panels with shared panel
+    boundaries deduplicated, so there is no per-panel ``[N, K]`` layout to
+    flatten on our side):
+    - ``time``: ``[P]``, taken from ``IntegralOutput.nodes``'s ``[P, T]``.
+    - ``energies``: ``[P, E]`` (typically ``E=1``; potentials may emit a
       decomposed energy tensor).
-    - ``dEdt``: ``[N*K]``, scalar ``dE/dt = ∇E·ẋ = -(F·v).sum(-1)``
+    - ``dEdt``: ``[P]``, scalar ``dE/dt = ∇E·ẋ = -(F·v).sum(-1)``
       precomputed inside the integrator from the same forces and
       velocities that were already resolved for the loss integrand —
       cached as a scalar so the consumer doesn't carry F (shape ``[D]``)
@@ -35,26 +38,36 @@ class PathIntegrator:
     """
     Adaptive-quadrature path integrator.
 
-    Wraps ``torchpathint.path_integral`` with the parts of the popcornn API
-    the optimizer uses:
+    Wraps a ``padaquad`` adaptive-quadrature solver with the parts of the
+    popcornn API the optimizer uses:
 
+    - the solver is built **once** in ``__init__`` and reused across every
+      ``integrate_path`` call (padaquad is stateful, unlike a free-function
+      integrator), so warm-start and memory benchmarking persist,
+    - **warm-start**: every call passes ``same_f=True``, so padaquad starts
+      from the optimized (pruned + refined) mesh and the batch size it stored
+      at the end of the previous call, which skips most adaptive-refinement
+      cost when the integrand changes only slightly between optimizer steps,
     - per-iteration ``integrand_scales`` updates so schedulers take effect,
     - direct scatter of ``∂L/∂θ`` into ``path.parameters().grad``
-      (no separate ``.backward()`` call),
+      (no separate ``.backward()`` call — we integrate the gradient itself
+      with ``take_gradient=False`` and write the result into ``.grad``),
     - a ``grad_integral`` alias on the returned object for the flat
-      ``[D]`` integrated gradient, and ``grad_norm`` / ``grad_norm_2``
-      fields holding ``‖∫∇L dt‖_∞`` (monitoring only since 2026-05-15)
-      and ``‖∫∇L dt‖_2`` (used by the convergence check),
-    - an optional detached pass that integrates the loss itself, exposed
-      as a ``loss`` field for monitoring,
-    - an optional ``save_samples`` mode that captures per-quadrature-point
-      ``(t, energies, forces)`` for transition-state finding without any
-      extra path evaluations.
+      ``[D]`` integrated gradient, and a ``grad_norm`` field holding
+      ``‖∫∇L dt‖`` (L2 or L∞ per ``norm``) used by the convergence check,
+    - an optional detached pass that integrates the loss itself (on a
+      second solver with its own tolerances), exposed as a ``loss`` field
+      for monitoring,
+    - an optional ``track_ts`` mode where the integrand emits
+      per-quadrature-point ``(energies, dE/dt)`` as padaquad
+      ``tracked_variables``, reassembled into a ``SamplesCache`` for
+      transition-state finding without any extra path evaluations.
     """
 
     def __init__(
             self,
             method='gk7',
+            integrate_gradient=True,
             path_integrand_names=None,
             path_integrand_scales=None,
             path_integrand_kwargs=None,
@@ -74,12 +87,35 @@ class PathIntegrator:
         Parameters
         ----------
         method : str, default="gk7"
-            torchpathint quadrature rule. ``gk7`` is the adaptive
+            padaquad quadrature rule. ``gk7`` is the adaptive
             Gauss–Kronrod 7-point rule; chosen as the popcornn default
             after the 2026-05-12 integrator sweep (gg3 NN pseudo-Huber)
             showed it's 30% faster than ``gk21`` at identical TS quality.
             Use ``gk21`` / ``gk31`` for tighter integration if the path
-            is unusually rough, or ``gl<n>`` for non-adaptive Gauss–Legendre.
+            is unusually rough; padaquad also offers ``gk15`` and
+            Clenshaw–Curtis (``cc*``) / Runge–Kutta rules.
+        integrate_gradient : bool, default=True
+            Selects which of padaquad's two gradient modes to use.
+
+            - ``True`` (integrate-the-gradient): the integrand itself
+              computes ``∂L/∂θ`` (a batched Jacobian) and padaquad
+              integrates that with ``take_gradient=False`` (no autograd
+              through the quadrature). ``result.integral`` is the flat
+              ``[D]`` gradient, scattered into ``param.grad`` directly.
+              This is the current/default popcornn behavior.
+            - ``False`` (gradient-of-the-integral): the integrand returns
+              the scalar loss only, padaquad integrates it with
+              ``take_gradient=True`` and calls ``.backward()`` on the loss
+              integral per batch, accumulating ``∫∂L/∂θ dt`` into
+              ``param.grad`` via autograd. This is the pre-fork behavior.
+
+            Both yield the same path gradient ``∫∂L/∂θ dt`` (up to
+            quadrature error); they differ in where the derivative is
+            taken. ``True`` frees the autograd graph per batch (the
+            Jacobian is computed and detached inside the integrand);
+            ``False`` keeps the graph for padaquad's backward and lets the
+            loss integral fall out for free (no separate ``track_loss``
+            pass needed).
         path_integrand_names : str or list of str, optional
             Per-point integrand (or list of them) to integrate. Looked up
             by name in ``PATH_INTEGRANDS``. See ``docs/loss-functions.md``.
@@ -93,52 +129,80 @@ class PathIntegrator:
         rtol, atol : float
             Adaptive-quadrature tolerances on the gradient integral.
         norm : str, default='2'
-            Vector norm to use for error estimation. ``"2"`` / ``"max"`` select L2 / L∞. Only relevant for adaptive Gauss-Kronrod.
+            Vector norm (``"2"`` / ``"max"`` select L2 / L∞) used for two
+            things: it is passed to padaquad as ``error_norm``, which reduces
+            each panel's ``[D]`` error vector for the accept/reject test
+            against ``max(atol, rtol·‖integral‖)``, and it reduces the flat
+            ``[D]`` gradient integral to the scalar ``grad_norm`` convergence
+            signal read by ``PathOptimizer``.
         max_batch : int, optional
-            Hard cap on the number of quadrature points evaluated in
-            one batch. ``None`` lets torchpathint auto-size. After each
-            ``integrate_path`` the learned size sticks: if torchpathint
-            had to halve to recover from a CUDA OOM, the smaller value
-            is reused on the next call so the OOM-and-halve cycle only
-            fires once per integrator lifetime, not once per optimizer
-            step.
+            Maximum number of quadrature points passed to the integrand in
+            one call. With ``integrate_gradient=True``, and in the
+            ``track_loss`` integral, it limits each call's memory, not the
+            total: padaquad evaluates every pending panel, keeping all their
+            outputs, before accepting or rejecting any. With
+            ``integrate_gradient=False`` padaquad evaluates at most
+            ``max_batch // nodes-per-panel`` panels and backpropagates through
+            them before evaluating more, so it also bounds the working memory.
+            Read only at construction. ``None`` makes padaquad
+            measure the memory of one evaluation on the first
+            ``integrate_path`` and size the batch from it; the stored size
+            is reused on every later call (``same_f=True``), so the slow
+            measurement runs once per integrator.
 
-            Scope is the ``PathIntegrator`` instance. Within a single
-            stage / optimizer loop, persistence is automatic. Across
-            stages built by ``Popcornn._optimize_stage`` (one fresh
-            integrator per stage) it does **not** carry over — that's
-            intentional, since different stages typically use different
-            potentials with different memory profiles. Multi-stage
-            harnesses that *do* know their later stages share a potential
-            can thread the value explicitly::
+            Out-of-memory errors: with ``integrate_gradient=True``, and in
+            the ``track_loss`` integral, padaquad shrinks the batch and
+            retries, and the smaller size is kept for the rest of this
+            integrator's life (it never grows back). With
+            ``integrate_gradient=False`` padaquad backpropagates through
+            each batch and cannot retry, so the error is raised; set
+            ``max_batch`` explicitly for memory-tight runs, at least the
+            nodes per panel (9 for ``gk7``, 23 for ``gk21``: padaquad adds
+            both panel endpoints, with zero weight, to the Kronrod nodes).
 
-                integ1 = PathIntegrator(...)
-                for it in range(N1):
-                    optr1.optimization_step(path, integ1)
-                integ2 = PathIntegrator(..., max_batch=integ1.max_batch)
-                for it in range(N2):
-                    optr2.optimization_step(path, integ2)
+            The stored size does **not** carry across stages built by
+            ``Popcornn._optimize`` (one fresh integrator per stage);
+            that is intentional, since different stages typically use
+            different potentials with different memory profiles.
+        max_iter : int, default=5
+            Maximum adaptive-refinement depth, passed to padaquad as
+            ``max_adaptive_splits``: the most times any single quadrature panel
+            may be split, after which it is accepted even if it still fails the
+            error tolerance. (padaquad has no global iteration count; this is a
+            per-panel recursion-depth cap, so the same integer bounds local
+            refinement at ~2^max_iter panels rather than total passes.) This
+            bounds padaquad's otherwise-uncapped refinement: a *finite*
+            integrand whose error never falls below
+            ``max(atol, rtol·|integral|)`` (e.g. a near-zero integral against
+            ``atol=0``) would otherwise split every panel forever, burning
+            unbounded compute. The default of 5 leaves well-behaved integrals
+            untouched (production runs converge well before depth 5; verified
+            identical grad_norm at 5/10/20 on Müller-Brown). Note this does
+            NOT rescue an integrand that returns NaN/Inf: padaquad raises a
+            ``ValueError`` naming the offending ``t``, so such degenerate
+            inputs must be avoided upstream.
         track_loss : bool, default=False
             Run a separate detached integral of the scalar loss
             ``∫L(t) dt`` for monitoring. Costs an extra pass; when
             enabled the result is attached as ``IntegralOutput.loss``.
-        loss_rtol, loss_atol : float, optional
-            Tolerances for the detached loss integral. Default to
-            ``rtol``/``atol``.
+        loss_rtol, loss_atol : float, default=0.0, 1e-4
+            Tolerances for the detached loss integral. These defaults are
+            independent of ``rtol``/``atol`` and usually tighter, so the
+            loss integral can use more nodes than the gradient integral.
         device : torch.device
         dtype : torch.dtype
         """
         self.method = method
+        self.integrate_gradient = integrate_gradient
         self.atol = atol
         self.rtol = rtol
         self.norm = norm
-        # Loss integral is debug-only; let it run at its own (looser by
-        # default) tolerance rather than paying for gradient-grade accuracy.
+        # Loss integral is for monitoring; it runs at its own tolerances
+        # (loss_rtol/loss_atol), independent of the gradient's.
         self.track_loss = track_loss
         self.loss_rtol = loss_rtol
         self.loss_atol = loss_atol
         self.track_ts = track_ts
-        self.max_batch = max_batch
         self.max_iter = max_iter
         self.device = device
         self.dtype = dtype
@@ -152,6 +216,42 @@ class PathIntegrator:
                 path_integrand_names,
                 path_integrand_scales,
                 path_integrand_kwargs,
+            )
+
+        # padaquad rejects dtype=None in _set_dtype — coalesce to float64 (the
+        # per-call set_dtype_by_input then matches the actual mesh-bound dtype
+        # anyway). The device is passed unchanged so a GPU index (cuda:1) is kept.
+        solver_dtype = self.dtype if self.dtype is not None else torch.float64
+
+        # Build the adaptive-quadrature solver ONCE; reused across every
+        # integrate_path call so the warm-start state padaquad stores on it
+        # (mesh and batch size, used by same_f=True) persists for the
+        # integrator's lifetime.
+        self._solver = adaptive_quadrature(
+            sampling_type='uniform',          # str -> steps.ADAPTIVE_UNIFORM
+            method=self.method,
+            atol=self.atol,
+            rtol=self.rtol,
+            max_batch=max_batch,
+            max_adaptive_splits=self.max_iter,  # per-panel split-depth cap; bounds refinement
+            dtype=solver_dtype,
+            device=self.device,
+        )
+
+        # Detached loss integral runs on its own solver so it can use its own
+        # tolerances and keep an independent warm-start mesh. Only
+        # needed in integrate_gradient mode; when integrate_gradient=False the
+        # main pass already integrates the loss, so .loss comes for free.
+        if self.integrate_gradient:
+            self._loss_solver = adaptive_quadrature(
+                sampling_type='uniform',
+                method=self.method,
+                atol=self.loss_atol,
+                rtol=self.loss_rtol,
+                max_batch=max_batch,
+                max_adaptive_splits=self.max_iter,
+                dtype=solver_dtype,
+                device=self.device,
             )
 
     def update_integrand_scales(self, **kwargs):
@@ -176,22 +276,26 @@ class PathIntegrator:
             t_final=torch.tensor([1.]),
         ):
         """
-        Integrate the gradient of the loss along the path.
+        Compute the path gradient and write it into ``param.grad``.
 
         Sets ``param.grad`` for each path parameter to the integrated
         gradient ``∫₀¹ ∂L/∂θ dt`` (accumulated, so multiple calls
-        between ``optimizer.zero_grad()`` compose). Also returns the
-        underlying ``IntegralOutput`` enriched with popcornn-level
-        fields:
+        between ``optimizer.zero_grad()`` compose). Whether the derivative
+        is taken inside the integrand (``integrate_gradient=True``) or by
+        padaquad backpropagating through the loss integral
+        (``integrate_gradient=False``) is set at construction; both land
+        the same gradient in ``param.grad``. Also returns the underlying
+        padaquad ``IntegrationResult`` enriched with popcornn-level fields:
 
-        - ``.grad_integral``: alias for the flat ``[D]`` integrated
-          gradient (same tensor as ``.integral`` from torchpathint;
-          named for clarity at popcornn call sites).
-        - ``.grad_norm``: ``‖∫∇L dt‖_∞`` (monitoring only since 2026-05-15).
-        - ``.grad_norm_2``: ``‖∫∇L dt‖_2`` (convergence trigger).
-        - ``.loss``: scalar ``∫L(t) dt`` when ``track_loss=True``.
+        - ``.grad_integral``: the flat ``[D]`` path gradient (padaquad's
+          ``.integral`` when ``integrate_gradient=True``; gathered from
+          ``param.grad`` after padaquad's backward when ``False``).
+        - ``.grad_norm``: ``‖∫∇L dt‖`` (L2 or L∞ per ``norm``); the
+          convergence trigger read by ``PathOptimizer``.
+        - ``.loss``: scalar ``∫L(t) dt`` when ``track_loss=True``, else
+          ``None``.
         - ``.samples``: ``SamplesCache`` (or ``None``) holding
-          per-quadrature-point ``(t, E, dE/dt)`` when ``save_samples=True``.
+          per-quadrature-point ``(t, E, dE/dt)`` when ``track_ts=True``.
 
         Parameters
         ----------
@@ -200,15 +304,16 @@ class PathIntegrator:
         integrand_scales : dict, optional
             Updated values for per-term scales (from schedulers).
         t_init, t_final : torch.Tensor
-            Integration bounds, in [0, 1]. Squeezed to 0-d for
-            torchpathint.
+            Integration bounds, in [0, 1]. Passed to padaquad as 1-D
+            ``[1]`` mesh bounds.
         """
         if integrand_scales:
             self.update_integrand_scales(**integrand_scales)
 
-        # torchpathint requires 0-d bounds; popcornn historically passed 1-d.
-        t_init_0d = torch.as_tensor(t_init, dtype=self.dtype, device=self.device).squeeze()
-        t_final_0d = torch.as_tensor(t_final, dtype=self.dtype, device=self.device).squeeze()
+        # padaquad wants 1-D ``[T]`` mesh bounds (T=1 here), not 0-d. Their
+        # dtype also drives the solver's working precision (set_dtype_by_input).
+        t_init_1d = torch.as_tensor(t_init, dtype=self.dtype, device=self.device).reshape(1)
+        t_final_1d = torch.as_tensor(t_final, dtype=self.dtype, device=self.device).reshape(1)
 
         # Filter out frozen params (requires_grad=False). When a potential
         # is attached via set_potential, it's registered as an nn.Module
@@ -219,87 +324,98 @@ class PathIntegrator:
         params = [p for p in path.parameters() if p.requires_grad]
         sizes = [p.numel() for p in params]
 
-        # Side-buffer for transition-state-finding samples. Each entry is a
-        # ``(t_chunk, E_chunk, dEdt_chunk)`` triplet captured inside ``f``
-        # and later reassembled in IntegralOutput.t.flatten() order via
-        # byte-keyed lookup (the same t tensor is passed to f and indexed
-        # into accepted_t by torchpathint, so byte equality holds).
-        # dE/dt is computed inside ``f`` as -(F·v).sum(-1) — forces and
-        # velocities have already been resolved for the loss integrand,
-        # so we reuse them rather than re-evaluating, and store only the
-        # scalar so the consumer doesn't carry [D]-shaped forces around.
-        sample_buffer: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = []
         also_resolve = ('energies', 'forces', 'velocities') if self.track_ts else ()
 
-        def f(t_flat):
+        def _loss_and_tracked(t):
+            """Evaluate the graph-live weighted integrand sum (``[N]``) and,
+            when track_ts is on, the ``(energies, dE/dt)`` tracked tuple
+            padaquad carries to the accepted nodes. padaquad passes nodes as
+            ``[N, 1]`` (already 2-D) — no unsqueeze. ``dE/dt = -(F·v).sum(-1)``
+            reuses the forces/velocities already resolved for the loss."""
             l, variables = evaluate_integrand_sum(
-                self._terms,
-                t_flat.unsqueeze(-1),
-                path,
-                also_resolve=also_resolve,
+                self._terms, t, path, also_resolve=also_resolve,
             )
+            tracked = None
             if self.track_ts:
-                dEdt = -(variables['forces'] * variables['velocities']).sum(dim=-1)
-                sample_buffer.append((
-                    t_flat.detach().cpu(),
-                    variables['energies'].detach().cpu(),
-                    dEdt.detach().cpu(),
-                ))
-            l_per_t = l.reshape(t_flat.shape[0], -1).sum(dim=-1)  # [N], graph live
-            n = l_per_t.shape[0]
-            grad_out = torch.eye(n, device=l_per_t.device, dtype=l_per_t.dtype)
-            grads = torch.autograd.grad(
-                outputs=l_per_t,
-                inputs=params,
-                grad_outputs=grad_out,
-                is_grads_batched=True,
-            )
-            return torch.cat([g.reshape(n, -1) for g in grads], dim=-1)  # [N, D]
+                dEdt = -torch.sum(
+                    variables['forces'] * variables['velocities'], dim=-1
+                )
+                tracked = (variables['energies'], dEdt)
+            return l, tracked
 
-        # full_output gates whether torchpathint populates .t and .y on the
-        # returned IntegralOutput. Required when something downstream reads
-        # them: _stitch_samples (save_samples=True) or popcornn._optimize's
-        # per-iter JSON dump (caller sets self.full_output=True). Off by
-        # default to avoid the diagnostic-buffer overhead.
-        integral_output = path_integral(
+        if self.integrate_gradient:
+            # Integrate-the-gradient: the integrand returns the per-point
+            # batched Jacobian ``∂L/∂θ`` as [N, D]; padaquad integrates it with
+            # take_gradient=False (no autograd through the quadrature), so
+            # ``result.integral`` is the flat [D] gradient scattered into
+            # param.grad below.
+            def f(t):
+                l_per_t, tracked = _loss_and_tracked(t)
+                n = l_per_t.shape[0]
+                grad_out = torch.eye(n, device=l_per_t.device, dtype=l_per_t.dtype)
+                grads = torch.autograd.grad(
+                    outputs=torch.sum(l_per_t, dim=-1), # Reduce to scalar for taking gradient
+                    inputs=params,
+                    grad_outputs=grad_out,
+                    is_grads_batched=True,
+                )
+                jac = torch.cat([g.reshape(n, -1) for g in grads], dim=-1)  # [N, D]
+                return jac, tracked
+            take_gradient = False
+        else:
+            # Gradient-of-the-integral: the integrand returns the scalar loss
+            # [N, 1] with the graph live; padaquad integrates it with
+            # take_gradient=True and calls .backward() on the loss integral
+            # per batch, accumulating ``∫∂L/∂θ dt`` into param.grad via autograd.
+            def f(t):
+                l, tracked = _loss_and_tracked(t)
+                return l, tracked  # [N, 1], graph live
+            take_gradient = True
+
+        # same_f=True: padaquad starts from the mesh and batch size it stored at
+        # the end of the previous call on this solver (pruned + refined mesh;
+        # batch size including any out-of-memory reduction), so the slow memory
+        # measurement runs only on the first call. With nothing stored yet it
+        # uses a fresh random mesh and the constructor's max_batch.
+        result = self._solver.integrate(
             f,
-            t_init_0d,
-            t_final_0d,
-            method=self.method,
-            atol=self.atol,
-            rtol=self.rtol,
-            norm=self.norm,
-            max_batch=self.max_batch,
-            max_iter=self.max_iter,
-            device=self.device,
-            dtype=self.dtype,
+            same_f=True,
+            mesh_init=t_init_1d,
+            mesh_final=t_final_1d,
+            error_norm=self.norm,
+            take_gradient=take_gradient,      # see integrate_gradient branch above
+            result_device=self.device
         )
-        # Persist any OOM-driven shrink across calls. torchpathint returns
-        # the value of max_batch that survived the call (= input if no OOM,
-        # smaller otherwise); reusing it means the halve fires once per
-        # integrator, not once per optimizer step.
-        self.max_batch = integral_output.max_batch
 
-        # ``integral_output.integral`` is torchpathint's generic name for the
-        # integrated function value — here it's the flat [D] gradient. Alias
-        # to ``.grad_integral`` so popcornn-internal call sites read clearly
-        # without disambiguating against the loss-integral pass below.
-        integral_output.grad_integral = integral_output.integral
+        integral_output = result
 
-        # Scatter the [D] integrated gradient into param.grad. Accumulate so
-        # multiple integrate_path calls between optimizer.zero_grad() compose.
-        offset = 0
-        flat = integral_output.grad_integral.detach()
-        for p, k in zip(params, sizes):
-            chunk = flat[offset:offset + k].reshape(p.shape)
-            p.grad = chunk if p.grad is None else p.grad + chunk
-            offset += k
+        # Recover the flat [D] path gradient into param.grad. In both modes the
+        # optimizer reads it back off param.grad, but the source differs:
+        if self.integrate_gradient:
+            # ``result.integral`` IS the [D] integrated gradient. Scatter it
+            # into param.grad, accumulating so multiple integrate_path calls
+            # between optimizer.zero_grad() compose.
+            flat = result.integral.detach()
+            offset = 0
+            for p, k in zip(params, sizes):
+                chunk = flat[offset:offset + k].reshape(p.shape)
+                p.grad = chunk if p.grad is None else p.grad + chunk
+                offset += k
+        else:
+            # padaquad already called .backward(), accumulating ∫∂L/∂θ dt into
+            # param.grad. Gather it into a flat [D] vector for grad_norm and the
+            # grad_integral alias. (Frozen/untouched params contribute zeros.)
+            flat = torch.cat([
+                p.grad.reshape(-1) if p.grad is not None
+                else p.new_zeros(k).reshape(-1)
+                for p, k in zip(params, sizes)
+            ]).detach()
+        integral_output.grad_integral = flat
 
-        # No scalar loss graph in this design. Surface ‖∫∇L dt‖_∞ (per-component
-        # max) as the convergence signal consumed by PathOptimizer's threshold
-        # check. L∞ is closer to MLP-size-independent than L2 — the latter scales
-        # with √D and forces the threshold to be retuned per parameter count.
-        # Also expose L2 for monitoring (cheap on the same flat tensor).
+        # Surface ‖∫∇L dt‖ as the convergence signal consumed by
+        # PathOptimizer's threshold check. L∞ is closer to MLP-size-independent
+        # than L2 — the latter scales with √D and forces the threshold to be
+        # retuned per parameter count.
         if self.norm == '2':
             integral_output.grad_norm = flat.norm()
         elif self.norm == 'max':
@@ -308,59 +424,63 @@ class PathIntegrator:
             raise ValueError(f"Unsupported norm {self.norm!r} (choose '2' or 'max').")
 
         if self.track_ts:
-            integral_output.samples = self._stitch_samples(sample_buffer, integral_output.t)
+            integral_output.samples = self._samples_from_result(result)
         else:
             integral_output.samples = None
 
-        if self.track_loss:
-            def fval(t_flat):
-                l, _ = evaluate_integrand_sum(
-                    self._terms,
-                    t_flat.unsqueeze(-1),
-                    path,
-                )
-                return l.reshape(t_flat.shape[0], -1).detach()
-            loss_output = path_integral(
+        # ``.loss`` = scalar ∫L(t) dt when track_loss, else None. padaquad
+        # pre-fills ``result.loss`` from its default loss_fxn, so always
+        # overwrite it explicitly.
+        if not self.track_loss:
+            integral_output.loss = None
+        elif self.integrate_gradient:
+            # The main pass integrated the gradient, not the loss, so run a
+            # separate detached loss integral on its own solver (own tolerances).
+            def fval(t):
+                l, _ = evaluate_integrand_sum(self._terms, t, path)
+                return l.reshape(t.shape[0], -1).detach()  # [N, 1], bare tensor
+            loss_result = self._loss_solver.integrate(
                 fval,
-                t_init_0d,
-                t_final_0d,
-                method=self.method,
-                atol=self.loss_atol,
-                rtol=self.loss_rtol,
-                norm=self.norm,
-                max_batch=self.max_batch,
-                device=self.device,
-                dtype=self.dtype,
+                same_f=True,
+                mesh_init=t_init_1d,
+                mesh_final=t_final_1d,
+                error_norm=self.norm,
+                take_gradient=False,
+                # Read only on this solver's first call (same_f=True then uses
+                # its own stored size); starting from the gradient solver's
+                # size skips a second memory measurement.
+                max_batch=self._solver.previous_max_batch,
+                result_device=self.device
             )
-            integral_output.loss = loss_output.integral.detach()
-            # Loss pass may shrink further (it has no autograd graph, but
-            # the integrand magnitudes can drive different K's per interval).
-            self.max_batch = loss_output.max_batch
+            integral_output.loss = loss_result.integral.detach()  # [1]
+        else:
+            # The main pass already integrated the loss — it's free here.
+            integral_output.loss = result.integral.detach()  # [1]
 
         self.integral_output = integral_output
         self.N_integrals += 1
         return integral_output
 
-    def _stitch_samples(self, sample_buffer, accepted_t):
-        """Flatten the per-call ``(t, E, dEdt)`` buffer into a single
-        ``SamplesCache`` containing **every** captured evaluation —
-        including rejected-refinement points that did not make it into
-        the accepted-quadrature subset.
+    def _samples_from_result(self, result):
+        """Build a ``SamplesCache`` from padaquad's accepted-node output.
 
-        Previously this filtered by byte-key to ``accepted_t``; the
-        rejected refinement evals were discarded. Keeping them lets
-        downstream consumers (TS search, diagnostic plots) see the full
-        sampling pattern the integrator explored.
+        ``result.nodes`` (``[P, T]``, T=1) gives the per-quadrature-point
+        times; ``result.tracked_variables`` carries the ``(energies, dE/dt)``
+        the integrand emitted, returned detached at the accepted nodes and
+        aligned with ``nodes``. padaquad already returns these flattened across
+        panels with shared panel boundaries deduplicated (``P`` total points),
+        so we just move them to ``device`` and sort by time, letting consumers
+        (TS search) scan in order without an extra ``argsort``.
 
-        ``accepted_t`` is no longer consumed but is kept in the signature
-        for call-site compatibility. Output is sorted by ``time`` so
-        consumers can scan in order without an extra ``argsort``.
+        Note: unlike the old byte-keyed stitch, these are the *accepted* mesh
+        nodes only (rejected-refinement evals are not returned by padaquad).
         """
-        if not sample_buffer:
+        if result.tracked_variables is None or result.nodes.shape[0] == 0:
             empty = torch.empty(0, device=self.device, dtype=self.dtype)
             return SamplesCache(time=empty, energies=empty, dEdt=empty)
-        time = torch.cat([t_chunk for t_chunk, _, _ in sample_buffer], dim=0).to(self.device).flatten()
-        energies = torch.cat([e_chunk for _, e_chunk, _ in sample_buffer], dim=0).to(self.device)
-        dEdt = torch.cat([dedt_chunk for _, _, dedt_chunk in sample_buffer], dim=0).to(self.device)
+        energies, dEdt = result.tracked_variables  # [P, E], [P]
+        time = result.nodes[..., 0].to(self.device)      # [P]
+        energies = energies.to(self.device)              # [P, E]
+        dEdt = dEdt.to(self.device)                      # [P]
         order = torch.argsort(time)
         return SamplesCache(time=time[order], energies=energies[order], dEdt=dEdt[order])

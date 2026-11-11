@@ -79,7 +79,7 @@ optimization_params:
     num_optimizer_iterations: 1000
 ```
 
-`width=128, depth=2`, `method=gk7`, `tol_mode='l2'`, `rtol=0.5`,
+`width=128, depth=2`, `method=gk7`, `norm='2'`, `rtol=0.5`,
 `atol=2.5e-3`, `patience=1` all come from the shipped defaults.
 
 Point `images:` at an `xyz` or `traj` file. The first frame is treated

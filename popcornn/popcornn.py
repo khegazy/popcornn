@@ -351,8 +351,8 @@ class Popcornn:
         # Gradient descent path optimizer
         optimizer = PathOptimizer(path=self.path, **optimizer_params, track_ts=self.track_ts, device=self.device, dtype=self.dtype)
 
-        # The per-iter big JSON dump (gated on output_dir) reads .t and .y
-        # off the returned IntegralOutput; ask torchpathint to populate them.
+        # The per-iter big JSON dump (gated on output_dir) reads the quadrature
+        # nodes/values off the returned result (padaquad: .nodes / .y).
         # if output_dir is not None:
         #     integrator.full_output = True
 

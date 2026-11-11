@@ -63,15 +63,18 @@ The adaptive Gauss–Kronrod integrator needs a noise budget small
 enough not to mask the trigger, large enough not to over-refine. The
 "half-EXTREME" pair sits at:
 
-$$\text{atol} = \text{threshold} / 2, \qquad \text{rtol} = 0.5, \qquad \text{tol\_mode} = \text{`l2'}$$
+$$\text{atol} = \text{threshold} / 2, \qquad \text{rtol} = 0.5, \qquad \text{norm} = \text{`2'}$$
 
-`tol_mode='l2'` makes the integrator use a scalar `atol + rtol·|g|_2`
-denominator that matches the trigger metric. With this pair the
-total integrator noise at the trigger is
-`atol + rtol·|g|_2 ≈ threshold/2 + 0.5·threshold = threshold` —
-comparable to the trigger itself, which is loose enough that GK
-doesn't over-subdivide but tight enough that the trigger fires
-cleanly.
+`norm: '2'` makes padaquad reduce each panel's error vector with the
+L2 norm and accept the panel once that error drops below
+`max(atol, rtol·|g|_2)`, where `|g|_2` is the L2 norm of the integrated
+gradient — the same scalar metric the `|g|_2` trigger uses. (With
+`integrate_gradient: false` padaquad integrates the loss instead, so the
+`rtol` term multiplies the loss integral.) With this pair the per-panel
+tolerance at the trigger is
+`max(threshold/2, 0.5·threshold) = threshold/2` — half the trigger
+itself, which is loose enough that the quadrature doesn't
+over-subdivide but tight enough that the trigger fires cleanly.
 
 ## Worked example
 
@@ -98,7 +101,7 @@ integrator_params:
     pvre_pseudo_huber: {delta: 0.05}
   rtol: 0.5
   atol: 2.5e-3
-  tol_mode: l2
+  norm: '2'
   method: gk7
 optimizer_params:
   optimizer: {name: adam, lr: 5.0e-3}
@@ -121,6 +124,10 @@ $\sigma_{\min}(J_\text{path})$ calibration that the threshold derivation
 relies on is also system-independent at that width (see
 [paths](paths.md)). Net result: L2 is the practical convergence
 metric.
+
+Both norms are exposed through `integrator_params.norm` — `'2'` (L2,
+the default) and `'max'` (L∞) — so you can switch back to L∞ if a
+particular system benefits.
 
 ## How to pick `patience`
 

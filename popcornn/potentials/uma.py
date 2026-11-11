@@ -1,4 +1,6 @@
 
+import contextlib
+
 import torch
 from fairchem.core import pretrained_mlip, FAIRChemCalculator
 from fairchem.core.units.mlip_unit.api.inference import InferenceSettings
@@ -32,9 +34,28 @@ class UMAPotential(BasePotential):
         self.n_eval = 0
 
 
+    def _cuda_device_context(self):
+        """Make ``self.device`` the current CUDA device inside a ``with`` block.
+
+        fairchem accepts only ``"cpu"``/``"cuda"`` and takes the GPU index from
+        ``torch.cuda.current_device()`` when the predictor is built, so a GPU
+        index such as ``cuda:1`` is honored only if the predictor is built
+        inside this context. ``predict`` also runs inside it as a safeguard:
+        with the ``InferenceSettings`` used here
+        (``activation_checkpointing=True``) fairchem runs its pure-PyTorch
+        backend, which follows the tensors' device, not its Triton backend
+        (``umas_fast_gpu``), whose kernels launch on the current device.
+        ``torch.cuda.device`` raises when no GPU is visible, so CPU runs get a
+        no-op context.
+        """
+        if self.device.type == 'cuda':
+            return torch.cuda.device(self.device)  # index-less 'cuda' keeps the current GPU
+        return contextlib.nullcontext()
+
     def forward(self, positions):
         data = self.data_formatter(positions)
-        pred = self.predictor.predict(data)
+        with self._cuda_device_context():
+            pred = self.predictor.predict(data)
         self.n_eval += 1
         energies = (
             pred['energy'].unsqueeze(-1)
@@ -49,11 +70,14 @@ class UMAPotential(BasePotential):
         # Default is float32; without this, fp64 mep ends up with float32
         # UMA weights and float32 forces despite self.dtype=float64.
         inference_settings = InferenceSettings(base_precision_dtype=self.dtype)
-        predictor = pretrained_mlip.get_predict_unit(
-            model_name=model_name, device=self.device.type,
-            inference_settings=inference_settings,
-        )
-        calc = FAIRChemCalculator(predictor, task_name=task_name)
+        # fairchem rejects an indexed device; the GPU index comes from the
+        # current CUDA device set by the context.
+        with self._cuda_device_context():
+            predictor = pretrained_mlip.get_predict_unit(
+                model_name=model_name, device=self.device.type,
+                inference_settings=inference_settings,
+            )
+            calc = FAIRChemCalculator(predictor, task_name=task_name)
         calc.predictor.model.module.output_heads['energyandforcehead'].head.training = True
         return calc.predictor
 

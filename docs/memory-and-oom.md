@@ -46,25 +46,38 @@ integrator_params:
   max_batch: 32
 ```
 
-This forces every quadrature call to evaluate at most 32 points.
-Slower (more sequential calls), but bounded memory.
+This passes at most 32 points to the path and potential in one call.
+It is slower (more sequential calls). In `integrate_gradient: true`
+mode (the default), and in the `track_loss` integral, it limits the
+memory of each call, not the total: padaquad evaluates every pending
+quadrature panel, keeping all their outputs, before accepting or
+rejecting any. In `integrate_gradient: false` mode padaquad evaluates
+at most `max_batch // nodes-per-panel` panels and backpropagates
+through them before evaluating more, so `max_batch` also bounds the
+working memory; there it must be at least the number of nodes per
+panel (9 for `gk7`, 23 for `gk21`: padaquad adds both panel endpoints,
+with zero weight, to the Kronrod nodes).
 
-torchpathint also remembers what value worked the last time
-`integrate_path` was called on a given `PathIntegrator` instance, so
-the OOM-and-halve cycle only fires once per integrator lifetime, not
-once per optimizer step. Across stages built by
-`Popcornn._optimize` (one fresh integrator per stage), the learned
-value does **not** carry over — that's intentional, since different
-stages typically use different potentials with different memory
-profiles. Multi-stage harnesses that *do* know their later stages
-share a potential can thread the value explicitly:
+With `max_batch` left at `None`, padaquad measures the memory of one
+integrand evaluation on the first `integrate_path` call of a
+`PathIntegrator` and sizes the batch from it. The measurement is slow,
+so it runs once per integrator, not once per optimizer step: padaquad
+stores the batch size and popcornn reuses it on every later call.
 
-```python
-integ1 = PathIntegrator(...)
-# ... run stage 1
-integ2 = PathIntegrator(..., max_batch=integ1.max_batch)
-# ... stage 2 starts with stage 1's learned batch size
-```
+If a batch still runs out of memory, what happens depends on the
+gradient mode:
+
+- `integrate_gradient: true` (the default), and the `track_loss`
+  integral: padaquad shrinks the batch and retries, and the smaller
+  size is kept for the rest of that stage (it never grows back).
+- `integrate_gradient: false`: padaquad backpropagates through each
+  batch and cannot retry, so the error is raised. Set `max_batch`
+  explicitly for memory-tight runs in this mode.
+
+Across stages built by `Popcornn._optimize` (one fresh integrator
+per stage), the stored batch size does **not** carry over — that's
+intentional, since different stages typically use different potentials
+with different memory profiles.
 
 ## 3. Float precision
 
@@ -117,5 +130,5 @@ with:
 - The full traceback, including the actual CUDA allocator message.
 - `nvidia-smi` output showing how much memory the GPU actually has.
 - The full config file you're running.
-- The popcornn and torchpathint commit hashes
-  (`pip show popcornn torchpathint | grep -i 'name\|version'`).
+- The popcornn and padaquad commit hashes
+  (`pip show popcornn padaquad | grep -i 'name\|version'`).

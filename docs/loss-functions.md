@@ -17,7 +17,7 @@ integrator_params:
     pvre_pseudo_huber: {delta: 0.05}
   rtol: 0.5
   atol: 2.5e-3
-  tol_mode: l2
+  norm: '2'
   method: gk7
 ```
 
