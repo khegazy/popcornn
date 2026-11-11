@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import numpy as np
 import torch
 
 from popcornn import Popcornn, tools
@@ -19,7 +18,6 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
     # Setup environment
     Path(benchmark_path).mkdir(parents=True, exist_ok=True)
     torch.manual_seed(2025)
-    np.random.seed(2025)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Get config file
