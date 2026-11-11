@@ -1,3 +1,4 @@
+from __future__ import annotations
 
 
 def get_potential(name, **kwargs):
@@ -59,7 +60,7 @@ def get_potential(name, **kwargs):
     elif name == "ani":
         from .ani import AniPotential
         return AniPotential(**kwargs)
-    elif name == "leftnet" or name == 'left':
+    elif name == "leftnet" or name == "left":
         from .leftnet import LeftNetPotential
         return LeftNetPotential(**kwargs)
     elif name == "orb":

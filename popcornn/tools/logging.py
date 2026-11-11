@@ -1,17 +1,19 @@
-import os
+from __future__ import annotations
+
 import numpy as np
+
 from .visualize import plot_path
 
 
-class logging():
+class logging:
     def __init__(self, *args, **kwargs):
         return
-    
+
     def training_logger(self, step, val):
         step_string = ("step: " + str(step)).ljust(15)
         val_string = "val: " + str(val)
         print(step_string, val_string)
-    
+
     def optimization_step(
             self,
             step,
@@ -19,7 +21,7 @@ class logging():
             potential,
             loss,
             plot=True,
-            plot_dir='./',
+            plot_dir="./",
             geo_paths=None,
             pes_paths=None,
             add_azimuthal_dof=False,
@@ -33,7 +35,7 @@ class logging():
             pes_paths.append(path_output.potential_path)
         if plot:
             plot_path(
-                path_output.geometric_path.detach().to('cpu').numpy(),
+                path_output.geometric_path.detach().to("cpu").numpy(),
                 f"test_plot_{step:03d}",
                 pes_fxn=potential,
                 plot_min_max=(-2, 2, -2, 2),

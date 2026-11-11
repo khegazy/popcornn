@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import torch
 from ase.data import covalent_radii
 
 from .base_potential import BasePotential, PotentialOutput
+
 
 class MorsePotential(BasePotential):
     """
@@ -27,7 +30,7 @@ class MorsePotential(BasePotential):
         super().__init__(**kwargs)
         self.alpha = alpha
         self.r0 = None
-    
+
     def forward(self, positions):
         if self.r0 is None:
             self.set_r0(self.atomic_numbers)
@@ -44,7 +47,7 @@ class MorsePotential(BasePotential):
             forces=forces,
             forces_decomposed=forces_decomposed
         )
-    
+
     def set_r0(self, atomic_numbers):
         """
         Set the r0_ij values for the potential

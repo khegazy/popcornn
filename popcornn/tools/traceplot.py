@@ -31,21 +31,23 @@ The locked layout (used across the fp32 3-seed plots) is:
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 
-
 __all__ = [
-    'Series', 'Panel',
-    'plot_stacked_traces',
-    'read_jsonl', 'extract_xy',
-    'last_iter', 'last_value',
+    "Panel",
+    "Series",
+    "extract_xy",
+    "last_iter",
+    "last_value",
+    "plot_stacked_traces",
+    "read_jsonl",
 ]
 
 
@@ -54,12 +56,12 @@ class Series:
     """One trajectory to plot. `rows` is a list of {field: value} dicts."""
     rows: list[dict]
     label: str | None = None
-    color: str = 'C0'
-    linestyle: str = '-'
+    color: str = "C0"
+    linestyle: str = "-"
     alpha: float = 0.95
     lw: float = 1.1
-    iter_field: str = 'iter'
-    wall_field: str | None = 't_s'
+    iter_field: str = "iter"
+    wall_field: str | None = "t_s"
     show_trigger: bool = True
 
 
@@ -88,7 +90,7 @@ def read_jsonl(path: str | Path) -> list[dict]:
     return rows
 
 
-def extract_xy(rows: list[dict], field: str, iter_field: str = 'iter') -> tuple[np.ndarray, np.ndarray]:
+def extract_xy(rows: list[dict], field: str, iter_field: str = "iter") -> tuple[np.ndarray, np.ndarray]:
     """Pull (x=iter, y=field) arrays, skipping rows where the value is None/NaN."""
     xs, ys = [], []
     for r in rows:
@@ -106,7 +108,7 @@ def extract_xy(rows: list[dict], field: str, iter_field: str = 'iter') -> tuple[
     return np.asarray(xs), np.asarray(ys)
 
 
-def last_iter(rows: list[dict], iter_field: str = 'iter') -> int | None:
+def last_iter(rows: list[dict], iter_field: str = "iter") -> int | None:
     return int(rows[-1][iter_field]) if rows else None
 
 
@@ -129,13 +131,13 @@ def last_value(rows: list[dict], field: str) -> float | None:
 
 def _set_uniform_font(font_size: int) -> None:
     plt.rcParams.update({
-        'font.size': font_size,
-        'axes.titlesize': font_size,
-        'axes.labelsize': font_size,
-        'xtick.labelsize': font_size,
-        'ytick.labelsize': font_size,
-        'legend.fontsize': font_size,
-        'figure.titlesize': font_size,
+        "font.size": font_size,
+        "axes.titlesize": font_size,
+        "axes.labelsize": font_size,
+        "xtick.labelsize": font_size,
+        "ytick.labelsize": font_size,
+        "legend.fontsize": font_size,
+        "figure.titlesize": font_size,
     })
 
 
@@ -148,10 +150,10 @@ def _draw_panel(ax: Axes, panel: Panel, series: Iterable[Series], xlabel: str | 
                 color=s.color, linestyle=s.linestyle,
                 lw=s.lw, alpha=s.alpha)
     for y, lbl in panel.hlines:
-        ax.axhline(y, color='k', ls=':', lw=0.9, alpha=0.7, zorder=0,
+        ax.axhline(y, color="k", ls=":", lw=0.9, alpha=0.7, zorder=0,
                    label=lbl)
     if panel.log_y:
-        ax.set_yscale('log')
+        ax.set_yscale("log")
     if xlabel is not None:
         ax.set_xlabel(xlabel)
     ax.set_ylabel(panel.ylabel)
@@ -178,7 +180,7 @@ def plot_stacked_traces(
         figsize: tuple[float, float] | None = None,
         font_size: int = 10,
         legend_handles: list[Line2D] | None = None,
-        legend_loc: str = 'best',
+        legend_loc: str = "best",
         annotation: str | None = None,
         annotation_loc: tuple[float, float] = (0.985, 0.04),
         sharex: bool = True,
@@ -224,7 +226,7 @@ def plot_stacked_traces(
     # the first series is 'iter', else use that field as the label.
     if xlabel is None and series:
         f = series[0].iter_field
-        xlabel = 'iter' if f == 'iter' else f
+        xlabel = "iter" if f == "iter" else f
     fig, axes = plt.subplots(len(panels), 1, figsize=figsize, sharex=sharex)
     if len(panels) == 1:
         axes = [axes]
@@ -251,10 +253,10 @@ def plot_stacked_traces(
     if annotation:
         ax_top.text(annotation_loc[0], annotation_loc[1], annotation,
                     transform=ax_top.transAxes,
-                    ha='right' if annotation_loc[0] > 0.5 else 'left',
-                    va='bottom' if annotation_loc[1] < 0.5 else 'top',
-                    family='monospace',
-                    bbox=dict(facecolor='white', alpha=0.85, edgecolor='0.6'))
+                    ha="right" if annotation_loc[0] > 0.5 else "left",
+                    va="bottom" if annotation_loc[1] < 0.5 else "top",
+                    family="monospace",
+                    bbox=dict(facecolor="white", alpha=0.85, edgecolor="0.6"))
 
     ax_top.set_title(title)
     fig.tight_layout()

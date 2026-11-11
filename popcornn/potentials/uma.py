@@ -1,13 +1,15 @@
+from __future__ import annotations
 
 import contextlib
 
 import torch
-from fairchem.core import pretrained_mlip, FAIRChemCalculator
-from fairchem.core.units.mlip_unit.api.inference import InferenceSettings
+from fairchem.core import FAIRChemCalculator, pretrained_mlip
 from fairchem.core.datasets import data_list_collater
 from fairchem.core.datasets.atomic_data import AtomicData
+from fairchem.core.units.mlip_unit.api.inference import InferenceSettings
 
 from .base_potential import BasePotential, PotentialOutput
+
 
 class UMAPotential(BasePotential):
     """
@@ -48,7 +50,7 @@ class UMAPotential(BasePotential):
         ``torch.cuda.device`` raises when no GPU is visible, so CPU runs get a
         no-op context.
         """
-        if self.device.type == 'cuda':
+        if self.device.type == "cuda":
             return torch.cuda.device(self.device)  # index-less 'cuda' keeps the current GPU
         return contextlib.nullcontext()
 
@@ -58,10 +60,10 @@ class UMAPotential(BasePotential):
             pred = self.predictor.predict(data)
         self.n_eval += 1
         energies = (
-            pred['energy'].unsqueeze(-1)
+            pred["energy"].unsqueeze(-1)
             .to(dtype=self.dtype)  # https://github.com/facebookresearch/fairchem/issues/1317
         )
-        forces = pred['forces'].view(*positions.shape)
+        forces = pred["forces"].view(*positions.shape)
         return PotentialOutput(energies=energies, forces=forces)
 
 
@@ -78,7 +80,7 @@ class UMAPotential(BasePotential):
                 inference_settings=inference_settings,
             )
             calc = FAIRChemCalculator(predictor, task_name=task_name)
-        calc.predictor.model.module.output_heads['energyandforcehead'].head.training = True
+        calc.predictor.model.module.output_heads["energyandforcehead"].head.training = True
         return calc.predictor
 
     def data_formatter(self, positions):
@@ -102,5 +104,5 @@ class UMAPotential(BasePotential):
             data.dataset = self.task_name
             data_list.append(data)
         batch = data_list_collater(data_list, otf_graph=True)
-        
+
         return batch

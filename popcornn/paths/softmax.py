@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import torch
 from torch import nn
-import math
 
 from .base_path import BasePath
 from .linear import LinearPath
@@ -10,7 +11,7 @@ class SquaredSoftmax(nn.Module):
     def __init__(self, sharpening=1):
         super().__init__()
         self.sharpening = sharpening
- 
+
     def forward(self, x):
         return torch.softmax(-(x * self.sharpening)**2, dim=-1)
 
@@ -25,7 +26,7 @@ class SoftMaxPath(BasePath):
         **kwargs,
     ):
         super().__init__(**kwargs)
-       
+
         self.mlp = nn.Sequential(
             nn.Linear(1, width, dtype=self.dtype, bias=True),
             SquaredSoftmax(sharpening=sharpening),
@@ -37,7 +38,7 @@ class SoftMaxPath(BasePath):
         self.neval = 0
 
         self.base = base if base is not None else LinearPath(**kwargs)
-        
+
         print("Number of trainable parameters in MLP:", sum(p.numel() for p in self.parameters() if p.requires_grad))
         print(self.mlp)
 

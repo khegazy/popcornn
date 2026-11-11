@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import torch
 
-class MinimaUpdate():
+
+class MinimaUpdate:
     """
     Plain SGD wrapper for relaxing a point to a local minimum of a
     potential. Used to refresh reactant/product positions when the
@@ -47,7 +50,7 @@ class MinimaUpdate():
         if len(point.shape) == 1:
             point = point.unsqueeze(0)
             unsqueeze = True
-        
+
         point.requires_grad = True
         optimizer = torch.optim.SGD([point], lr=self.step_size)
         print(f"computing minima ... {point}")
@@ -58,7 +61,7 @@ class MinimaUpdate():
             #if step % log_frequency == 0:
             #    self.training_logger(step, self.potential(point))
         point.requires_grad = False
-        
+
         if unsqueeze:
-            point = point[0]   
+            point = point[0]
         return point

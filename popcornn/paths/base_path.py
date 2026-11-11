@@ -1,12 +1,16 @@
-import torch
+from __future__ import annotations
+
 from dataclasses import dataclass
+
+import torch
 from einops import rearrange
-from popcornn.tools import Images, SamplesCache, wrap_positions
+
 from popcornn.potentials.base_potential import BasePotential, PotentialOutput
+from popcornn.tools import Images, SamplesCache, wrap_positions
 
 
 @dataclass
-class PathOutput():
+class PathOutput:
     """
     Data class representing the output of a path computation.
 
@@ -148,7 +152,7 @@ class BasePath(torch.nn.Module):
         torch.Tensor
             Positions of shape ``[N, D]``.
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
     def calculate_velocities(self, t, create_graph=True):
@@ -166,7 +170,7 @@ class BasePath(torch.nn.Module):
             create_graph=create_graph,
             vectorize=True
         ).transpose(0, 1)[:, :, 0]
-    
+
     def _check_output(
             self,
             potential_output,
@@ -191,7 +195,7 @@ class BasePath(torch.nn.Module):
             raise ValueError(f"Potential {name} cannot calculate forces")
         if return_forces_decomposed and potential_output.forces_decomposed is None:
             raise ValueError(f"Potential {name} cannot calculate forces_decomposed")
-    
+
     def forward(
             self,
             time : torch.Tensor = None,
@@ -235,8 +239,8 @@ class BasePath(torch.nn.Module):
         if self.transform is not None:
             positions = self.transform(positions)
         if return_energies or return_energies_decomposed or return_forces or return_forces_decomposed:
-            assert self.potential is not None, "Potential must be set by \'set_potential\' before calling \'forward\'"
-            potential_output = self.potential(positions) 
+            assert self.potential is not None, "Potential must be set by 'set_potential' before calling 'forward'"
+            potential_output = self.potential(positions)
             self._check_output(
                 potential_output,
                 return_energies=return_energies,
@@ -261,7 +265,7 @@ class BasePath(torch.nn.Module):
             forces=self._reshape_out(potential_output.forces),
             forces_decomposed=self._reshape_out(potential_output.forces_decomposed),
         )
-    
+
 
     def _reshape_in(self, time):
         """
@@ -274,11 +278,11 @@ class BasePath(torch.nn.Module):
         """
         if time is None:
             time = torch.linspace(self.t_init.item(), self.t_final.item(), 101, device=self.device, dtype=self.dtype)
-        
+
         if len(time.shape) == 3:
             self._inp_reshaped = True
             self._inp_shape = time.shape
-            time = rearrange(time, 'b c t -> (b c) t')
+            time = rearrange(time, "b c t -> (b c) t")
         elif len(time.shape) == 2:
             self._inp_reshaped = False
             B, C, = None, None
@@ -298,10 +302,10 @@ class BasePath(torch.nn.Module):
             raise RuntimeError("Must call _reshape_in() before _reshape_out()")
         if self._inp_reshaped and result is not None:
             B, C, _ = self._inp_shape
-            return rearrange(result, '(b c) d -> b c d', b=B, c=C)
+            return rearrange(result, "(b c) d -> b c d", b=B, c=C)
         return result
 
-    
+
     def ts_search(
         self,
         samples: SamplesCache,
@@ -435,7 +439,7 @@ class BasePath(torch.nn.Module):
         vector L2 norm.
         """
         f = force.reshape(-1)
-        n_atoms = getattr(self.potential, 'n_atoms', None) if self.potential is not None else None
+        n_atoms = getattr(self.potential, "n_atoms", None) if self.potential is not None else None
         if n_atoms is None:
             return torch.linalg.norm(f)
         return torch.linalg.norm(f.reshape(n_atoms, 3), dim=-1).max()

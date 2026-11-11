@@ -1,35 +1,36 @@
-import pytest
-import numpy as np
-import torch
-import ase
-from ase.io import read
-from ase.calculators.lj import LennardJones
-from ase.calculators.calculator import Calculator
-from ase.neighborlist import NeighborList
-from ase.data import covalent_radii
-from ase.mep import interpolate
-from fairchem.core import pretrained_mlip, FAIRChemCalculator
+from __future__ import annotations
 
-from popcornn.tools import process_images
+import numpy as np
+import pytest
+import torch
+from ase.calculators.calculator import Calculator
+from ase.calculators.lj import LennardJones
+from ase.data import covalent_radii
+from ase.io import read
+from ase.mep import interpolate
+from ase.neighborlist import NeighborList
+from fairchem.core import FAIRChemCalculator, pretrained_mlip
+
 from popcornn.paths import get_path
 from popcornn.potentials import get_potential
+from popcornn.tools import process_images
 
 
 @pytest.mark.parametrize(
-    'dtype',
+    "dtype",
     [torch.float32, torch.float64],
 )
 @pytest.mark.parametrize(
-    'device',
-    [torch.device('cpu'), torch.device('cuda')]
+    "device",
+    [torch.device("cpu"), torch.device("cuda")]
 )
 def test_sphere(dtype, device):
-    if device.type == 'cuda' and not torch.cuda.is_available():
-        pytest.skip(reason='CUDA is not available, skipping test.')
-        
-    images = process_images('tests/images/sphere.json', device=device, dtype=dtype)
-    path = get_path('linear', images=images, device=device, dtype=dtype)
-    potential = get_potential('sphere', images=images, device=device, dtype=dtype)
+    if device.type == "cuda" and not torch.cuda.is_available():
+        pytest.skip(reason="CUDA is not available, skipping test.")
+
+    images = process_images("tests/images/sphere.json", device=device, dtype=dtype)
+    path = get_path("linear", images=images, device=device, dtype=dtype)
+    potential = get_potential("sphere", images=images, device=device, dtype=dtype)
 
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
     assert potential_output.energies.shape == (3, 1)
@@ -53,20 +54,20 @@ def test_sphere(dtype, device):
 
 
 @pytest.mark.parametrize(
-    'dtype',
+    "dtype",
     [torch.float32, torch.float64],
 )
 @pytest.mark.parametrize(
-    'device',
-    [torch.device('cpu'), torch.device('cuda')]
+    "device",
+    [torch.device("cpu"), torch.device("cuda")]
 )
 def test_muller_brown(dtype, device):
-    if device.type == 'cuda' and not torch.cuda.is_available():
-        pytest.skip(reason='CUDA is not available, skipping test.')
-        
-    images = process_images('tests/images/muller_brown.json', device=device, dtype=dtype)
-    path = get_path('linear', images=images, device=device, dtype=dtype)
-    potential = get_potential('muller_brown', images=images, device=device, dtype=dtype)
+    if device.type == "cuda" and not torch.cuda.is_available():
+        pytest.skip(reason="CUDA is not available, skipping test.")
+
+    images = process_images("tests/images/muller_brown.json", device=device, dtype=dtype)
+    path = get_path("linear", images=images, device=device, dtype=dtype)
+    potential = get_potential("muller_brown", images=images, device=device, dtype=dtype)
 
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
     assert potential_output.energies.shape == (3, 1)
@@ -84,10 +85,10 @@ def test_muller_brown(dtype, device):
     assert torch.allclose(potential_output.forces,
         torch.tensor(
             [
-                [0.0001873538288492682, -0.20449389471367851], 
-                [-63.037220140249005, -57.82076869131242], 
+                [0.0001873538288492682, -0.20449389471367851],
+                [-63.037220140249005, -57.82076869131242],
                 [-0.048943927961211386, -0.44871341799094555]
-            ], 
+            ],
             device=device, dtype=dtype
         ),
         atol=1e-3
@@ -97,26 +98,26 @@ def test_muller_brown(dtype, device):
 
 
 @pytest.mark.parametrize(
-    'dtype',
+    "dtype",
     [torch.float32, torch.float64],
 )
 @pytest.mark.parametrize(
-    'device',
-    [torch.device('cpu'), torch.device('cuda')]
+    "device",
+    [torch.device("cpu"), torch.device("cuda")]
 )
 def test_wolfe(dtype, device):
-    if device.type == 'cuda' and not torch.cuda.is_available():
-        pytest.skip(reason='CUDA is not available, skipping test.')
-        
-    images = process_images('tests/images/wolfe.json', device=device, dtype=dtype)
-    path = get_path('linear', images=images, device=device, dtype=dtype)
-    potential = get_potential('wolfe_schlegel',images=images, device=device, dtype=dtype)
+    if device.type == "cuda" and not torch.cuda.is_available():
+        pytest.skip(reason="CUDA is not available, skipping test.")
+
+    images = process_images("tests/images/wolfe.json", device=device, dtype=dtype)
+    path = get_path("linear", images=images, device=device, dtype=dtype)
+    potential = get_potential("wolfe_schlegel",images=images, device=device, dtype=dtype)
 
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
     assert potential_output.energies.shape == (3, 1)
     assert potential_output.energies.device.type == device.type
     assert potential_output.energies.dtype == dtype
-    assert torch.allclose(potential_output.energies, 
+    assert torch.allclose(potential_output.energies,
         torch.tensor([[-64.81812976863], [-0.04301175469875001], [-66.45448705023]], device=device, dtype=dtype),
         atol=1e-5
     )
@@ -128,10 +129,10 @@ def test_wolfe(dtype, device):
     assert torch.allclose(potential_output.forces,
         torch.tensor(
             [
-                [0.0032145200000005536, 0.04517024000000619], 
-                [-2.614820315, -1.194996355], 
+                [0.0032145200000005536, 0.04517024000000619],
+                [-2.614820315, -1.194996355],
                 [-0.0003081600000115481, -0.06473332000001358]
-            ], 
+            ],
             device=device, dtype=dtype
         ),
         atol=1e-3
@@ -141,24 +142,24 @@ def test_wolfe(dtype, device):
 
 
 @pytest.mark.parametrize(
-    'dtype',
+    "dtype",
     [torch.float32, torch.float64],
 )
 @pytest.mark.parametrize(
-    'device',
-    [torch.device('cpu'), torch.device('cuda')]
+    "device",
+    [torch.device("cpu"), torch.device("cuda")]
 )
 def test_lennard_jones(dtype, device):
-    if device.type == 'cuda' and not torch.cuda.is_available():
-        pytest.skip(reason='CUDA is not available, skipping test.')
-        
-    raw_images = [read('tests/images/LJ13.xyz', index=i) for i in (0, 1, 1)]
+    if device.type == "cuda" and not torch.cuda.is_available():
+        pytest.skip(reason="CUDA is not available, skipping test.")
+
+    raw_images = [read("tests/images/LJ13.xyz", index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = LennardJones()
-    images = process_images('tests/images/LJ13.xyz', device=device, dtype=dtype)
-    path = get_path('linear', images=images, device=device, dtype=dtype)
-    potential = get_potential('lennard_jones', cutoff=3.0, images=images, device=device, dtype=dtype)
+    images = process_images("tests/images/LJ13.xyz", device=device, dtype=dtype)
+    path = get_path("linear", images=images, device=device, dtype=dtype)
+    potential = get_potential("lennard_jones", cutoff=3.0, images=images, device=device, dtype=dtype)
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
     assert potential_output.energies.shape == (3, 1)
     assert potential_output.energies.device.type == device.type
@@ -187,14 +188,14 @@ def test_lennard_jones(dtype, device):
     assert torch.allclose(potential_output.forces_decomposed.sum(dim=-2, keepdim=False), potential_output.forces, atol=1e-5)
     assert potential_output.forces_decomposed.grad_fn is not None
 
-    pytest.skip('Switching the full radius graph to minimal image convention')
-    raw_images = [read('tests/images/LJ35.xyz', index=i) for i in (0, 1, 1)]
+    pytest.skip("Switching the full radius graph to minimal image convention")
+    raw_images = [read("tests/images/LJ35.xyz", index=i) for i in (0, 1, 1)]
     interpolate(raw_images, mic=True)
     for image in raw_images:
         image.calc = LennardJones()
-    images = process_images('tests/images/LJ35.xyz', device=device, dtype=dtype)
-    path = get_path('linear', images=images, device=device, dtype=dtype)
-    potential = get_potential('lennard_jones', cutoff=3.0, images=images, device=device, dtype=dtype)
+    images = process_images("tests/images/LJ35.xyz", device=device, dtype=dtype)
+    path = get_path("linear", images=images, device=device, dtype=dtype)
+    potential = get_potential("lennard_jones", cutoff=3.0, images=images, device=device, dtype=dtype)
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
     assert potential_output.energies.shape == (3, 1)
     assert potential_output.energies.device.type == device.type
@@ -225,22 +226,22 @@ def test_lennard_jones(dtype, device):
 
 
 @pytest.mark.parametrize(
-    'dtype',
+    "dtype",
     [torch.float32, torch.float64],
 )
 @pytest.mark.parametrize(
-    'device',
-    [torch.device('cpu'), torch.device('cuda')]
+    "device",
+    [torch.device("cpu"), torch.device("cuda")]
 )
 def test_repel(dtype, device):
-    if device.type == 'cuda' and not torch.cuda.is_available():
-        pytest.skip(reason='CUDA is not available, skipping test.')
-        
+    if device.type == "cuda" and not torch.cuda.is_available():
+        pytest.skip(reason="CUDA is not available, skipping test.")
+
     class RepelCalculator(Calculator):
-        '''
+        """
         Revised from ASE LennardJones Calculator to use the repulsive potential
-        '''
-        implemented_properties = ['energy', 'forces']
+        """
+        implemented_properties = ["energy", "forces"]
         def __init__(self, alpha=1.7, beta=0.01, cutoff=3.0, **kwargs):
             super().__init__(**kwargs)
             self.alpha = alpha
@@ -255,7 +256,7 @@ def test_repel(dtype, device):
             alpha = self.alpha
             beta = self.beta
             rc = self.rc
-            if self.nl is None or 'numbers' in system_changes:
+            if self.nl is None or "numbers" in system_changes:
                 self.nl = NeighborList([rc / 2] * natoms, self_interaction=False, bothways=True)
             self.nl.update(self.atoms)
             positions = self.atoms.positions
@@ -278,16 +279,16 @@ def test_repel(dtype, device):
                 energies[ii] += 0.5 * pairwise_energies.sum()
                 forces[ii] += pairwise_forces.sum(axis=0)
             energy = energies.sum()
-            self.results['energy'] = energy
-            self.results['forces'] = forces
+            self.results["energy"] = energy
+            self.results["forces"] = forces
 
-    raw_images = [read('tests/images/LJ13.xyz', index=i) for i in (0, 1, 1)]
+    raw_images = [read("tests/images/LJ13.xyz", index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = RepelCalculator()
-    images = process_images('tests/images/LJ13.xyz', device=device, dtype=dtype)
-    path = get_path('linear', images=images, device=device, dtype=dtype)
-    potential = get_potential('repel', cutoff=3.0, images=images, device=device, dtype=dtype)
+    images = process_images("tests/images/LJ13.xyz", device=device, dtype=dtype)
+    path = get_path("linear", images=images, device=device, dtype=dtype)
+    potential = get_potential("repel", cutoff=3.0, images=images, device=device, dtype=dtype)
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
     assert potential_output.energies.shape == (3, 1)
     assert potential_output.energies.device.type == device.type
@@ -316,14 +317,14 @@ def test_repel(dtype, device):
     assert torch.allclose(potential_output.forces_decomposed.sum(dim=-2, keepdim=False), potential_output.forces, atol=1e-5)
     assert potential_output.forces_decomposed.grad_fn is not None
 
-    pytest.skip('Switching the full radius graph to minimal image convention')
-    raw_images = [read('tests/images/LJ35.xyz', index=i) for i in (0, 1, 1)]
+    pytest.skip("Switching the full radius graph to minimal image convention")
+    raw_images = [read("tests/images/LJ35.xyz", index=i) for i in (0, 1, 1)]
     interpolate(raw_images, mic=True)
     for image in raw_images:
         image.calc = RepelCalculator()
-    images = process_images('tests/images/LJ35.xyz', device=device, dtype=dtype)
-    path = get_path('linear', images=images, device=device, dtype=dtype)
-    potential = get_potential('repel', cutoff=3.0, images=images, device=device, dtype=dtype)
+    images = process_images("tests/images/LJ35.xyz", device=device, dtype=dtype)
+    path = get_path("linear", images=images, device=device, dtype=dtype)
+    potential = get_potential("repel", cutoff=3.0, images=images, device=device, dtype=dtype)
     potential_output = potential(path(torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)).positions)
     assert potential_output.energies.shape == (3, 1)
     assert potential_output.energies.device.type == device.type
@@ -354,31 +355,31 @@ def test_repel(dtype, device):
 
 
 @pytest.mark.parametrize(
-    'dtype',
+    "dtype",
     [torch.float32, torch.float64],
 )
 @pytest.mark.parametrize(
-    'device',
-    [torch.device('cpu'), torch.device('cuda'), torch.device('cuda', 1)]
+    "device",
+    [torch.device("cpu"), torch.device("cuda"), torch.device("cuda", 1)]
 )
 def test_uma(dtype, device):
-    pytest.skip(reason='Give github an UMA license')
-    if device.type == 'cuda' and torch.cuda.device_count() <= (device.index or 0):
-        pytest.skip(reason=f'{device} is not available, skipping test.')
-        
+    pytest.skip(reason="Give github an UMA license")
+    if device.type == "cuda" and torch.cuda.device_count() <= (device.index or 0):
+        pytest.skip(reason=f"{device} is not available, skipping test.")
+
     # if dtype == torch.float64:
     #     pytest.skip("UMA potential is not supported for float64 due to precision issues.")
 
-    raw_images = [read('tests/images/T1x.xyz', index=i) for i in (0, 1, 1)]
+    raw_images = [read("tests/images/T1x.xyz", index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = FAIRChemCalculator(
-            pretrained_mlip.get_predict_unit('uma-s-1', device=device.type),
-            task_name='omol'
+            pretrained_mlip.get_predict_unit("uma-s-1", device=device.type),
+            task_name="omol"
         )
-    images = process_images('tests/images/T1x.xyz', device=device, dtype=dtype)
-    path = get_path('linear', images=images, device=device, dtype=dtype)
-    potential = get_potential('uma', model_name='uma-s-1', task_name='omol', images=images, device=device, dtype=dtype)
+    images = process_images("tests/images/T1x.xyz", device=device, dtype=dtype)
+    path = get_path("linear", images=images, device=device, dtype=dtype)
+    potential = get_potential("uma", model_name="uma-s-1", task_name="omol", images=images, device=device, dtype=dtype)
     t = torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)
     positions = path(t).positions
     potential_output = potential(positions)
@@ -396,23 +397,23 @@ def test_uma(dtype, device):
     assert potential_output.forces.dtype == dtype
     assert torch.allclose(potential_output.forces,
         torch.tensor([image.get_forces().flatten() for image in raw_images], device=device, dtype=dtype),
-        atol=1e-3 if device.type == 'cpu' else 1e-2
+        atol=1e-3 if device.type == "cpu" else 1e-2
     )
     assert potential_output.forces.grad_fn is not None
     assert potential_output.forces_decomposed is None
     (grad_t,) = torch.autograd.grad(potential_output.energies.sum(), t)
     assert grad_t.device == positions.device
 
-    raw_images = [read('tests/images/OC20NEB.xyz', index=i) for i in (0, 1, 1)]
+    raw_images = [read("tests/images/OC20NEB.xyz", index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = FAIRChemCalculator(
-            pretrained_mlip.get_predict_unit('uma-s-1', device=device.type),
-            task_name='oc20'
+            pretrained_mlip.get_predict_unit("uma-s-1", device=device.type),
+            task_name="oc20"
         )
-    images = process_images('tests/images/OC20NEB.xyz', device=device, dtype=dtype)
-    path = get_path('linear', images=images, device=device, dtype=dtype)
-    potential = get_potential('uma', model_name='uma-s-1', task_name='oc20', images=images, device=device, dtype=dtype)
+    images = process_images("tests/images/OC20NEB.xyz", device=device, dtype=dtype)
+    path = get_path("linear", images=images, device=device, dtype=dtype)
+    potential = get_potential("uma", model_name="uma-s-1", task_name="oc20", images=images, device=device, dtype=dtype)
     t = torch.tensor([0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype)
     positions = path(t).positions
     potential_output = potential(positions)
@@ -430,7 +431,7 @@ def test_uma(dtype, device):
     assert potential_output.forces.dtype == dtype
     assert torch.allclose(potential_output.forces * ~images.fix_positions,
         torch.tensor([image.get_forces().flatten() for image in raw_images], device=device, dtype=dtype),
-        atol=1e-3 if device.type == 'cpu' else 1e-2
+        atol=1e-3 if device.type == "cpu" else 1e-2
     )
     assert potential_output.forces.grad_fn is not None
     assert potential_output.forces_decomposed is None

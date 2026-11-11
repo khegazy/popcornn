@@ -1,9 +1,11 @@
-import numpy as np
-import torch
+from __future__ import annotations
+
 import ase
+import torch
 from ase import Atoms
-from ase.geometry import find_mic
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.geometry import find_mic
+
 # fairchem is lazy-imported in radius_graph_fairchem to keep `import popcornn`
 # off the Ray Serve / FSDP / wandb cold-import path (~5s on login, ~35s on compute).
 # from popcornn.paths.base_path import PathOutput
@@ -37,7 +39,7 @@ def output_to_atoms(output, ref_images):
             cell=ref_images.cell.detach().cpu().numpy(),
             constraint=ase.constraints.FixAtoms(mask=ref_images.fix_positions.detach().cpu().numpy()),
             tags=ref_images.tags.detach().cpu().numpy(),
-            info={'charge': ref_images.charge.item(), 'spin': ref_images.spin.item()},
+            info={"charge": ref_images.charge.item(), "spin": ref_images.spin.item()},
         )
         calc = SinglePointCalculator(
             atoms,
@@ -207,9 +209,9 @@ def radius_graph_mic(
         edge_distance_vec = disp
 
     return {
-        'edge_index': edge_index,
-        'edge_distance': edge_distance,
-        'edge_distance_vec': edge_distance_vec,
+        "edge_index": edge_index,
+        "edge_distance": edge_distance,
+        "edge_distance_vec": edge_distance_vec,
     }
 
 def radius_graph_fairchem(
@@ -253,9 +255,9 @@ def radius_graph_fairchem(
         - 'neighbors': int tensor of shape (n_graphs,)
             Number of neighbors for each atom.
     """
-    from fairchem.core.graph.compute import generate_graph
     from fairchem.core.datasets import data_list_collater
     from fairchem.core.datasets.atomic_data import AtomicData
+    from fairchem.core.graph.compute import generate_graph
 
     device = positions.device
     dtype = positions.dtype

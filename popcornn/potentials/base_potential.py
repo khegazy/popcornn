@@ -1,9 +1,13 @@
-import torch
-from torch import nn
+from __future__ import annotations
+
 from dataclasses import dataclass
 
+import torch
+from torch import nn
+
+
 @dataclass
-class PotentialOutput():
+class PotentialOutput:
     """
     Data class representing the output of a path computation.
 
@@ -62,7 +66,7 @@ class BasePotential(nn.Module):
             self.point_option = 2  # TODO: remove this
         self.device = device
         self.dtype = dtype
-        
+
         # Put model in eval mode
         self.eval()
 
@@ -92,7 +96,7 @@ class BasePotential(nn.Module):
         """
         _forceterm_fxn = torch.vmap(
             lambda vec: -torch.autograd.grad(
-                energies_decomposed.flatten(), 
+                energies_decomposed.flatten(),
                 position,
                 grad_outputs=vec,
                 create_graph=create_graph,

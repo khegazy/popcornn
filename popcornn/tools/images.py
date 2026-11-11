@@ -1,17 +1,20 @@
-import logging
+from __future__ import annotations
+
 import json
+import logging
+from dataclasses import dataclass
+
+import ase
 import numpy as np
 import torch
-import ase
-from ase.io import read
 from ase.constraints import FixAtoms
-from dataclasses import dataclass
+from ase.io import read
 
 from popcornn.tools import unwrap_atoms
 
 
 @dataclass
-class Images():
+class Images:
     """
     Data class representing the images.
 
@@ -98,18 +101,18 @@ def process_images(raw_images, device, dtype, unwrap_positions=True):
         Validated, on-device, with consistent shape across frames.
     """
     if type(raw_images) == str:
-        if raw_images.endswith('.json'):
-            with open(raw_images, 'r') as f:
+        if raw_images.endswith(".json"):
+            with open(raw_images) as f:
                 raw_images = json.load(f)
-        elif raw_images.endswith('.npy'):
+        elif raw_images.endswith(".npy"):
             raw_images = np.load(raw_images)
-        elif raw_images.endswith('.pt'):
+        elif raw_images.endswith(".pt"):
             raw_images = torch.load(raw_images)
-        elif raw_images.endswith('.xyz') or raw_images.endswith('.traj'):
-            raw_images = read(raw_images, index=':')
+        elif raw_images.endswith(".xyz") or raw_images.endswith(".traj"):
+            raw_images = read(raw_images, index=":")
         else:
             raise ValueError(f"Cannot handle file type for {raw_images}.")
-    
+
     assert len(raw_images) >= 2, "Must have at least two images."
     image_type = type(raw_images[0])
     if image_type in [np.ndarray, list]:
@@ -154,10 +157,10 @@ def process_images(raw_images, device, dtype, unwrap_positions=True):
         fix_positions = fix_positions.flatten()
         assert np.all(image.get_tags() == raw_images[0].get_tags() for image in raw_images), "All images must have the same tags."
         tags = torch.tensor(raw_images[0].get_tags(), device=device, dtype=torch.int)
-        assert np.all(image.info.get('charge', 0) == raw_images[0].info.get('charge', 0) for image in raw_images), "All images must have the same charge."
-        charge = torch.tensor(raw_images[0].info.get('charge', 0), device=device, dtype=torch.int)
-        assert np.all(image.info.get('spin', 0) == raw_images[0].info.get('spin', 0) for image in raw_images), "All images must have the same spin."
-        spin = torch.tensor(raw_images[0].info.get('spin', 0), device=device, dtype=torch.int)
+        assert np.all(image.info.get("charge", 0) == raw_images[0].info.get("charge", 0) for image in raw_images), "All images must have the same charge."
+        charge = torch.tensor(raw_images[0].info.get("charge", 0), device=device, dtype=torch.int)
+        assert np.all(image.info.get("spin", 0) == raw_images[0].info.get("spin", 0) for image in raw_images), "All images must have the same spin."
+        spin = torch.tensor(raw_images[0].info.get("spin", 0), device=device, dtype=torch.int)
         processed_images = Images(
             image_type=image_type,
             positions=positions,
@@ -171,11 +174,11 @@ def process_images(raw_images, device, dtype, unwrap_positions=True):
         )
     else:
         raise ValueError(f"Cannot handle data type {dtype}.")
-    
+
     processed_images = processed_images.to(device)
     return processed_images
 
-        
+
 
 
 
