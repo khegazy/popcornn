@@ -137,9 +137,14 @@ class PathIntegrator:
             signal read by ``PathOptimizer``.
         max_batch : int, optional
             Maximum number of quadrature points passed to the integrand in
-            one call; it limits each call's memory, not the total (padaquad
-            evaluates every pending panel before accepting or rejecting
-            any). Read only at construction. ``None`` makes padaquad
+            one call. With ``integrate_gradient=True``, and in the
+            ``track_loss`` integral, it limits each call's memory, not the
+            total: padaquad evaluates every pending panel, keeping all their
+            outputs, before accepting or rejecting any. With
+            ``integrate_gradient=False`` padaquad evaluates at most
+            ``max_batch // nodes-per-panel`` panels and backpropagates through
+            them before evaluating more, so it also bounds the working memory.
+            Read only at construction. ``None`` makes padaquad
             measure the memory of one evaluation on the first
             ``integrate_path`` and size the batch from it; the stored size
             is reused on every later call (``same_f=True``), so the slow
@@ -152,10 +157,11 @@ class PathIntegrator:
             ``integrate_gradient=False`` padaquad backpropagates through
             each batch and cannot retry, so the error is raised; set
             ``max_batch`` explicitly for memory-tight runs, at least the
-            nodes per panel (7 for ``gk7``, 21 for ``gk21``).
+            nodes per panel (9 for ``gk7``, 23 for ``gk21``: padaquad adds
+            both panel endpoints, with zero weight, to the Kronrod nodes).
 
             The stored size does **not** carry across stages built by
-            ``Popcornn._optimize_stage`` (one fresh integrator per stage);
+            ``Popcornn._optimize`` (one fresh integrator per stage);
             that is intentional, since different stages typically use
             different potentials with different memory profiles.
         max_iter : int, default=5

@@ -145,7 +145,7 @@ def test_oom_batch_reduction_persists(muller_brown_setup, monkeypatch, integrand
     ``'loss'`` exercises ``_loss_solver`` on its own.
     """
     path, device, dtype = muller_brown_setup
-    limit = 50  # more than gk21's 21 nodes per panel, so one panel always fits
+    limit = 50  # more than gk21's 23 nodes per panel, so one panel always fits
     batch_sizes = _simulate_oom(monkeypatch, limit, integrand)
     integrator = PathIntegrator(
         method='gk21',

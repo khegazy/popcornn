@@ -47,11 +47,16 @@ integrator_params:
 ```
 
 This passes at most 32 points to the path and potential in one call.
-It is slower (more sequential calls), and it limits the memory of each
-call, not the total: padaquad evaluates every pending quadrature panel
-before accepting or rejecting any. In `integrate_gradient: false` mode
-`max_batch` must be at least the number of nodes per panel (7 for
-`gk7`, 21 for `gk21`).
+It is slower (more sequential calls). In `integrate_gradient: true`
+mode (the default), and in the `track_loss` integral, it limits the
+memory of each call, not the total: padaquad evaluates every pending
+quadrature panel, keeping all their outputs, before accepting or
+rejecting any. In `integrate_gradient: false` mode padaquad evaluates
+at most `max_batch // nodes-per-panel` panels and backpropagates
+through them before evaluating more, so `max_batch` also bounds the
+working memory; there it must be at least the number of nodes per
+panel (9 for `gk7`, 23 for `gk21`: padaquad adds both panel endpoints,
+with zero weight, to the Kronrod nodes).
 
 With `max_batch` left at `None`, padaquad measures the memory of one
 integrand evaluation on the first `integrate_path` call of a
@@ -69,7 +74,7 @@ gradient mode:
   batch and cannot retry, so the error is raised. Set `max_batch`
   explicitly for memory-tight runs in this mode.
 
-Across stages built by `Popcornn._optimize_stage` (one fresh integrator
+Across stages built by `Popcornn._optimize` (one fresh integrator
 per stage), the stored batch size does **not** carry over — that's
 intentional, since different stages typically use different potentials
 with different memory profiles.
