@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `MacePotential`, `LeftNetPotential` and `OrbPotential` could not be built: `process_images` stored atomic numbers as int32, which `one_hot` rejects. Atomic numbers are now int64.
+- `MacePotential`, `LeftNetPotential` and `OrbPotential` run in the configured `dtype` instead of always float64, and the MACE and Orb models are moved to `device` after loading.
+
 ## [0.2.0] - 2026-11-10
 
 Path integration now runs on [padaquad](https://github.com/khegazy/padaquad), and the optimizer integrates the gradient of the loss along the path, stops on the norm of that integrated gradient, and finds the transition state from the integrator's own samples. Pull requests #79, #80, #82 and #83.
