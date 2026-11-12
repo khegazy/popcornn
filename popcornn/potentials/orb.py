@@ -50,7 +50,7 @@ class OrbPotential(BasePotential):
 
     def load_model(self, model_path):
         model = torch.load(model_path, weights_only=False, map_location=self.device)
-        model.to(self.dtype)
+        model.to(self.device).to(self.dtype)
         model.eval()
         model.requires_grad_(False)
         return model

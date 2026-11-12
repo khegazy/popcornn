@@ -45,7 +45,9 @@ class MacePotential(BasePotential):
         # state_dict = torch.load(model_path, map_location=self.device)
         # model.load_state_dict(state_dict)
         model = torch.load(model_path, weights_only=False, map_location=self.device)
-        model = model.to(self.dtype)
+        # .to(device) is needed even after map_location: e3nn's TorchScript submodules
+        # (Wigner-3j buffers) are rebuilt on CPU during unpickling.
+        model = model.to(self.device).to(self.dtype)
         model.eval()
         model.requires_grad_(False)
         return model
