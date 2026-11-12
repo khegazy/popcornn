@@ -89,8 +89,7 @@ There's a list of all available loss terms in
 
 After the path converges, popcornn scans along it for the highest
 energy point and returns that as the predicted TS (`popcornn_ts.xyz`
-in the YAML driver, the second return of `optimize_path` in the
-Python API).
+in the YAML driver, `mep.get_ts()` in the Python API).
 
 This is a **good guess**, not a guarantee. To get a publication-grade
 TS:
