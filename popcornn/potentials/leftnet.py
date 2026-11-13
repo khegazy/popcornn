@@ -21,7 +21,7 @@ class LeftNetPotential(BasePotential):
         self.model = self.load_model(model_path)
         self.use_autograd = use_autograd
         self.n_eval = 0
-        self.one_hots = one_hot(self.atomic_numbers, num_classes=118)[:, [1, 6, 7, 8, 0]].double()
+        self.one_hots = one_hot(self.atomic_numbers, num_classes=118)[:, [1, 6, 7, 8, 0]].to(self.dtype)
 
     
     def forward(self, positions):
@@ -40,7 +40,7 @@ class LeftNetPotential(BasePotential):
         
 
     def load_model(self, model_path):
-        model = torch.load(model_path, weights_only=False, map_location=self.device).double()
+        model = torch.load(model_path, weights_only=False, map_location=self.device).to(self.dtype)
         model.eval()
         model.requires_grad_(False)
         return model

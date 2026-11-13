@@ -10,6 +10,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 - `Popcornn.optimize_path()` returns one convergence flag per stage (`True` if the `threshold` check fired, `False` if the stage reached `num_optimizer_iterations` or had no `threshold`) and keeps the list as `Popcornn.converged`.
 
+### Fixed
+
+- `MacePotential`, `LeftNetPotential` and `OrbPotential` could not be built: `process_images` stored atomic numbers as int32, which `one_hot` rejects. Atomic numbers are now int64.
+- `MacePotential`, `LeftNetPotential` and `OrbPotential` run in the configured `dtype` instead of always float64, and the MACE and Orb models are moved to `device` after loading.
+
 ## [0.2.0] - 2026-11-10
 
 Path integration now runs on [padaquad](https://github.com/khegazy/padaquad), and the optimizer integrates the gradient of the loss along the path, stops on the norm of that integrated gradient, and finds the transition state from the integrator's own samples. Pull requests #79, #80, #82 and #83.

@@ -176,10 +176,10 @@ def test_xyz(raw_images, dtype, device):
     assert images.atomic_numbers is not None
     assert images.atomic_numbers.shape == (14,)
     assert images.atomic_numbers.device.type == device.type
-    assert images.atomic_numbers.dtype == torch.int
+    assert images.atomic_numbers.dtype == torch.long
     assert torch.all(images.atomic_numbers == torch.tensor(
         [55, 55, 55, 55, 55, 55, 55, 55,  6,  1,  1,  1,  1,  8],
-        device=device, dtype=torch.int
+        device=device, dtype=torch.long
     ))
     assert images.pbc is not None
     assert images.pbc.shape == (3,)
@@ -283,10 +283,10 @@ def test_traj(raw_images, dtype, device):
     assert images.atomic_numbers is not None
     assert images.atomic_numbers.shape == (14,)
     assert images.atomic_numbers.device.type == device.type
-    assert images.atomic_numbers.dtype == torch.int
+    assert images.atomic_numbers.dtype == torch.long
     assert torch.all(images.atomic_numbers == torch.tensor(
         [55, 55, 55, 55, 55, 55, 55, 55,  6,  1,  1,  1,  1,  8],
-        device=device, dtype=torch.int
+        device=device, dtype=torch.long
     ))
     assert images.pbc is not None
     assert images.pbc.shape == (3,)
@@ -546,7 +546,7 @@ def test_xyz_with_intermediates(raw_images):
     assert images.atomic_numbers.shape == (14,)
     assert torch.all(images.atomic_numbers == torch.tensor(
         [55, 55, 55, 55, 55, 55, 55, 55,  6,  1,  1,  1,  1,  8],
-        dtype=torch.int
+        dtype=torch.long
     ))
     assert images.pbc is not None
     assert images.pbc.shape == (3,)

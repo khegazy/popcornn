@@ -30,7 +30,7 @@ class OrbPotential(BasePotential):
         self.model = self.load_model(model_path)
         self.use_autograd = use_autograd
         self.n_eval = 0
-        self.atomic_numbers_embedding = one_hot(self.atomic_numbers, num_classes=118).double()
+        self.atomic_numbers_embedding = one_hot(self.atomic_numbers, num_classes=118).to(self.dtype)
 
     
     def forward(self, positions):
@@ -50,7 +50,7 @@ class OrbPotential(BasePotential):
 
     def load_model(self, model_path):
         model = torch.load(model_path, weights_only=False, map_location=self.device)
-        model.to(torch.double)
+        model.to(self.device).to(self.dtype)
         model.eval()
         model.requires_grad_(False)
         return model

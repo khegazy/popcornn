@@ -138,7 +138,7 @@ def process_images(raw_images, device, dtype, unwrap_positions=True):
         assert np.all(image.get_positions().shape == raw_images[0].get_positions().shape for image in raw_images), "All images must have the same shape."
         positions = torch.tensor(np.array([image.get_positions().flatten() for image in raw_images]), device=device, dtype=dtype)
         assert np.all(image.get_atomic_numbers() == raw_images[0].get_atomic_numbers() for image in raw_images), "All images must have the same atomic atomic_numbers."
-        atomic_numbers = torch.tensor(raw_images[0].get_atomic_numbers(), device=device, dtype=torch.int)
+        atomic_numbers = torch.tensor(raw_images[0].get_atomic_numbers(), device=device, dtype=torch.long)
         assert np.all(image.get_pbc() == raw_images[0].get_pbc() for image in raw_images), "All images must have the same pbc."
         pbc = torch.tensor(raw_images[0].get_pbc(), device=device, dtype=torch.bool)
         assert np.all(image.get_cell() == raw_images[0].get_cell() for image in raw_images), "All images must have the same cell."

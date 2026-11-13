@@ -24,7 +24,7 @@ class MacePotential(BasePotential):
         super().__init__(**kwargs)
         self.model = self.load_model(model_path)
         self.n_eval = 0
-        self.node_attrs = one_hot(self.atomic_numbers, num_classes=118)[:, self.model.atomic_numbers].double()
+        self.node_attrs = one_hot(self.atomic_numbers, num_classes=118)[:, self.model.atomic_numbers].to(self.dtype)
 
     
     def forward(self, positions):
@@ -45,6 +45,9 @@ class MacePotential(BasePotential):
         # state_dict = torch.load(model_path, map_location=self.device)
         # model.load_state_dict(state_dict)
         model = torch.load(model_path, weights_only=False, map_location=self.device)
+        # .to(device) is needed even after map_location: e3nn's TorchScript submodules
+        # (Wigner-3j buffers) are rebuilt on CPU during unpickling.
+        model = model.to(self.device).to(self.dtype)
         model.eval()
         model.requires_grad_(False)
         return model
@@ -59,8 +62,8 @@ class MacePotential(BasePotential):
         batch = torch.arange(n_data, device=self.device).repeat_interleave(n_atoms)
         ptr = torch.arange(0, n_data + 1, device=self.device) * n_atoms
         edge_index = radius_graph(positions, r=self.model.r_max, batch=batch)
-        shifts = torch.zeros(edge_index.shape[1], 3, device=self.device)
-        unit_shifts = torch.zeros(edge_index.shape[1], 3, device=self.device)
+        shifts = torch.zeros(edge_index.shape[1], 3, device=self.device, dtype=self.dtype)
+        unit_shifts = torch.zeros(edge_index.shape[1], 3, device=self.device, dtype=self.dtype)
         data = Data(
             positions=positions,
             cell=cell,
