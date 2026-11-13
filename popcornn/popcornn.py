@@ -199,6 +199,9 @@ class Popcornn:
 
         self.log_path = log_path
 
+        # Per-stage convergence flags, populated by optimize_path
+        self.converged = None
+
 
     def optimize_path(
             self,
@@ -231,6 +234,14 @@ class Popcornn:
             File path for a per-iteration JSONL scalar-metrics log.
             One row per iteration; flushed each row so a killed run
             leaves a partial-but-valid file.
+
+        Returns
+        -------
+        list[bool]
+            One flag per stage: True if that stage's convergence
+            trigger fired, False if it exhausted its iteration cap
+            (always False for stages with ``threshold=None``). Also
+            stored as ``self.converged``.
         """
         # Optimize the path. When output_dir is set but the caller didn't
         # specify a metrics path, default to <output_dir>/metrics so the
@@ -239,6 +250,7 @@ class Popcornn:
         #     metrics_log_path = os.path.join(self.output_dir, 'metrics')
         # if metrics_log_path is not None:
         #     os.makedirs(metrics_log_path, exist_ok=True)
+        self.converged = []
         for i, params in enumerate(optimization_params):
             # if self.output_dir is not None:
             #     output_dir = f"{self.output_dir}/opt_{i}"
@@ -249,12 +261,13 @@ class Popcornn:
             # else:
             #     stage_metrics_path = None
 
-            self._optimize(
+            self.converged.append(self._optimize(
                 **params,
                 # output_dir=output_dir,
                 # output_ase_atoms=output_ase_atoms,
                 stage_idx=i,
-            )
+            ))
+        return self.converged
 
 
     def get_discrete_path(self, num_record_points=None, output_ase_atoms=True):
@@ -336,6 +349,13 @@ class Popcornn:
             step_s, wall_s, converged, barrier, ts_force_norm).
             Flushed after each row so a killed run leaves a partial-
             but-valid file.
+
+        Returns
+        -------
+        bool
+            True if the convergence trigger fired before the iteration
+            cap; False otherwise (including ``threshold=None`` stages,
+            which never trigger).
         """
         # Create output directories
         # if output_dir is not None:
@@ -490,4 +510,6 @@ class Popcornn:
             ts_force=final_ts_force,
         )
         logger.close()
+
+        return bool(optimizer.converged)
 
