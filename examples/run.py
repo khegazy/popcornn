@@ -33,10 +33,11 @@ if __name__ == "__main__":
         x, y = np.meshgrid(*[np.linspace(lo - pad, hi + pad, 256) for lo, hi in zip(path.min(axis=0), path.max(axis=0))])
         grid = torch.tensor(np.stack([x.ravel(), y.ravel()], axis=-1), device=my_path.device, dtype=my_path.dtype, requires_grad=True)
         energies = my_path.path.potential(grid).energies.detach().cpu().numpy().reshape(x.shape)
-        levels = np.arange(energies.min(), energies.max(), (ts_image['ts_energies'][0][0] - energies.min()) / 5)  # five contours below the TS
-        plt.contour(x, y, energies, levels=levels, colors='gray', linestyles='solid', linewidths=1)
-        plt.plot(path[:, 0], path[:, 1], color='tab:red', linewidth=2)
-        plt.scatter(ts[:, 0], ts[:, 1], marker='x', color='k', label='TS', zorder=3)
+        ts_energy = ts_image['ts_energies'][0][0]
+        levels = np.arange(energies.min(), energies.max(), (ts_energy - energies.min()) / 5)  # five contours below the TS
+        plt.contour(x, y, energies, levels=levels, cmap='coolwarm', vmax=2 * ts_energy - energies.min(), linestyles='solid', linewidths=1)  # white at the TS energy
+        plt.plot(path[:, 0], path[:, 1], color='k', linewidth=2)
+        plt.scatter(ts[:, 0], ts[:, 1], marker='x', color='tab:red', label='TS', zorder=3)
         plt.gca().set(aspect='equal', xticks=[], yticks=[])
         plt.legend(loc='upper left')
         plt.savefig('popcornn_path.pdf', bbox_inches='tight')
