@@ -42,9 +42,13 @@ jobs:
       - name: Run tests with pytest
         run: pytest --cov=popcornn --cov-report=xml
 
+      # GitHub does not pass secrets to pull_request runs from forks, so
+      # CODECOV_TOKEN is empty there and the action falls back to a tokenless
+      # upload, which Codecov may reject. Only fail CI on upload errors when
+      # the token is available (pushes and same-repo PRs).
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
-          fail_ci_if_error: true
+          fail_ci_if_error: ${{ github.event.pull_request.head.repo.fork != true }}
