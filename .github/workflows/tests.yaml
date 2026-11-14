@@ -37,10 +37,10 @@ jobs:
         run: |
           pip install uv
           uv pip install --system -r tests/requirements.txt
-          uv pip install --system .[dev]
+          uv pip install --system -e .[dev]
 
       - name: Run tests with pytest
-        run: pytest --cov=popcornn --cov-report=xml
+        run: pytest --cov --cov-report=xml
 
       # GitHub does not pass secrets to pull_request runs from forks, so
       # CODECOV_TOKEN is empty there and the action falls back to a tokenless
