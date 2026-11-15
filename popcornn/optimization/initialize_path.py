@@ -1,8 +1,12 @@
+import logging
+
 import torch
 import numpy as np
 import numpy.random as rnd
 import matplotlib.pyplot as plt
 from typing import Union
+
+logger = logging.getLogger(__name__)
 
 
 def randomly_initialize_path(
@@ -50,7 +54,6 @@ def randomly_initialize_path(
         max_val = torch.max(
             torch.tensor([path.initial_position[idx], path.final_position[idx]], device=path.device)
         ).item()
-        print("MIN MAX", min_val, max_val)
         # rnd_vals = rnd.uniform(size=(n_points, 1), low=min_val, high=max_val)
         rnd_vals = torch.rand(n_points, 1, device=path.device) * (max_val - min_val) + min_val
         if order_points or idx == 0:
@@ -62,7 +65,6 @@ def randomly_initialize_path(
             rnd_dims.append(torch.sort(rnd_vals, axis=0, descending=descending.item()).values)
         else:
             rnd_dims.append(rnd_vals)
-    print(len(rnd_dims), rnd_dims[0].shape)
     # rnd_dims = torch.tensor(
     #     np.concatenate(rnd_dims, axis=-1), requires_grad=False, device=path.device
     # )
@@ -127,9 +129,8 @@ def initialize_path(
     BasePath
         The fitted path (same object, mutated in place).
     """
-    print("INFO: Beginning path initialization")
+    logger.info("Beginning path initialization")
     loss, prev_loss = torch.tensor([2e-10]), torch.tensor([1e-10])
-    print(path.named_parameters())
     optimizer = torch.optim.Adam(path.parameters(), lr=lr)
     idx, rel_error = 0, 100
     # while (idx < 1500 or loss > 1e-8) and idx < max_steps:
@@ -144,7 +145,7 @@ def initialize_path(
         rel_error = np.abs(prev_loss - loss.item())/prev_loss
         # idx = idx + 1
         if idx % 1000 == 0:
-            print(f"\tIteration {idx}: Loss {loss:.4} | Relative Error {rel_error:.5}")
+            logger.debug(f"\tIteration {idx}: Loss {loss:.4} | Relative Error {rel_error:.5}")
         #     fig, ax = plt.subplots()
         #     path_output = path.get_path()
         #     geometric_path = path_output.geometric_path.detach().cpu().numpy()
@@ -161,7 +162,7 @@ def initialize_path(
 
         #print(prev_loss, loss, jnp.abs(prev_loss - loss)/prev_loss)
 
-    print(f"INFO: Finished path initialization after {idx} iterations")
+    logger.info(f"Finished path initialization after {idx} iterations")
     # fig, ax = plt.subplots()
     # path_output = path.get_path()
     # geometric_path = path_output.geometric_path.detach().numpy()
