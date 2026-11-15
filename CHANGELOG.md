@@ -4,11 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.1] - 2026-11-15
+
+Moves to padaquad 1.4.0, which fixes out-of-memory kills when padaquad picks the batch size, and therefore to Python 3.11. Also adds per-stage convergence flags and fixes the MACE, LEFTNet and Orb potentials. Pull requests #85, #86 and #87.
 
 ### Added
 
 - `Popcornn.optimize_path()` returns one convergence flag per stage (`True` if the `threshold` check fired, `False` if the stage reached `num_optimizer_iterations` or had no `threshold`) and keeps the list as `Popcornn.converged`.
+
+### Changed
+
+- **Breaking:** requires Python 3.11 or newer (was 3.10). padaquad has required Python 3.11 since padaquad#61, so on Python 3.10 an installer can only resolve padaquad 1.3.0, which lacks the memory fix below. CI now tests Python 3.11 and 3.12.
+- Dependencies: requires `padaquad >= 1.4.0` (was 1.3.0). padaquad 1.3.0 sized batches by assuming that the memory of one integrand call grows linearly with the number of points. With `integrate_gradient: true` (the default), popcornn computes each point's gradient in one batched backward pass, whose memory grows with the square of the number of points. A `PathIntegrator` built without `max_batch` could therefore try, or choose, a batch far larger than the available memory, and the operating system killed the process without a catchable error; this is what killed the GitHub CI runners. padaquad 1.4.0 fits the measured memory as a quadratic in the number of points.
+- `examples/run.py` plots runs on 2D toy potentials as the optimized path and transition state on the potential's contours, colored by energy relative to the transition state, in `popcornn_path.pdf`. It no longer writes `popcornn_path.json` and `popcornn_ts.json`. Atomistic runs still write `popcornn_path.xyz` and `popcornn_ts.xyz`.
 
 ### Fixed
 
