@@ -37,7 +37,6 @@ class PathOptimizer:
             patience=1,
             device="cpu",
             dtype=None,
-            **config
         ):
         """
         Parameters
@@ -60,8 +59,6 @@ class PathOptimizer:
             Number of consecutive iterations the trigger must hold.
         device : str
         dtype : torch.dtype
-        **config
-            Reserved for forward compatibility.
         """
         super().__init__()
 
