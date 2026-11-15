@@ -157,30 +157,52 @@ The same call also populates `path.ts_time`, `path.ts_energy`,
 
 ## Logging per-iteration state
 
-Every run prints a sparse per-iter table to stdout (one header at
-stage start, one row per iter, plus the convergence + stage-end
-lines). Columns: `iter / step_s / loss / grad / barrier / force`.
-This is on by default — no setup needed.
+Every run prints a progress table to the screen (stdout): one header at
+stage start, one row per iteration, plus the convergence and stage-end
+lines. Columns: `iter / step_s / loss / grad / barrier / force / ts_time / crossings`.
+The table is on by default, with no setup needed. It is written through Python's
+standard `logging` module, at INFO, on loggers named `popcornn.*`.
+Two `Popcornn` constructor arguments control where it goes:
 
-For a programmatic record of the same scalar metrics, pass
-`metrics_log_path=<file>` to `optimize_path`. The logger writes one
-JSONL row per iteration to that exact path with fields:
+- `log_file="run.log"` also writes the table to that file. The file is
+  appended to, so a re-run adds to it; its folder is created if needed.
+- `quiet=True` stops the screen output. With `log_file` set, the table
+  then goes only to the file.
+
+While it runs, popcornn attaches its own handlers to the `popcornn`
+logger and turns off propagation to the root logger, so a root handler
+(fairchem attaches one when UMA is imported) cannot print the table a
+second time. Everything is removed again when the constructor or
+`optimize_path` returns. A level you set yourself is respected:
+`logging.getLogger("popcornn").setLevel(logging.DEBUG)` also shows the
+path summary and the progress of the initial path fit, and
+`logging.WARNING` hides the table.
+
+To handle the output with your own logging configuration (for example
+Hydra's job log), pass `quiet=True` and no `log_file`: popcornn then
+attaches nothing, and the records follow your configuration. If you
+call `logging.config.dictConfig` after importing popcornn, pass
+`disable_existing_loggers=False`, otherwise it disables popcornn's loggers.
+
+For a programmatic record of the scalar metrics, pass `log_path=<dir>`
+to the `Popcornn` constructor. Each stage `i` writes one JSONL row per
+iteration to `<dir>/stage_<i>_metrics.jsonl` with fields:
 
 ```
-iter, loss, grad_norm, lr, step_s, wall_s, converged, barrier, ts_force_norm
+iter, loss, grad_norm, lr, step_s, wall_s, converged, barrier, ts_force_norm, n_crossings
 ```
 
 Rows are flushed each iteration so a killed run still leaves a valid
-file. The `barrier` and `ts_force_norm` fields are non-null only when
-`track_ts=True` was passed to the `Popcornn` constructor; the `loss`
-field is non-null only when `track_loss=True` was passed.
+file. The `barrier`, `ts_force_norm` and `n_crossings` fields are non-null
+only when `track_ts=True` was passed to the `Popcornn` constructor; the
+`loss` field is non-null only when `track_loss=True` was passed.
 
 After the optimizer-loop trigger fires, popcornn runs **one diagnostic
-integration with `track_loss + track_ts` on** and reports `loss`,
-`barrier`, and `|F|` on the stage-end line:
+integration with `track_loss + track_ts` on** and reports the barrier
+and `|F|` at the predicted TS on the stage-end line:
 
 ```
-stage 1 done  iters=143  time=339.2s  time/iter=2.37e+00s  barrier=3.45  ts_force_norm=0.07
+stage 0 done  iters=5  time=0.4s  time/iter=0.0878s  barrier=119.2379  ts_force_norm=86.1377
 ```
 
 This is the most reliable single number for "how converged did this

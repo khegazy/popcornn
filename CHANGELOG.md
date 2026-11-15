@@ -8,10 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Added
 
+- `Popcornn` constructor options `log_file` (also write the progress table to a file) and `quiet` (stop printing it to the screen).
 - `Popcornn.optimize_path()` returns one convergence flag per stage (`True` if the `threshold` check fired, `False` if the stage reached `num_optimizer_iterations` or had no `threshold`) and keeps the list as `Popcornn.converged`.
+
+### Changed
+
+- Progress output (the per-iteration table and the path-initialization messages) goes through Python's `logging` module on loggers named `popcornn.*`. `Popcornn` still prints the table to stdout by default, once, even when another library has attached a handler to the root logger. The path-model summary is logged once, by `get_path`, at DEBUG, and the path-fit progress every 1000 steps is at DEBUG. A failure to write a table line (for example an encoding error or a closed pipe) no longer stops the run; `logging` reports it on stderr. Calling `initialize_path` or `randomly_initialize_path` directly no longer prints anything unless logging is configured.
+
+### Removed
+
+- The unused `popcornn.tools.logging` class, and leftover debug prints in `initialize_path`.
 
 ### Fixed
 
+- The docs for the per-iteration metrics files named a nonexistent `metrics_log_path` argument; the argument is the constructor's `log_path` directory.
 - `MacePotential`, `LeftNetPotential` and `OrbPotential` could not be built: `process_images` stored atomic numbers as int32, which `one_hot` rejects. Atomic numbers are now int64.
 - `MacePotential`, `LeftNetPotential` and `OrbPotential` run in the configured `dtype` instead of always float64, and the MACE and Orb models are moved to `device` after loading.
 

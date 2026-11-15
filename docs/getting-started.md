@@ -140,8 +140,8 @@ for image in images:
 mep = Popcornn(
     images=images,
     path_params={"name": "mlp", "width": 128, "depth": 2},
-    track_loss=True,    # so stage-end log shows loss
-    track_ts=True,      # so stage-end log shows barrier and |F|
+    track_loss=True,    # so each table row shows the loss
+    track_ts=True,      # so each table row shows the barrier and |F| at the TS
 )
 
 mep.optimize_path(
@@ -202,8 +202,8 @@ Each stage:
    `threshold` for `patience` consecutive iterations, or when
    `num_optimizer_iterations` is reached.
 5. Runs one diagnostic integration with `track_loss + track_ts` on
-   so the stage-end log line carries the loss integral, barrier, and
-   `|F|` at the predicted TS.
+   so the stage-end log line carries the barrier and `|F|` at the
+   predicted TS.
 
 For more on the convergence criterion and how to tune it, see
 [Convergence](convergence.md).
