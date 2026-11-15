@@ -188,10 +188,10 @@ class Popcornn:
 
         # Output settings: metrics directory, progress-log file, screen on/off
         self.log_path = log_path
-        self.log_file = log_file
+        self.log_file = log_file if log_file is None else pathlib.Path(log_file).absolute()  # fixed now, so a later chdir cannot move it
         self.quiet = quiet
         if log_file is not None:
-            pathlib.Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+            self.log_file.parent.mkdir(parents=True, exist_ok=True)
 
         with self._log_outputs():
             # Process images

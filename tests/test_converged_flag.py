@@ -97,6 +97,23 @@ def test_progress_log_outputs(quiet, use_file, tmp_path, capsys, caplog):
         assert package_logger.level == logging.NOTSET
 
 
+def test_log_file_fixed_at_construction(tmp_path, monkeypatch):
+    """A relative log_file names one file even if the working directory changes later."""
+    monkeypatch.chdir(tmp_path)
+    mep = Popcornn(
+        images=[[-0.558, 1.442], [0.623, 0.028]],
+        path_params={"name": "mlp", "width": 8, "depth": 2, "activation": "gelu"},
+        device="cpu",
+        dtype="float64",
+        log_file="logs/run.log",
+        quiet=True,
+    )
+    monkeypatch.chdir(tmp_path / "logs")  # has no "logs" subfolder
+    mep.optimize_path(_stage(1))
+    # stage header, column header, 1 row, stage-done line
+    assert len((tmp_path / "logs" / "run.log").read_text(encoding="utf-8").splitlines()) == 4
+
+
 def test_init_logs_path_fit(capsys):
     """The constructor shows the path-fit messages, and nothing else, for intermediate images."""
     torch.manual_seed(0)
