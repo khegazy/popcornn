@@ -38,7 +38,7 @@ def randomly_initialize_path(
     """
     if seed is not None:
         torch.manual_seed(seed)
-    
+
     #times = rnd.uniform(shape=(n_points, 1), minval=0.1, maxval=0.9)
     times = torch.unsqueeze(torch.linspace(0, 1, n_points+2, device=path.device)[1:-1], -1)
     times.requires_grad = False
