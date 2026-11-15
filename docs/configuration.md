@@ -30,7 +30,7 @@ Python code; see [Getting Started](getting-started.md).
 | `dtype` | `"float32"` or `"float64"` | `"float32"` | PyTorch dtype. |
 | `seed` | `int` or `None` | `0` | RNG seed for reproducibility. `None` to skip seeding. |
 | `log_path` | `str` or `None` | `None` | Directory for the per-stage metrics files `stage_<i>_metrics.jsonl` (one JSON row per iteration). See [Advanced](advanced.md#logging-per-iteration-state). |
-| `log_file` | `str` or `None` | `None` | Text file that also receives the progress table. Appended to; its folder is created if needed. |
+| `log_file` | `str`, path, or `None` | `None` | Text file that also receives the progress table. Appended to; its folder is created if needed. |
 | `quiet` | `bool` | `False` | Stop printing the progress table to the screen. With `log_file` set it goes only to the file; without it, popcornn leaves the output to your own `logging` configuration. |
 
 ### `path_params`

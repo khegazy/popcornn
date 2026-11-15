@@ -514,7 +514,7 @@ class Popcornn:
                 break
 
         # One diagnostic integration with track_loss + track_ts on
-        # so the stage-end line carries loss, barrier, and |F| at the TS.
+        # so the stage-end line carries the barrier and |F| at the TS.
         # Cheap: one extra integrate call per stage, no opt step.
         integrator.track_loss = True
         integrator.track_ts = True
