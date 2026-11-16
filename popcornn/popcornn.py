@@ -1,6 +1,10 @@
 import os
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'  # TODO: move this to the integrator
+import contextlib
 import json
+import logging
+import pathlib
+import sys
 import time as time
 from typing import Any
 
@@ -14,13 +18,15 @@ from popcornn.tools import process_images, output_to_atoms
 from popcornn.tools import PathIntegrator
 from popcornn.potentials import get_potential
 
+logger = logging.getLogger(__name__)
+
 
 class _StageLogger:
     """Per-stage sparse-table logger + wall-time tracker.
 
-    Streams a header at stage start, sparse per-iter rows, a
-    convergence-trigger announcement, and a stage-end summary to
-    stdout. When ``log_path`` is provided, also writes one
+    Logs a header at stage start, sparse per-iter rows, a
+    convergence-trigger announcement, and a stage-end summary at INFO
+    on the ``popcornn.popcornn`` logger. When ``log_path`` is provided, also writes one
     JSONL row per iteration with the full scalar metric set —
     flushed each row so a killed run leaves a partial-but-valid
     file.
@@ -35,7 +41,7 @@ class _StageLogger:
             or "<none>"
         )
         thr = "—" if threshold is None else f"{threshold:.1e}"
-        print(
+        logger.info(
             f"── stage {stage_idx} ──  integrand: {terms_str}   "
             f"lr={lr:.1e}   threshold={thr}   "
             f"n_iter={n_iter}   n_params={n_params}"
@@ -46,7 +52,7 @@ class _StageLogger:
             f"  {'barrier':>8s}    {'force':>8s}  "
             f"  {'ts_time':>8s}    {'crossings':>8s}  "
         )
-        print(header)
+        logger.info(header)
         self._t_start = time.perf_counter()
 
         self._metrics_fh = None
@@ -68,7 +74,7 @@ class _StageLogger:
             f"  {barrier_str:>8s}    {force_str:>8s}  "
             f"  {ts_time_str:>8s}    {crossings_str:>8s}  "
         )
-        print(line, flush=True)
+        logger.info(line)
 
     def metrics(self, **fields):
         """Append one JSONL row with scalar metrics. No-op when no
@@ -82,15 +88,14 @@ class _StageLogger:
         return time.perf_counter() - self._t_start
 
     def converged(self, it, g_2, threshold, patience):
-        print(
+        logger.info(
             f"converged at iter {it}  "
             f"(loss_grad_norm={g_2:.4e} < threshold={threshold:.4e} "
-            f"for patience={patience})",
-            flush=True,
+            f"for patience={patience})"
         )
 
     def end(self, it, barrier, ts_force):
-        """Print the stage-end summary line.
+        """Log the stage-end summary line.
 
         Reports per-stage wall, per-iter wall, the post-convergence
         barrier (``E_TS - E_reactant``), and ``|F| = ‖ts_force‖`` at the
@@ -107,7 +112,7 @@ class _StageLogger:
             f"barrier={float(barrier):.4f}  "
             f"ts_force_norm={float(ts_force.norm().item()):.4f}"
         )
-        print(line)
+        logger.info(line)
 
     def close(self):
         if self._metrics_fh is not None:
@@ -140,6 +145,8 @@ class Popcornn:
             dtype: str = "float32",
             seed: int | None = 0,
             log_path: str | None = None,
+            log_file: str | os.PathLike | None = None,
+            quiet: bool = False,
     ):
         """
         Initialize the Popcornn class.
@@ -154,6 +161,9 @@ class Popcornn:
             device (str | None): Device to use for optimization. If None, will use 'cuda' if available, otherwise 'cpu'.
             dtype (str): Data type to use for optimization. Can be 'float32' or 'float64'.
             seed (int | None): Random seed for reproducibility. If None, no seed is set.
+            log_path (str | None): Directory for the per-stage metrics files ``stage_<i>_metrics.jsonl`` (one JSON row per iteration). Default is None (no metrics files).
+            log_file (str | os.PathLike | None): Text file that also receives the progress log (the per-iteration table and path-initialization messages). Appended to; its folder is created if missing. Default is None.
+            quiet (bool): If True, the progress log is not printed to the screen. With ``log_file`` set it then goes only to that file; without it, popcornn leaves the output to the user's own logging configuration. Default is False.
         """
         # Set device
         if device is None:
@@ -176,19 +186,27 @@ class Popcornn:
         if seed is not None:
             torch.manual_seed(seed)
 
-        # Process images
-        self.images = process_images(images, unwrap_positions=unwrap_positions, device=self.device, dtype=self.dtype)
+        # Output settings: metrics directory, progress-log file, screen on/off
+        self.log_path = log_path
+        self.log_file = log_file if log_file is None else pathlib.Path(log_file).absolute()  # fixed now, so a later chdir cannot move it
+        self.quiet = quiet
+        if log_file is not None:
+            self.log_file.parent.mkdir(parents=True, exist_ok=True)
 
-        # Get path prediction method
-        self.path = get_path(images=self.images, **path_params, device=self.device, dtype=self.dtype)
+        with self._log_outputs():
+            # Process images
+            self.images = process_images(images, unwrap_positions=unwrap_positions, device=self.device, dtype=self.dtype)
 
-        # Fit the path to the intermediate images, otherwise a straight line
-        if len(self.images) > 2:  #TODO: make this spline or bezier instead of fitting
-            self.path = initialize_path(
-                path=self.path, 
-                times=torch.linspace(self.path.t_init.item(), self.path.t_final.item(), len(self.images), device=self.device, dtype=self.dtype),
-                init_points=self.images.positions,
-            )
+            # Get path prediction method
+            self.path = get_path(images=self.images, **path_params, device=self.device, dtype=self.dtype)
+
+            # Fit the path to the intermediate images, otherwise a straight line
+            if len(self.images) > 2:  #TODO: make this spline or bezier instead of fitting
+                self.path = initialize_path(
+                    path=self.path,
+                    times=torch.linspace(self.path.t_init.item(), self.path.t_final.item(), len(self.images), device=self.device, dtype=self.dtype),
+                    init_points=self.images.positions,
+                )
 
         # Track loss and TS during optimization when requested. This adds overhead from extra forward passes, so only enable when needed for debugging or analysis.
         self.track_loss = track_loss
@@ -197,10 +215,44 @@ class Popcornn:
         # Number of points to record along the optimized path
         self.num_record_points = num_record_points
 
-        self.log_path = log_path
-
         # Per-stage convergence flags, populated by optimize_path
         self.converged = None
+
+    @contextlib.contextmanager
+    def _log_outputs(self):
+        """Send popcornn's log records to the screen and/or ``self.log_file`` while the block runs.
+
+        Attaches a stdout handler (unless ``self.quiet``) and a file handler (when
+        ``self.log_file`` is set) to the ``popcornn`` package logger, and turns its
+        propagation off so a handler on the root logger (fairchem attaches one when UMA is
+        imported) cannot print each line a second time. Lowers the logger to INFO if no
+        level was set on it, so the progress table shows by default while a level the user
+        set is respected. All of this is undone on exit. With ``quiet=True`` and no
+        ``log_file`` nothing is attached and standard logging configuration applies.
+        """
+        package_logger = logging.getLogger("popcornn")
+        if self.quiet and self.log_file is None:
+            yield
+            return
+        handlers = [] if self.quiet else [logging.StreamHandler(sys.stdout)]  # sys.stdout looked up now, so redirect_stdout/capsys work
+        if self.log_file is not None:
+            handlers.append(logging.FileHandler(self.log_file, encoding="utf-8"))  # default mode "a": every window of a run writes to one file
+        level, propagate = package_logger.level, package_logger.propagate
+        if level == logging.NOTSET:
+            package_logger.setLevel(min(package_logger.getEffectiveLevel(), logging.INFO))
+        package_logger.propagate = False
+        for handler in handlers:
+            package_logger.addHandler(handler)
+        try:
+            yield
+        finally:
+            # Restore the logger before closing, so a failing close cannot leave it altered
+            for handler in handlers:
+                package_logger.removeHandler(handler)
+            package_logger.setLevel(level)
+            package_logger.propagate = propagate
+            for handler in handlers:
+                handler.close()  # closes the file; StreamHandler.close leaves stdout open
 
 
     def optimize_path(
@@ -230,10 +282,6 @@ class Popcornn:
                 Forwarded to ``PathOptimizer``.
             ``num_optimizer_iterations``
                 Hard cap on Adam steps for this stage.
-        metrics_log_path : str, optional
-            File path for a per-iteration JSONL scalar-metrics log.
-            One row per iteration; flushed each row so a killed run
-            leaves a partial-but-valid file.
 
         Returns
         -------
@@ -243,30 +291,10 @@ class Popcornn:
             (always False for stages with ``threshold=None``). Also
             stored as ``self.converged``.
         """
-        # Optimize the path. When output_dir is set but the caller didn't
-        # specify a metrics path, default to <output_dir>/metrics so the
-        # lightweight scalar log lands next to the heavy per-iter JSONs.
-        # if metrics_log_path is None and self.output_dir is not None:
-        #     metrics_log_path = os.path.join(self.output_dir, 'metrics')
-        # if metrics_log_path is not None:
-        #     os.makedirs(metrics_log_path, exist_ok=True)
         self.converged = []
-        for i, params in enumerate(optimization_params):
-            # if self.output_dir is not None:
-            #     output_dir = f"{self.output_dir}/opt_{i}"
-            # else:
-            #     output_dir = None
-            # if metrics_log_path is not None:
-            #     stage_metrics_path = os.path.join(metrics_log_path, f"opt_{i}.jsonl")
-            # else:
-            #     stage_metrics_path = None
-
-            self.converged.append(self._optimize(
-                **params,
-                # output_dir=output_dir,
-                # output_ase_atoms=output_ase_atoms,
-                stage_idx=i,
-            ))
+        with self._log_outputs():
+            for i, params in enumerate(optimization_params):
+                self.converged.append(self._optimize(**params, stage_idx=i))
         return self.converged
 
 
@@ -342,13 +370,7 @@ class Popcornn:
             Iteration cap.
         stage_idx : int, default=0
             Index of this stage in the parent ``optimize_path`` chain;
-            used only for the stdout progress header.
-        metrics_log_path : str, optional
-            If set, write one JSONL row per iteration to this exact
-            file path with scalar metrics (iter, loss, grad_norm, lr,
-            step_s, wall_s, converged, barrier, ts_force_norm).
-            Flushed after each row so a killed run leaves a partial-
-            but-valid file.
+            used only in the progress-table header and the metrics file name.
 
         Returns
         -------
@@ -382,10 +404,11 @@ class Popcornn:
         #     log_dir = os.path.join(output_dir, "logs")
         #     os.makedirs(log_dir, exist_ok=True)
         
-        # Per-stage progress logger: header now, sparse rows during the loop,
-        # convergence/stage-end summary on exit. Optional JSONL written
-        # via the same logger when metrics_log_path is set.
-        logger = _StageLogger(
+        # Per-stage progress table: header now, sparse rows during the loop,
+        # convergence/stage-end summary on exit. When log_path is set, the same
+        # object writes one JSONL row per iteration to
+        # {log_path}/stage_{stage_idx}_metrics.jsonl.
+        stage_log = _StageLogger(
             stage_idx=stage_idx,
             integrand_terms=integrator._terms,
             lr=optimizer.optimizer.param_groups[0]['lr'],
@@ -405,11 +428,7 @@ class Popcornn:
         for optim_idx in range(num_optimizer_iterations):
             lr = optimizer.optimizer.param_groups[0]['lr']
             t_step = time.perf_counter()
-            try:
-                integral_output = optimizer.optimization_step(self.path, integrator)
-            except ValueError as e:
-                print("ValueError", e)
-                raise e
+            integral_output = optimizer.optimization_step(self.path, integrator)
             step_s = time.perf_counter() - t_step
 
             loss_attr = getattr(integral_output, 'loss', None)
@@ -429,15 +448,15 @@ class Popcornn:
                 ts_time = getattr(self.path, 'ts_time', None)
                 n_crossings = getattr(self.path, 'n_crossings', None)
 
-            logger.row(optim_idx, loss_v, grad_norm, step_s, barrier=barrier, ts_force=ts_force, ts_time=ts_time, n_crossings=n_crossings)
+            stage_log.row(optim_idx, loss_v, grad_norm, step_s, barrier=barrier, ts_force=ts_force, ts_time=ts_time, n_crossings=n_crossings)
 
-            logger.metrics(
+            stage_log.metrics(
                 iter=optim_idx,
                 loss=loss_v,
                 grad_norm=grad_norm,
                 lr=lr,
                 step_s=step_s,
-                wall_s=logger.wall_s(),
+                wall_s=stage_log.wall_s(),
                 converged=bool(optimizer.converged),
                 barrier=barrier,
                 ts_force_norm=(float(ts_force.norm().item()) if ts_force is not None else None),
@@ -486,7 +505,7 @@ class Popcornn:
 
             # Check for convergence
             if optimizer.converged:
-                logger.converged(
+                stage_log.converged(
                     optim_idx,
                     integral_output.grad_norm.item(),
                     optimizer.threshold,
@@ -495,7 +514,7 @@ class Popcornn:
                 break
 
         # One diagnostic integration with track_loss + track_ts on
-        # so the stage-end line carries loss, barrier, and |F| at the TS.
+        # so the stage-end line carries the barrier and |F| at the TS.
         # Cheap: one extra integrate call per stage, no opt step.
         integrator.track_loss = True
         integrator.track_ts = True
@@ -504,12 +523,12 @@ class Popcornn:
         final_barrier = self.path.barrier.item()
         final_ts_force = self.path.ts_force
 
-        logger.end(
+        stage_log.end(
             optim_idx,
             barrier=final_barrier,
             ts_force=final_ts_force,
         )
-        logger.close()
+        stage_log.close()
 
         return bool(optimizer.converged)
 

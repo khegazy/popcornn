@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-11-15
+
+Progress output goes through Python's `logging` module, with new `log_file` and `quiet` options; popcornn no longer calls `print`.
+
+### Added
+
+- `Popcornn` constructor options `log_file` (also write the progress table to a file) and `quiet` (stop printing it to the screen).
+
+### Changed
+
+- Progress output (the per-iteration table and the path-initialization messages) goes through Python's `logging` module on loggers named `popcornn.*`. `Popcornn` still prints the table to stdout by default, once, even when another library has attached a handler to the root logger. The path-model summary is logged once, by `get_path`, at DEBUG, and the path-fit progress every 1000 steps is at DEBUG. A failure to write a table line (for example an encoding error or a closed pipe) no longer stops the run; `logging` reports it on stderr. Calling `initialize_path` or `randomly_initialize_path` directly no longer prints anything unless logging is configured.
+
+### Removed
+
+- The unused `popcornn.tools.logging` class, and leftover debug prints in `initialize_path`.
+
+### Fixed
+
+- The docs for the per-iteration metrics files named a nonexistent `metrics_log_path` argument; the argument is the constructor's `log_path` directory.
+
 ## [0.2.1] - 2026-11-15
 
 Moves to padaquad 1.4.0, which fixes out-of-memory kills when padaquad picks the batch size, and therefore to Python 3.11. Also adds per-stage convergence flags and fixes the MACE, LEFTNet and Orb potentials. Pull requests #85, #86 and #87.

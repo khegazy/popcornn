@@ -180,9 +180,9 @@ each iter, populating `path.ts_time`, `path.ts_energy`,
 `path.ts_force`, and `path.barrier`. Both cost extra forward passes
 — enable for diagnostic runs, leave off for production sweeps.
 
-The per-iter stdout columns and the JSONL metrics log
-(`metrics_log_path`) both pick these up automatically; see
-`Popcornn._StageLogger`.
+The per-iteration progress table and the JSONL metrics log
+(`log_path`) both pick these up automatically; see
+`popcornn.popcornn._StageLogger`.
 
 ## Where the formula comes from
 

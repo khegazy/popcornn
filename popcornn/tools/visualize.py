@@ -1,9 +1,12 @@
+import logging
 import os
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from functools import partial
+
+logger = logging.getLogger(__name__)
 
 plot_params = {
     'font_size' : 20,
@@ -237,7 +240,7 @@ def animate_optimization_2d(
         return plot_artist
 
 
-    print("Plotting animation", len(paths), paths[0].shape)
+    logger.debug(f"Plotting animation {len(paths)} {paths[0].shape}")
     ani = animation.FuncAnimation(fig, animation_function, frames=paths)
     os.makedirs(plot_dir, exist_ok=True)
     ani.save(os.path.join(plot_dir, contour_file + ".gif"))

@@ -1,4 +1,9 @@
+import logging
+
 import torch
+
+logger = logging.getLogger(__name__)
+
 
 class MinimaUpdate():
     """
@@ -50,7 +55,7 @@ class MinimaUpdate():
         
         point.requires_grad = True
         optimizer = torch.optim.SGD([point], lr=self.step_size)
-        print(f"computing minima ... {point}")
+        logger.debug(f"computing minima ... {point}")
         for step in range(self.n_steps):
             energy = torch.sum(self.potential(point))
             energy.backward()
