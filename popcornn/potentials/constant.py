@@ -12,7 +12,7 @@ class Constant(BasePotential):
         super().__init__(**kwargs)
         self.scale = scale
 
-    def forward(self, positions):
+    def forward(self, _positions):
         return PotentialOutput(
             energies=self.scale,
             forces=torch.zeros_like(self.positions)

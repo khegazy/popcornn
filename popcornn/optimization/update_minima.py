@@ -37,7 +37,7 @@ class MinimaUpdate:
         ]
         return self.minima
 
-    def find_minimum(self, point, log_frequency=1000):
+    def find_minimum(self, point):
         """
         Relax a single point to a local minimum.
 

@@ -156,6 +156,7 @@ lint.unfixable = [
 # Math notation in comments/docstrings (RUF001-003): allow these symbols.
 lint.allowed-confusables = [
   "−",  # U+2212 MINUS SIGN
+  "–",  # U+2013 EN DASH (e.g. Gauss–Kronrod)
   "σ",  # U+03C3 GREEK SMALL LETTER SIGMA
   "×",  # U+00D7 MULTIPLICATION SIGN
 ]

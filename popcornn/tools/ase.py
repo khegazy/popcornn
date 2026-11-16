@@ -144,11 +144,8 @@ def radius_graph(
         Graph of atom pairs within the cutoff distance.
     """
     if method == "mic":
-        return _radius_graph_mic(positions, cell, pbc, cutoff, max_neighbors)
+        return _radius_graph_mic(positions, cell, pbc, cutoff)
     elif method == "fairchem":
-        from fairchem.core.datasets import data_list_collater
-        from fairchem.core.datasets.atomic_data import AtomicData
-        from fairchem.core.graph.compute import generate_graph
         return _radius_graph_fairchem(positions, cell, pbc, cutoff, max_neighbors)
     else:
         raise ValueError(f"Invalid method: {method}. Options are 'mic' and 'fairchem'.")
@@ -158,7 +155,6 @@ def _radius_graph_mic(
         cell: torch.Tensor,
         pbc: torch.Tensor,
         cutoff: float | None = None,
-        max_neighbors: int | None = None,
     ) -> torch.Tensor:
     """
     Create a graph of atom pairs within a cutoff distance.
@@ -256,6 +252,10 @@ def _radius_graph_fairchem(
         - 'neighbors': int tensor of shape (n_graphs,)
             Number of neighbors for each atom.
     """
+    from fairchem.core.datasets import data_list_collater  # noqa: PLC0415
+    from fairchem.core.datasets.atomic_data import AtomicData  # noqa: PLC0415
+    from fairchem.core.graph.compute import generate_graph  # noqa: PLC0415
+
     device = positions.device
     dtype = positions.dtype
     _, n_atoms, _ = positions.shape

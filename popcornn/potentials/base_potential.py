@@ -38,7 +38,7 @@ class BasePotential(nn.Module):
     forces from autograd.
     """
 
-    def __init__(self, images, device, dtype, add_azimuthal_dof=False, add_translation_dof=False, **kwargs) -> None:
+    def __init__(self, images, device, dtype, add_azimuthal_dof=False, add_translation_dof=False) -> None:
         """
         Parameters
         ----------

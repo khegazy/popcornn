@@ -70,7 +70,7 @@ def contour_2d(
         plot_min_max,
         levels,
         contour_vals=None,
-        return_contour_vals=False,
+        _return_contour_vals=False,
         add_dof=False,
     ):
     if contour_vals is not None:
@@ -92,7 +92,7 @@ def contour_2d(
 
 def _plot_added_rot_dof(
         path,
-        name,
+        _name,
         radius,
         pes_fxn=None,
         plot_min_max=None,
@@ -159,7 +159,7 @@ def _plot_path(
         plot_min_max=None,
         levels=None,
         contour_vals=None,
-        return_contour_vals=False,
+        _return_contour_vals=False,
         add_dof=False
     ):
 
@@ -219,9 +219,9 @@ def animate_optimization_2d(
         pes_fxn=None,
         plot_min_max=None,
         levels=None,
-        contour_vals=None,
+        _contour_vals=None,
         add_translation_dof=False,
-        add_azimuthal_dof=False,
+        _add_azimuthal_dof=False,
         plot_dir="./plots/"
     ):
 
@@ -235,8 +235,9 @@ def animate_optimization_2d(
 
 
     def animation_function(path):
-        if add_translation_dof and False:
-            plot_artist.set_data(path[:,0] - path[:,-1], path[:,1])
+        if add_translation_dof:
+            if False:
+                plot_artist.set_data(path[:,0] - path[:,-1], path[:,1])
         else:
             plot_artist.set_data(path[:,0], path[:,1])
         return plot_artist

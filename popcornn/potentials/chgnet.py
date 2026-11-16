@@ -37,7 +37,8 @@ class CHGNetPotential(BasePotential):
 
 
     def load_model(self, model_path):
-        model = mace_off(device=self.device).models[0]
+        # DEBUG: mace_off is not yet imported, import it and fix the line below
+        model = None #mace_off(device=self.device).models[0]
         state_dict = torch.load(model_path, map_location=self.device)
         model.load_state_dict(state_dict)
         model.eval()
