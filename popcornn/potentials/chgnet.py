@@ -43,6 +43,7 @@ class CHGNetPotential(BasePotential):
         model.load_state_dict(state_dict)
         model.eval()
         model.requires_grad_(False)
+        test = a
         return model
 
     def data_formatter(self, pos):
