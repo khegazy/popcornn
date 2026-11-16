@@ -6,7 +6,7 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.geometry import find_mic
 
-# fairchem is lazy-imported in radius_graph_fairchem to keep `import popcornn`
+# fairchem is lazy-imported when radius_graph_fairchem is called to keep `import popcornn`
 # off the Ray Serve / FSDP / wandb cold-import path (~5s on login, ~35s on compute).
 # from popcornn.paths.base_path import PathOutput
 # from popcornn.tools.preprocess import Images
@@ -144,13 +144,16 @@ def radius_graph(
         Graph of atom pairs within the cutoff distance.
     """
     if method == "mic":
-        return radius_graph_mic(positions, cell, pbc, cutoff, max_neighbors)
+        return _radius_graph_mic(positions, cell, pbc, cutoff, max_neighbors)
     elif method == "fairchem":
-        return radius_graph_fairchem(positions, cell, pbc, cutoff, max_neighbors)
+        from fairchem.core.datasets import data_list_collater
+        from fairchem.core.datasets.atomic_data import AtomicData
+        from fairchem.core.graph.compute import generate_graph
+        return _radius_graph_fairchem(positions, cell, pbc, cutoff, max_neighbors)
     else:
         raise ValueError(f"Invalid method: {method}. Options are 'mic' and 'fairchem'.")
 
-def radius_graph_mic(
+def _radius_graph_mic(
         positions: torch.Tensor,
         cell: torch.Tensor,
         pbc: torch.Tensor,
@@ -212,7 +215,7 @@ def radius_graph_mic(
         "edge_distance_vec": edge_distance_vec,
     }
 
-def radius_graph_fairchem(
+def _radius_graph_fairchem(
         positions: torch.Tensor,
         cell: torch.Tensor,
         pbc: torch.Tensor,
@@ -253,10 +256,6 @@ def radius_graph_fairchem(
         - 'neighbors': int tensor of shape (n_graphs,)
             Number of neighbors for each atom.
     """
-    from fairchem.core.datasets import data_list_collater
-    from fairchem.core.datasets.atomic_data import AtomicData
-    from fairchem.core.graph.compute import generate_graph
-
     device = positions.device
     dtype = positions.dtype
     _, n_atoms, _ = positions.shape
