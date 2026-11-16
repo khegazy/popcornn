@@ -11,4 +11,3 @@ from .integrand import (
     evaluate_integrand_sum,
 )
 from .integrator import PathIntegrator, SamplesCache
-from .logging import logging

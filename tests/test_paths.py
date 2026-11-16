@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
 import torch
 
@@ -59,10 +61,11 @@ def test_linear(dtype, device):
     "device",
     [torch.device("cpu"), torch.device("cuda")]
 )
-def test_mlp(dtype, device):
+def test_mlp(dtype, device, caplog):
     if device.type == "cuda" and not torch.cuda.is_available():
         pytest.skip(reason="CUDA is not available, skipping test.")
 
+    caplog.set_level(logging.DEBUG, logger="popcornn")
     torch.manual_seed(0)  # For reproducibility
     images = process_images("tests/images/muller_brown.json", device=device, dtype=dtype)
     path = get_path("mlp", images=images, device=device, dtype=dtype)
@@ -119,6 +122,11 @@ def test_mlp(dtype, device):
         "  (4): Linear(in_features=64, out_features=2, bias=True)\n"
         ")"
     )
+
+    # get_path logs one model summary per path built (4 above), at DEBUG
+    summaries = [r.getMessage() for r in caplog.records if r.name == "popcornn.paths"]
+    assert len(summaries) == 4
+    assert all(m.startswith("Built path:\nMLPpath(") for m in summaries)
 
 
 # TODO: Implement test for input reshape

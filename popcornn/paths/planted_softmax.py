@@ -97,13 +97,6 @@ class PlantedSoftmaxPath(BasePath):
 
         self.base = base if base is not None else LinearPath(**kwargs)
 
-        print(
-            "Number of trainable parameters in PlantedSoftmaxPath:",
-            sum(p.numel() for p in self.parameters() if p.requires_grad),
-        )
-        print(self.basis)
-        print(self.out)
-
     def get_positions(self, time):
         """
         Evaluate the path at ``time``.

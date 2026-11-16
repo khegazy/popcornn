@@ -224,9 +224,6 @@ class MLPpath(BasePath):
 
         self.base = base if base is not None else LinearPath(**kwargs)
 
-        print("Number of trainable parameters in MLP:", sum(p.numel() for p in self.parameters() if p.requires_grad))
-        print(self.mlp)
-
     def get_positions(self, time: float):
         """
         Evaluate the path at ``time``.

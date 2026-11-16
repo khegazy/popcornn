@@ -23,12 +23,15 @@ Python code; see [Getting Started](getting-started.md).
 | `images` | `str` or list | required | Path to an `xyz`/`traj`/`json`/`npy`/`pt` file, or a list of ASE `Atoms` objects, or a 2D coordinate list. First frame is the reactant, last is the product. Intermediate frames are non-fixed guesses the path is fitted through. |
 | `unwrap_positions` | `bool` | `True` | For periodic systems, unwrap the product against the reactant using the minimum-image convention. Disable if any atom moves more than half a cell. |
 | `path_params` | `dict` | `{}` | See below. |
-| `track_loss` | `bool` | `False` | Run a detached scalar-loss integral each iteration (`∫L dt`). Required for the stage-end log line to report `loss=`. Costs one extra forward pass per iter. |
-| `track_ts` | `bool` | `False` | Trigger `path.ts_search` each iteration. Populates `path.ts_time`, `path.ts_energy`, `path.ts_force`, and `path.barrier`. Required for per-iter `barrier`/`force` columns and the stage-end `barrier=`/`ts_force_norm=` fields. Costs one extra forward pass per iter. |
+| `track_loss` | `bool` | `False` | Run a detached scalar-loss integral each iteration (`∫L dt`). Required for the per-iteration `loss` column of the progress table. Costs one extra forward pass per iter. |
+| `track_ts` | `bool` | `False` | Trigger `path.ts_search` each iteration. Populates `path.ts_time`, `path.ts_energy`, `path.ts_force`, and `path.barrier`. Required for the per-iteration `barrier`, `force`, `ts_time` and `crossings` columns (the stage-end line always reports `barrier=` and `ts_force_norm=`). Costs one extra forward pass per iter. |
 | `num_record_points` | `int` | `101` | Number of frames sampled along the optimized path by `get_discrete_path()`. |
 | `device` | `str` or `None` | auto | `cuda` or `cpu`. `None` picks `cuda` if available. |
 | `dtype` | `"float32"` or `"float64"` | `"float32"` | PyTorch dtype. |
 | `seed` | `int` or `None` | `0` | RNG seed for reproducibility. `None` to skip seeding. |
+| `log_path` | `str` or `None` | `None` | Directory for the per-stage metrics files `stage_<i>_metrics.jsonl` (one JSON row per iteration). See [Advanced](advanced.md#logging-per-iteration-state). |
+| `log_file` | `str`, path, or `None` | `None` | Text file that also receives the progress table. Appended to; its folder is created if needed. |
+| `quiet` | `bool` | `False` | Stop printing the progress table to the screen. With `log_file` set it goes only to the file; without it, popcornn leaves the output to your own `logging` configuration. |
 
 ### `path_params`
 

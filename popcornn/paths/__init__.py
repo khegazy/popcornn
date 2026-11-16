@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from .linear import LinearPath
 from .mlp import MLPpath
 from .planted_softmax import PlantedSoftmaxPath
@@ -13,6 +15,8 @@ path_dict = {
     "planted_softmax" : PlantedSoftmaxPath,
     "softmax" : SoftMaxPath
 }
+
+logger = logging.getLogger(__name__)
 
 def get_path(name, **config):
     """
@@ -37,4 +41,6 @@ def get_path(name, **config):
     name = name.lower()
     if name not in path_dict:
         raise ValueError(f"Cannot get path {name}, can only handle paths {path_dict.keys()}")
-    return path_dict[name](**config)
+    path = path_dict[name](**config)
+    logger.debug("Built path:\n%s", path)
+    return path

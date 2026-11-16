@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+
+logger = logging.getLogger(__name__)
 
 plot_params = {
     "font_size" : 20,
@@ -239,7 +242,7 @@ def animate_optimization_2d(
         return plot_artist
 
 
-    print("Plotting animation", len(paths), paths[0].shape)
+    logger.debug(f"Plotting animation {len(paths)} {paths[0].shape}")
     ani = animation.FuncAnimation(fig, animation_function, frames=paths)
     Path(plot_dir).mkdir(parents=True, exist_ok=True)
     ani.save(Path(plot_dir) / (contour_file + ".gif"))
