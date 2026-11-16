@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "popcornn"
 description="Path Optimization with a Continuous Representation Neural Network (popcornn) optimizes molecular reaction paths along analytic and MLIP potentials."
-version = "0.2.2"
+version = "0.3.0"
 readme = "README.md"
 license = { text = "CC-BY 4.0" }
 authors = [
@@ -76,19 +76,6 @@ xfail_strict = true
 log_cli_level = "warn"
 pythonpath = "popcornn/popcornn"
 testpaths = ["tests"]
-
-[tool.black]
-exclude = '''
-/(
-    \.git
-  | \.tox
-)/
-'''
-skip-magic-trailing-comma = true
-
-[tool.isort]
-profile = "black"
-skip_gitignore = true
 
 [tool.coverage.run]
 source = ["popcornn"]

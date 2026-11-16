@@ -7,7 +7,7 @@ ci:
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.17.4  # keep in sync with the ruff version in .github/workflows/lint.yaml
+    rev: v0.17.4  # the one place the ruff version is set; CI runs these hooks too
     hooks:
       - id: ruff-check
         args: [--fix]

@@ -1,0 +1,6 @@
+# Commits that only reformat code; `git blame` skips them.
+# GitHub uses this file automatically. Locally, run once per clone:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Format the repository with ruff format
+f368faa406b66720685bb6d484a41bd9d1f69883

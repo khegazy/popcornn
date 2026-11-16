@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-15
+
+Code is linted and formatted with ruff, on every commit through a pre-commit hook and on every push in CI.
+
+### Added
+
+- A `lint` GitHub Actions workflow that runs the pre-commit hooks (`ruff check` and `ruff format`) on every push, on every branch.
+- `pre-commit` in the `dev` extra. The hook runs `ruff check --fix` (safe fixes only) and `ruff format` on each commit; install it once per clone with `pre-commit install` (see the README).
+- `.git-blame-ignore-revs`, so `git blame` skips the repository-wide formatting commit.
+
+### Changed
+
+- The whole repository, including the Python examples in `docs/`, is formatted with `ruff format`. Formatting only: no code changes.
+- Ruff replaces black and isort: their `pyproject.toml` sections are removed, and the VS Code formatter setting points to the Ruff extension. Ruff's default keeps a bracketed list that ends in a trailing comma one item per line (black was configured to join it).
+- The ruff version is set in one place, `.pre-commit-config.yaml` (0.17.4).
+- `tests_ongoing/` is excluded from linting.
+- `os.path` calls are replaced with `pathlib.Path`.
+- `Popcornn` and `MinimaUpdate` default their dictionary and list arguments to `None` and `()` instead of mutable `{}` and `[]`.
+- **Breaking:** `BasePotential.__init__` no longer accepts and ignores unknown keyword arguments; an unexpected key in a potential's configuration raises `TypeError`.
+- Removed unused arguments: `log_frequency` from `MinimaUpdate.find_minimum`, and `max_neighbors` from the private `_radius_graph_mic`.
+
+### Fixed
+
+- `radius_graph(..., method="fairchem")` raised `NameError`: the lazy `fairchem` imports were in `radius_graph` instead of `_radius_graph_fairchem`, where the names are used.
+
+### Known issues
+
+- `_plot_added_rot_dof` in `popcornn/tools/visualize.py` raises `TypeError` because `_plot_path` no longer accepts `return_contour_vals` (#102).
+
 ## [0.2.2] - 2026-11-15
 
 Progress output goes through Python's `logging` module, with new `log_file` and `quiet` options; popcornn no longer calls `print`.

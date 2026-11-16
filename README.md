@@ -86,6 +86,7 @@ that lints and formats your changes with ruff on every commit:
 ```bash
 pip install -e "./popcornn[dev]"
 cd popcornn && pre-commit install
+git config blame.ignoreRevsFile .git-blame-ignore-revs  # git blame skips formatting-only commits
 ```
 
 To check the whole repository by hand, run `pre-commit run --all-files`.

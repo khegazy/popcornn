@@ -138,4 +138,4 @@ if checkpoint is not None:
     trainer.resume(checkpoint)
 trainer.train()
 
-print("done!")  # noqa: T201
+print("done!")

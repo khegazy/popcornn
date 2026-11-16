@@ -46,8 +46,6 @@ class MinimaUpdate:
         point : torch.Tensor
             Starting configuration. A leading batch dim is added if
             missing and stripped before returning.
-        log_frequency : int, default=1000
-            Reserved; the in-loop logging hook is currently disabled.
         """
         # Adding batch dimension if point is a single point
         unsqueeze = False
