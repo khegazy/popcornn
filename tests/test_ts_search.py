@@ -1,9 +1,12 @@
-import torch
+from __future__ import annotations
+
 import numpy as np
-from popcornn.tools.images import Images
-from popcornn.tools import SamplesCache
-from popcornn.potentials.base_potential import BasePotential, PotentialOutput
+import torch
+
 from popcornn.paths.base_path import BasePath
+from popcornn.potentials.base_potential import BasePotential, PotentialOutput
+from popcornn.tools import SamplesCache
+from popcornn.tools.images import Images
 
 
 class LegendrePotential(BasePotential):
@@ -21,11 +24,11 @@ class LegendrePotential(BasePotential):
         positions = positions.requires_grad_(True)
         s = positions.sum(dim=-1, keepdim=True)
         if self.n == 2:
-            E = -1 * (3 * s ** 2 - 1) / 2.
+            E = -1 * (3 * s**2 - 1) / 2.0
         elif self.n == 3:
-            E = (5 * s ** 3 - 2 * s ** 2 - 3 * s) / 2.
+            E = (5 * s**3 - 2 * s**2 - 3 * s) / 2.0
         elif self.n == 4:
-            E = (35 * s ** 4 - 30 * s ** 2 + 3) / 8. - 0.75 * s ** 2
+            E = (35 * s**4 - 30 * s**2 + 3) / 8.0 - 0.75 * s**2
         else:
             raise ValueError(self.n)
         F = self.calculate_conservative_forces(E, positions, create_graph=False)
@@ -35,8 +38,7 @@ class LegendrePotential(BasePotential):
 def test_ts_search():
     # Setup environment
     torch.manual_seed(2025)
-    np.random.seed(2025)
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float64
 
     # Create initial/end points
@@ -54,21 +56,21 @@ def test_ts_search():
 
     truth = {
         2: (0.5, 0.5),
-        3: (0.5 + (-1./3) / 2., 8./27),
+        3: (0.5 + (-1.0 / 3) / 2.0, 8.0 / 27),
         4: (0.5, 0.375),
     }
 
-    for l in [2, 3, 4]:
-        # Build a fresh BasePath + LegendrePotential per l so the fresh
+    for degree in [2, 3, 4]:
+        # Build a fresh BasePath + LegendrePotential per degree so the fresh
         # forward inside ts_search has a working potential.
         base_path = BasePath(images=images, dtype=dtype, device=device)
-        potential = LegendrePotential(images, device=device, dtype=dtype, n=l)
+        potential = LegendrePotential(images, device=device, dtype=dtype, n=degree)
         base_path.set_potential(potential)
         # Override get_positions so the linear-interp `path(t)` drives
         # the fresh forward as well as the sample construction.
-        base_path.get_positions = lambda t: path(t)
+        base_path.get_positions = path
         # calculate_velocities uses autograd-jacobian over get_positions,
-        # which works on the lambda above.
+        # which works on the function assigned above.
 
         # Build samples on a 13-pt mesh.
         time = torch.linspace(
@@ -76,13 +78,15 @@ def test_ts_search():
         ).unsqueeze(-1)
         positions = path(time)
         s = positions.sum(dim=-1, keepdim=True)
-        if l == 2:
-            E = -1 * (3 * s ** 2 - 1) / 2.
-        elif l == 3:
-            E = (5 * s ** 3 - 2 * s ** 2 - 3 * s) / 2.
+        if degree == 2:
+            E = -1 * (3 * s**2 - 1) / 2.0
+        elif degree == 3:
+            E = (5 * s**3 - 2 * s**2 - 3 * s) / 2.0
         else:
-            E = (35 * s ** 4 - 30 * s ** 2 + 3) / 8. - 0.75 * s ** 2
-        F = BasePotential.calculate_conservative_forces(E, positions, create_graph=False)
+            E = (35 * s**4 - 30 * s**2 + 3) / 8.0 - 0.75 * s**2
+        F = BasePotential.calculate_conservative_forces(
+            E, positions, create_graph=False
+        )
         v = (x_final - x_init).expand_as(F)
         dEdt = -(F * v).sum(dim=-1)
 
@@ -93,21 +97,22 @@ def test_ts_search():
         )
         base_path.ts_search(samples)
 
-        ts_time_truth, ts_energy_truth = truth[l]
+        ts_time_truth, ts_energy_truth = truth[degree]
         assert np.isclose(
             ts_time_truth, base_path.ts_time.cpu().item(), atol=1e-2, rtol=1e-4
         ), (
-            f"Did not match TS times for legendre {l}, got "
+            f"Did not match TS times for legendre {degree}, got "
             f"{base_path.ts_time.item()}, expected {ts_time_truth}"
         )
         assert np.isclose(
-            ts_energy_truth, base_path.ts_energy.flatten().cpu().item(),
+            ts_energy_truth,
+            base_path.ts_energy.flatten().cpu().item(),
             atol=1e-3,
         ), (
-            f"Did not match TS energy for legendre {l}, got "
+            f"Did not match TS energy for legendre {degree}, got "
             f"{base_path.ts_energy.item()}, expected {ts_energy_truth}"
         )
         assert base_path.ts_force_mag.item() < 1e-3, (
             f"Did not find sufficiently small TS force magnitude for "
-            f"legendre {l}, got {base_path.ts_force_mag.item()}"
+            f"legendre {degree}, got {base_path.ts_force_mag.item()}"
         )

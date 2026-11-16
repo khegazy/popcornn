@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import argparse
-from typing import Optional
 
 
 def build_default_arg_parser() -> argparse.ArgumentParser:
@@ -16,6 +17,6 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         "-c",
         help="Path to YAML configuration file.",
         type=str,
-        default="config.yaml"
+        default="config.yaml",
     )
     return parser

@@ -140,8 +140,8 @@ for image in images:
 mep = Popcornn(
     images=images,
     path_params={"name": "mlp", "width": 128, "depth": 2},
-    track_loss=True,    # so each table row shows the loss
-    track_ts=True,      # so each table row shows the barrier and |F| at the TS
+    track_loss=True,  # so each table row shows the loss
+    track_ts=True,  # so each table row shows the barrier and |F| at the TS
 )
 
 mep.optimize_path(
@@ -149,7 +149,8 @@ mep.optimize_path(
         "potential_params": {"name": "repel"},
         "integrator_params": {
             "path_integrand_names": "geodesic",
-            "rtol": 0.5, "atol": 0.05,
+            "rtol": 0.5,
+            "atol": 0.05,
         },
         "optimizer_params": {
             "optimizer": {"name": "adam", "lr": 5.0e-3},

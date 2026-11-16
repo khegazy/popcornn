@@ -1,3 +1,5 @@
-from .update_minima import MinimaUpdate
-from .initialize_path import randomly_initialize_path, initialize_path
+from __future__ import annotations
+
+from .initialize_path import initialize_path, randomly_initialize_path
 from .optimizer import PathOptimizer
+from .update_minima import MinimaUpdate

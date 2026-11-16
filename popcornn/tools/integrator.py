@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import torch
-
 from padaquad import adaptive_quadrature
 
 from .integrand import build_integrand_terms, evaluate_integrand_sum
@@ -65,24 +66,24 @@ class PathIntegrator:
     """
 
     def __init__(
-            self,
-            method='gk7',
-            integrate_gradient=True,
-            path_integrand_names=None,
-            path_integrand_scales=None,
-            path_integrand_kwargs=None,
-            rtol=1.0,
-            atol=0.0,
-            norm='2',
-            max_batch=None,
-            max_iter=5,
-            track_loss=False,
-            loss_rtol=0.0,
-            loss_atol=0.0001,
-            track_ts=False,
-            device=None,
-            dtype=None,
-        ):
+        self,
+        method="gk7",
+        integrate_gradient=True,
+        path_integrand_names=None,
+        path_integrand_scales=None,
+        path_integrand_kwargs=None,
+        rtol=1.0,
+        atol=0.0,
+        norm="2",
+        max_batch=None,
+        max_iter=5,
+        track_loss=False,
+        loss_rtol=0.0,
+        loss_atol=0.0001,
+        track_ts=False,
+        device=None,
+        dtype=None,
+    ):
         """
         Parameters
         ----------
@@ -228,7 +229,7 @@ class PathIntegrator:
         # (mesh and batch size, used by same_f=True) persists for the
         # integrator's lifetime.
         self._solver = adaptive_quadrature(
-            sampling_type='uniform',          # str -> steps.ADAPTIVE_UNIFORM
+            sampling_type="uniform",  # str -> steps.ADAPTIVE_UNIFORM
             method=self.method,
             atol=self.atol,
             rtol=self.rtol,
@@ -244,7 +245,7 @@ class PathIntegrator:
         # main pass already integrates the loss, so .loss comes for free.
         if self.integrate_gradient:
             self._loss_solver = adaptive_quadrature(
-                sampling_type='uniform',
+                sampling_type="uniform",
                 method=self.method,
                 atol=self.loss_atol,
                 rtol=self.loss_rtol,
@@ -258,7 +259,7 @@ class PathIntegrator:
         """Replace one or more per-term scales. Used by schedulers to ramp
         terms up/down between iterations."""
         for name, scale in kwargs.items():
-            for i, term in enumerate(self._terms):
+            for term in self._terms:
                 if term.name == name:
                     term.scale = float(scale)
                     break
@@ -269,12 +270,12 @@ class PathIntegrator:
                 )
 
     def integrate_path(
-            self,
-            path,
-            integrand_scales=None,
-            t_init=torch.tensor([0.]),
-            t_final=torch.tensor([1.]),
-        ):
+        self,
+        path,
+        integrand_scales=None,
+        t_init=0.0,
+        t_final=1.0,
+    ):
         """
         Compute the path gradient and write it into ``param.grad``.
 
@@ -303,7 +304,7 @@ class PathIntegrator:
             Holds the trainable parameters and potential.
         integrand_scales : dict, optional
             Updated values for per-term scales (from schedulers).
-        t_init, t_final : torch.Tensor
+        t_init, t_final : float or torch.Tensor, default 0.0 and 1.0
             Integration bounds, in [0, 1]. Passed to padaquad as 1-D
             ``[1]`` mesh bounds.
         """
@@ -312,8 +313,12 @@ class PathIntegrator:
 
         # padaquad wants 1-D ``[T]`` mesh bounds (T=1 here), not 0-d. Their
         # dtype also drives the solver's working precision (set_dtype_by_input).
-        t_init_1d = torch.as_tensor(t_init, dtype=self.dtype, device=self.device).reshape(1)
-        t_final_1d = torch.as_tensor(t_final, dtype=self.dtype, device=self.device).reshape(1)
+        t_init_1d = torch.as_tensor(
+            t_init, dtype=self.dtype, device=self.device
+        ).reshape(1)
+        t_final_1d = torch.as_tensor(
+            t_final, dtype=self.dtype, device=self.device
+        ).reshape(1)
 
         # Filter out frozen params (requires_grad=False). When a potential
         # is attached via set_potential, it's registered as an nn.Module
@@ -324,7 +329,7 @@ class PathIntegrator:
         params = [p for p in path.parameters() if p.requires_grad]
         sizes = [p.numel() for p in params]
 
-        also_resolve = ('energies', 'forces', 'velocities') if self.track_ts else ()
+        also_resolve = ("energies", "forces", "velocities") if self.track_ts else ()
 
         def _loss_and_tracked(t):
             """Evaluate the graph-live weighted integrand sum (``[N]``) and,
@@ -332,16 +337,17 @@ class PathIntegrator:
             padaquad carries to the accepted nodes. padaquad passes nodes as
             ``[N, 1]`` (already 2-D) — no unsqueeze. ``dE/dt = -(F·v).sum(-1)``
             reuses the forces/velocities already resolved for the loss."""
-            l, variables = evaluate_integrand_sum(
-                self._terms, t, path, also_resolve=also_resolve,
+            loss, variables = evaluate_integrand_sum(
+                self._terms,
+                t,
+                path,
+                also_resolve=also_resolve,
             )
             tracked = None
             if self.track_ts:
-                dEdt = -torch.sum(
-                    variables['forces'] * variables['velocities'], dim=-1
-                )
-                tracked = (variables['energies'], dEdt)
-            return l, tracked
+                dEdt = -torch.sum(variables["forces"] * variables["velocities"], dim=-1)
+                tracked = (variables["energies"], dEdt)
+            return loss, tracked
 
         if self.integrate_gradient:
             # Integrate-the-gradient: the integrand returns the per-point
@@ -354,13 +360,16 @@ class PathIntegrator:
                 n = l_per_t.shape[0]
                 grad_out = torch.eye(n, device=l_per_t.device, dtype=l_per_t.dtype)
                 grads = torch.autograd.grad(
-                    outputs=torch.sum(l_per_t, dim=-1), # Reduce to scalar for taking gradient
+                    outputs=torch.sum(
+                        l_per_t, dim=-1
+                    ),  # Reduce to scalar for taking gradient
                     inputs=params,
                     grad_outputs=grad_out,
                     is_grads_batched=True,
                 )
                 jac = torch.cat([g.reshape(n, -1) for g in grads], dim=-1)  # [N, D]
                 return jac, tracked
+
             take_gradient = False
         else:
             # Gradient-of-the-integral: the integrand returns the scalar loss
@@ -368,8 +377,9 @@ class PathIntegrator:
             # take_gradient=True and calls .backward() on the loss integral
             # per batch, accumulating ``∫∂L/∂θ dt`` into param.grad via autograd.
             def f(t):
-                l, tracked = _loss_and_tracked(t)
-                return l, tracked  # [N, 1], graph live
+                loss, tracked = _loss_and_tracked(t)
+                return loss, tracked  # [N, 1], graph live
+
             take_gradient = True
 
         # same_f=True: padaquad starts from the mesh and batch size it stored at
@@ -383,8 +393,8 @@ class PathIntegrator:
             mesh_init=t_init_1d,
             mesh_final=t_final_1d,
             error_norm=self.norm,
-            take_gradient=take_gradient,      # see integrate_gradient branch above
-            result_device=self.device
+            take_gradient=take_gradient,  # see integrate_gradient branch above
+            result_device=self.device,
         )
 
         integral_output = result
@@ -397,28 +407,31 @@ class PathIntegrator:
             # between optimizer.zero_grad() compose.
             flat = result.integral.detach()
             offset = 0
-            for p, k in zip(params, sizes):
-                chunk = flat[offset:offset + k].reshape(p.shape)
+            for p, k in zip(params, sizes, strict=True):
+                chunk = flat[offset : offset + k].reshape(p.shape)
                 p.grad = chunk if p.grad is None else p.grad + chunk
                 offset += k
         else:
             # padaquad already called .backward(), accumulating ∫∂L/∂θ dt into
             # param.grad. Gather it into a flat [D] vector for grad_norm and the
             # grad_integral alias. (Frozen/untouched params contribute zeros.)
-            flat = torch.cat([
-                p.grad.reshape(-1) if p.grad is not None
-                else p.new_zeros(k).reshape(-1)
-                for p, k in zip(params, sizes)
-            ]).detach()
+            flat = torch.cat(
+                [
+                    p.grad.reshape(-1)
+                    if p.grad is not None
+                    else p.new_zeros(k).reshape(-1)
+                    for p, k in zip(params, sizes, strict=True)
+                ]
+            ).detach()
         integral_output.grad_integral = flat
 
         # Surface ‖∫∇L dt‖ as the convergence signal consumed by
         # PathOptimizer's threshold check. L∞ is closer to MLP-size-independent
         # than L2 — the latter scales with √D and forces the threshold to be
         # retuned per parameter count.
-        if self.norm == '2':
+        if self.norm == "2":
             integral_output.grad_norm = flat.norm()
-        elif self.norm == 'max':
+        elif self.norm == "max":
             integral_output.grad_norm = flat.abs().max()
         else:
             raise ValueError(f"Unsupported norm {self.norm!r} (choose '2' or 'max').")
@@ -437,8 +450,9 @@ class PathIntegrator:
             # The main pass integrated the gradient, not the loss, so run a
             # separate detached loss integral on its own solver (own tolerances).
             def fval(t):
-                l, _ = evaluate_integrand_sum(self._terms, t, path)
-                return l.reshape(t.shape[0], -1).detach()  # [N, 1], bare tensor
+                loss, _ = evaluate_integrand_sum(self._terms, t, path)
+                return loss.reshape(t.shape[0], -1).detach()  # [N, 1], bare tensor
+
             loss_result = self._loss_solver.integrate(
                 fval,
                 same_f=True,
@@ -450,7 +464,7 @@ class PathIntegrator:
                 # its own stored size); starting from the gradient solver's
                 # size skips a second memory measurement.
                 max_batch=self._solver.previous_max_batch,
-                result_device=self.device
+                result_device=self.device,
             )
             integral_output.loss = loss_result.integral.detach()  # [1]
         else:
@@ -479,8 +493,10 @@ class PathIntegrator:
             empty = torch.empty(0, device=self.device, dtype=self.dtype)
             return SamplesCache(time=empty, energies=empty, dEdt=empty)
         energies, dEdt = result.tracked_variables  # [P, E], [P]
-        time = result.nodes[..., 0].to(self.device)      # [P]
-        energies = energies.to(self.device)              # [P, E]
-        dEdt = dEdt.to(self.device)                      # [P]
+        time = result.nodes[..., 0].to(self.device)  # [P]
+        energies = energies.to(self.device)  # [P, E]
+        dEdt = dEdt.to(self.device)  # [P]
         order = torch.argsort(time)
-        return SamplesCache(time=time[order], energies=energies[order], dEdt=dEdt[order])
+        return SamplesCache(
+            time=time[order], energies=energies[order], dEdt=dEdt[order]
+        )

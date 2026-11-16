@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import torch
+
 from .base_potential import BasePotential, PotentialOutput
 
 
@@ -18,11 +21,13 @@ class Schwefel(BasePotential):
         energies_decomposed = offset - sinusiods
         energies = torch.sum(energies_decomposed, dim=-1, keepdim=True)
         forces = self.calculate_conservative_forces(energies, positions)
-        forces_decomposed = self.calculate_conservative_forces_decomposed(energies_decomposed, positions)
+        forces_decomposed = self.calculate_conservative_forces_decomposed(
+            energies_decomposed, positions
+        )
 
         return PotentialOutput(
             energies=energies,
             energies_decomposed=energies_decomposed,
             forces=forces,
-            forces_decomposed=forces_decomposed
+            forces_decomposed=forces_decomposed,
         )

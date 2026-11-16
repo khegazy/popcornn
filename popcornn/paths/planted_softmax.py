@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import torch
 from torch import nn
 
@@ -66,6 +68,7 @@ class PlantedSoftmaxPath(BasePath):
     base : BasePath, optional
         Base path the correction adds onto. Defaults to ``LinearPath``.
     """
+
     def __init__(
         self,
         width: int = 128,
@@ -111,11 +114,11 @@ class PlantedSoftmaxPath(BasePath):
         """
         # Rescale to z = 2t - 1 ∈ [-1, 1] so the planted crossovers
         # τ_i ∈ [-1, 1] span the time domain exactly.
-        z = 2 * time - 1                       # [N, 1] in [-1, 1]
-        logits = self.basis(z)                 # [N, width]
+        z = 2 * time - 1  # [N, 1] in [-1, 1]
+        logits = self.basis(z)  # [N, width]
         if self.kappa != 1.0:
             logits = self.kappa * logits
-        h = torch.softmax(logits, dim=-1)      # [N, width]
+        h = torch.softmax(logits, dim=-1)  # [N, width]
         mlp_out = self.out(h) * (1 - time) * time
         if self.fix_positions is not None:
             mlp_out[:, self.fix_positions] = 0.0

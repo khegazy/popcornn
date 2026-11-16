@@ -95,6 +95,7 @@ Subclass `BasePath` and implement `get_positions(time)`:
 ```python
 from popcornn.paths.base_path import BasePath
 
+
 class MyPath(BasePath):
     def __init__(self, my_param=1.0, **kwargs):
         super().__init__(**kwargs)
@@ -112,9 +113,9 @@ Then register in `popcornn/paths/__init__.py`:
 
 ```python
 path_dict = {
-    "mlp" : MLPpath,
-    "linear" : LinearPath,
-    "mine" : MyPath,         # <--
+    "mlp": MLPpath,
+    "linear": LinearPath,
+    "mine": MyPath,  # <--
 }
 ```
 

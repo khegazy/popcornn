@@ -1,22 +1,25 @@
+from __future__ import annotations
+
 import os
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'  # TODO: move this to the integrator
+
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = (
+    "expandable_segments:True"  # TODO: move this to the integrator
+)
 import contextlib
 import json
 import logging
-import pathlib
 import sys
-import time as time
+import time
+from pathlib import Path
 from typing import Any
 
 import torch
 from ase import Atoms
 
+from popcornn.optimization import PathOptimizer, initialize_path
 from popcornn.paths import get_path
-from popcornn.optimization import initialize_path
-from popcornn.optimization import PathOptimizer
-from popcornn.tools import process_images, output_to_atoms
-from popcornn.tools import PathIntegrator
 from popcornn.potentials import get_potential
+from popcornn.tools import PathIntegrator, output_to_atoms, process_images
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +35,13 @@ class _StageLogger:
     file.
     """
 
-    def __init__(self, stage_idx, integrand_terms, lr, threshold,
-                 n_iter, n_params, log_path=None):
+    def __init__(
+        self, stage_idx, integrand_terms, lr, threshold, n_iter, n_params, log_path=None
+    ):
         self.stage_idx = stage_idx
         self.n_iter = n_iter
         terms_str = (
-            " + ".join(f"{t.name}×{t.scale:g}" for t in integrand_terms)
-            or "<none>"
+            " + ".join(f"{t.name}×{t.scale:g}" for t in integrand_terms) or "<none>"
         )
         thr = "—" if threshold is None else f"{threshold:.1e}"
         logger.info(
@@ -57,12 +60,20 @@ class _StageLogger:
 
         self._metrics_fh = None
         if log_path is not None:
-            parent = os.path.dirname(log_path)
-            if parent:
-                os.makedirs(parent, exist_ok=True)
-            self._metrics_fh = open(log_path, 'w')
+            Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+            self._metrics_fh = Path(log_path).open("w")  # noqa: SIM115  (held open for the run; closed by the owner)
 
-    def row(self, it, loss, grad_norm, step_s, barrier=None, ts_force=None, ts_time=None, n_crossings=None):
+    def row(
+        self,
+        it,
+        loss,
+        grad_norm,
+        step_s,
+        barrier=None,
+        ts_force=None,
+        ts_time=None,
+        n_crossings=None,
+    ):
         loss_str = "—" if loss is None else f"{loss:12.4e}"
         barrier_str = "—" if barrier is None else f"{barrier:8.4f}"
         force_str = "—" if ts_force is None else f"{float(ts_force.norm().item()):8.4f}"
@@ -133,20 +144,21 @@ class Popcornn:
     3. Receive the optimized path frames and (when TS extraction is
        active) a single predicted transition-state frame.
     """
+
     def __init__(
-            self, 
-            images: list[Atoms],
-            unwrap_positions: bool = True,
-            path_params: dict[str, Any] = {},
-            track_loss: bool = False,
-            track_ts: bool = False,
-            num_record_points: int = 101,
-            device: str | None = None,
-            dtype: str = "float32",
-            seed: int | None = 0,
-            log_path: str | None = None,
-            log_file: str | os.PathLike | None = None,
-            quiet: bool = False,
+        self,
+        images: list[Atoms],
+        unwrap_positions: bool = True,
+        path_params: dict[str, Any] | None = None,
+        track_loss: bool = False,
+        track_ts: bool = False,
+        num_record_points: int = 101,
+        device: str | None = None,
+        dtype: str = "float32",
+        seed: int | None = 0,
+        log_path: str | None = None,
+        log_file: str | os.PathLike | None = None,
+        quiet: bool = False,
     ):
         """
         Initialize the Popcornn class.
@@ -167,10 +179,14 @@ class Popcornn:
         """
         # Set device
         if device is None:
-            device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+            device = (
+                torch.device("cuda")
+                if torch.cuda.is_available()
+                else torch.device("cpu")
+            )
         if isinstance(device, str):
             device = torch.device(device)
-        if device.type == 'cuda':
+        if device.type == "cuda":
             torch.cuda.empty_cache()
         self.device = device
 
@@ -188,23 +204,43 @@ class Popcornn:
 
         # Output settings: metrics directory, progress-log file, screen on/off
         self.log_path = log_path
-        self.log_file = log_file if log_file is None else pathlib.Path(log_file).absolute()  # fixed now, so a later chdir cannot move it
+        self.log_file = (
+            log_file if log_file is None else Path(log_file).absolute()
+        )  # fixed now, so a later chdir cannot move it
         self.quiet = quiet
         if log_file is not None:
             self.log_file.parent.mkdir(parents=True, exist_ok=True)
 
         with self._log_outputs():
             # Process images
-            self.images = process_images(images, unwrap_positions=unwrap_positions, device=self.device, dtype=self.dtype)
+            self.images = process_images(
+                images,
+                unwrap_positions=unwrap_positions,
+                device=self.device,
+                dtype=self.dtype,
+            )
 
             # Get path prediction method
-            self.path = get_path(images=self.images, **path_params, device=self.device, dtype=self.dtype)
+            self.path = get_path(
+                images=self.images,
+                **(path_params or {}),
+                device=self.device,
+                dtype=self.dtype,
+            )
 
             # Fit the path to the intermediate images, otherwise a straight line
-            if len(self.images) > 2:  #TODO: make this spline or bezier instead of fitting
+            if (
+                len(self.images) > 2
+            ):  # TODO: make this spline or bezier instead of fitting
                 self.path = initialize_path(
                     path=self.path,
-                    times=torch.linspace(self.path.t_init.item(), self.path.t_final.item(), len(self.images), device=self.device, dtype=self.dtype),
+                    times=torch.linspace(
+                        self.path.t_init.item(),
+                        self.path.t_final.item(),
+                        len(self.images),
+                        device=self.device,
+                        dtype=self.dtype,
+                    ),
                     init_points=self.images.positions,
                 )
 
@@ -234,12 +270,18 @@ class Popcornn:
         if self.quiet and self.log_file is None:
             yield
             return
-        handlers = [] if self.quiet else [logging.StreamHandler(sys.stdout)]  # sys.stdout looked up now, so redirect_stdout/capsys work
+        handlers = (
+            [] if self.quiet else [logging.StreamHandler(sys.stdout)]
+        )  # sys.stdout looked up now, so redirect_stdout/capsys work
         if self.log_file is not None:
-            handlers.append(logging.FileHandler(self.log_file, encoding="utf-8"))  # default mode "a": every window of a run writes to one file
+            handlers.append(
+                logging.FileHandler(self.log_file, encoding="utf-8")
+            )  # default mode "a": every window of a run writes to one file
         level, propagate = package_logger.level, package_logger.propagate
         if level == logging.NOTSET:
-            package_logger.setLevel(min(package_logger.getEffectiveLevel(), logging.INFO))
+            package_logger.setLevel(
+                min(package_logger.getEffectiveLevel(), logging.INFO)
+            )
         package_logger.propagate = False
         for handler in handlers:
             package_logger.addHandler(handler)
@@ -254,10 +296,9 @@ class Popcornn:
             for handler in handlers:
                 handler.close()  # closes the file; StreamHandler.close leaves stdout open
 
-
     def optimize_path(
-            self,
-            *optimization_params: list[dict],
+        self,
+        *optimization_params: list[dict],
     ):
         """
         Run a chain of optimization stages on ``self.path`` in place.
@@ -297,7 +338,6 @@ class Popcornn:
                 self.converged.append(self._optimize(**params, stage_idx=i))
         return self.converged
 
-
     def get_discrete_path(self, num_record_points=None, output_ase_atoms=True):
         """
         Get a discrete path of points along the optimized path.
@@ -308,14 +348,18 @@ class Popcornn:
         if num_record_points is None:
             num_record_points = self.num_record_points
         # Evaluate points along the optimized path and return
-        time = torch.linspace(self.path.t_init.item(), self.path.t_final.item(), num_record_points, device=self.device, dtype=self.dtype)
+        time = torch.linspace(
+            self.path.t_init.item(),
+            self.path.t_final.item(),
+            num_record_points,
+            device=self.device,
+            dtype=self.dtype,
+        )
         path_output = self.path(time)
         if issubclass(self.images.image_type, Atoms) and output_ase_atoms:
-            images = output_to_atoms(path_output, self.images)
-            return images
+            return output_to_atoms(path_output, self.images)
         else:
-            images = path_output.positions.tolist()
-            return images
+            return path_output.positions.tolist()
 
     def get_ts(self, output_ase_atoms=True):
         """
@@ -323,29 +367,29 @@ class Popcornn:
         """
         # Get the last integrator
         time = torch.tensor([self.path.ts_time], device=self.device, dtype=self.dtype)
-        path_output = self.path(time, return_velocities=True, return_energies=True, return_forces=True)
+        path_output = self.path(
+            time, return_velocities=True, return_energies=True, return_forces=True
+        )
         if issubclass(self.images.image_type, Atoms) and output_ase_atoms:
-            image = output_to_atoms(path_output, self.images)[0]
-            return image
+            return output_to_atoms(path_output, self.images)[0]
         else:
-            image = {
+            return {
                 "ts_time": time.tolist(),
                 "ts_positions": path_output.positions.tolist(),
                 "ts_energies": path_output.energies.tolist(),
                 "ts_velocities": path_output.velocities.tolist(),
                 "ts_forces": path_output.forces.tolist(),
             }
-            return image
 
     def _optimize(
-            self,
-            potential_params: dict[str, Any] = {},
-            integrator_params: dict[str, Any] = {},
-            optimizer_params: dict[str, Any] = {},
-            num_optimizer_iterations: int = 1000,
-            # output_dir: str | None = None,
-            # output_ase_atoms: bool = True,
-            stage_idx: int = 0,
+        self,
+        potential_params: dict[str, Any] | None = None,
+        integrator_params: dict[str, Any] | None = None,
+        optimizer_params: dict[str, Any] | None = None,
+        num_optimizer_iterations: int = 1000,
+        # output_dir: str | None = None,
+        # output_ase_atoms: bool = True,
+        stage_idx: int = 0,
     ):
         """
         Run a single optimization stage.
@@ -384,14 +428,31 @@ class Popcornn:
         #     os.makedirs(output_dir, exist_ok=True)
 
         # Get potential energy function
-        potential = get_potential(images=self.images, **potential_params, device=self.device, dtype=self.dtype)
+        potential = get_potential(
+            images=self.images,
+            **(potential_params or {}),
+            device=self.device,
+            dtype=self.dtype,
+        )
         self.path.set_potential(potential)
 
         # Path optimization tools
-        integrator = PathIntegrator(**integrator_params, track_loss=self.track_loss, track_ts=self.track_ts, device=self.device, dtype=self.dtype)
+        integrator = PathIntegrator(
+            **(integrator_params or {}),
+            track_loss=self.track_loss,
+            track_ts=self.track_ts,
+            device=self.device,
+            dtype=self.dtype,
+        )
 
         # Gradient descent path optimizer
-        optimizer = PathOptimizer(path=self.path, **optimizer_params, track_ts=self.track_ts, device=self.device, dtype=self.dtype)
+        optimizer = PathOptimizer(
+            path=self.path,
+            **(optimizer_params or {}),
+            track_ts=self.track_ts,
+            device=self.device,
+            dtype=self.dtype,
+        )
 
         # The per-iter big JSON dump (gated on output_dir) reads the quadrature
         # nodes/values off the returned result (padaquad: .nodes / .y).
@@ -403,7 +464,7 @@ class Popcornn:
         #     os.makedirs(output_dir, exist_ok=True)
         #     log_dir = os.path.join(output_dir, "logs")
         #     os.makedirs(log_dir, exist_ok=True)
-        
+
         # Per-stage progress table: header now, sparse rows during the loop,
         # convergence/stage-end summary on exit. When log_path is set, the same
         # object writes one JSONL row per iteration to
@@ -411,11 +472,13 @@ class Popcornn:
         stage_log = _StageLogger(
             stage_idx=stage_idx,
             integrand_terms=integrator._terms,
-            lr=optimizer.optimizer.param_groups[0]['lr'],
+            lr=optimizer.optimizer.param_groups[0]["lr"],
             threshold=optimizer.threshold,
             n_iter=num_optimizer_iterations,
             n_params=sum(p.numel() for p in self.path.parameters() if p.requires_grad),
-            log_path=f"{self.log_path}/stage_{stage_idx}_metrics.jsonl" if self.log_path is not None else None,
+            log_path=f"{self.log_path}/stage_{stage_idx}_metrics.jsonl"
+            if self.log_path is not None
+            else None,
         )
 
         # Safe defaults for the degenerate num_optimizer_iterations=0 case
@@ -426,12 +489,12 @@ class Popcornn:
 
         # Optimize the path
         for optim_idx in range(num_optimizer_iterations):
-            lr = optimizer.optimizer.param_groups[0]['lr']
+            lr = optimizer.optimizer.param_groups[0]["lr"]
             t_step = time.perf_counter()
             integral_output = optimizer.optimization_step(self.path, integrator)
             step_s = time.perf_counter() - t_step
 
-            loss_attr = getattr(integral_output, 'loss', None)
+            loss_attr = getattr(integral_output, "loss", None)
             loss_v = float(loss_attr[0].item()) if loss_attr is not None else None
             grad_norm = integral_output.grad_norm.item()
 
@@ -442,13 +505,22 @@ class Popcornn:
             ts_time = None
             n_crossings = None
             if self.track_ts:
-                b = getattr(self.path, 'barrier', None)
+                b = getattr(self.path, "barrier", None)
                 barrier = b.item() if b is not None else None
-                ts_force = getattr(self.path, 'ts_force', None)
-                ts_time = getattr(self.path, 'ts_time', None)
-                n_crossings = getattr(self.path, 'n_crossings', None)
+                ts_force = getattr(self.path, "ts_force", None)
+                ts_time = getattr(self.path, "ts_time", None)
+                n_crossings = getattr(self.path, "n_crossings", None)
 
-            stage_log.row(optim_idx, loss_v, grad_norm, step_s, barrier=barrier, ts_force=ts_force, ts_time=ts_time, n_crossings=n_crossings)
+            stage_log.row(
+                optim_idx,
+                loss_v,
+                grad_norm,
+                step_s,
+                barrier=barrier,
+                ts_force=ts_force,
+                ts_time=ts_time,
+                n_crossings=n_crossings,
+            )
 
             stage_log.metrics(
                 iter=optim_idx,
@@ -459,7 +531,9 @@ class Popcornn:
                 wall_s=stage_log.wall_s(),
                 converged=bool(optimizer.converged),
                 barrier=barrier,
-                ts_force_norm=(float(ts_force.norm().item()) if ts_force is not None else None),
+                ts_force_norm=(
+                    float(ts_force.norm().item()) if ts_force is not None else None
+                ),
                 n_crossings=n_crossings,
             )
 
@@ -531,4 +605,3 @@ class Popcornn:
         stage_log.close()
 
         return bool(optimizer.converged)
-

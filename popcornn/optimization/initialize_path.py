@@ -1,20 +1,19 @@
+from __future__ import annotations
+
 import logging
 
-import torch
 import numpy as np
-import numpy.random as rnd
-import matplotlib.pyplot as plt
-from typing import Union
+import torch
 
 logger = logging.getLogger(__name__)
 
 
 def randomly_initialize_path(
-        path: torch.tensor,
-        n_points: int,
-        order_points: bool = False,
-        seed: int = 1910
-) -> Union[torch.Tensor, np.ndarray]:
+    path: torch.tensor,
+    n_points: int,
+    order_points: bool = False,
+    seed: int | None = None,
+) -> torch.Tensor | np.ndarray:
     """
     Initialize the path through randomly drawn intermediate points.
 
@@ -41,28 +40,43 @@ def randomly_initialize_path(
     BasePath
         The fitted path.
     """
-    #times = rnd.uniform(shape=(n_points, 1), minval=0.1, maxval=0.9)
-    times = torch.unsqueeze(torch.linspace(0, 1, n_points+2, device=path.device)[1:-1], -1)
+    if seed is not None:
+        torch.manual_seed(seed)
+
+    # times = rnd.uniform(shape=(n_points, 1), minval=0.1, maxval=0.9)
+    times = torch.unsqueeze(
+        torch.linspace(0, 1, n_points + 2, device=path.device)[1:-1], -1
+    )
     times.requires_grad = False
 
     n_dims = len(path.initial_position)
     rnd_dims = []
     for idx in range(n_dims):
         min_val = torch.min(
-            torch.tensor([path.initial_position[idx], path.final_position[idx]], device=path.device)
+            torch.tensor(
+                [path.initial_position[idx], path.final_position[idx]],
+                device=path.device,
+            )
         ).item()
         max_val = torch.max(
-            torch.tensor([path.initial_position[idx], path.final_position[idx]], device=path.device)
+            torch.tensor(
+                [path.initial_position[idx], path.final_position[idx]],
+                device=path.device,
+            )
         ).item()
         # rnd_vals = rnd.uniform(size=(n_points, 1), low=min_val, high=max_val)
-        rnd_vals = torch.rand(n_points, 1, device=path.device) * (max_val - min_val) + min_val
+        rnd_vals = (
+            torch.rand(n_points, 1, device=path.device) * (max_val - min_val) + min_val
+        )
         if order_points or idx == 0:
             # if path.initial_position[idx] > path.final_position[idx]:
             #     rnd_dims.append(-1*np.sort(-1*rnd_vals, axis=0))
             # else:
             #     rnd_dims.append(np.sort(rnd_vals, axis=0))
             descending = path.initial_position[idx] > path.final_position[idx]
-            rnd_dims.append(torch.sort(rnd_vals, axis=0, descending=descending.item()).values)
+            rnd_dims.append(
+                torch.sort(rnd_vals, axis=0, descending=descending.item()).values
+            )
         else:
             rnd_dims.append(rnd_vals)
     # rnd_dims = torch.tensor(
@@ -74,9 +88,7 @@ def randomly_initialize_path(
 
 
 def loss_init(
-        path: torch.tensor,
-        times: torch.tensor,
-        positions: torch.tensor
+    path: torch.tensor, times: torch.tensor, positions: torch.tensor
 ) -> torch.Tensor:
     """
     Mean-squared displacement between path predictions and target points.
@@ -86,21 +98,21 @@ def loss_init(
     convention before squaring.
     """
     preds = path(times).positions
-    assert preds.shape == positions.shape, f"Shapes do not match: {preds.shape} != {positions.shape}"
+    assert preds.shape == positions.shape, (
+        f"Shapes do not match: {preds.shape} != {positions.shape}"
+    )
     disp = positions - preds
     if path.transform is not None:
         disp = path.transform(disp, center=1.0)
-    return torch.mean(disp ** 2)
-    
-    
+    return torch.mean(disp**2)
 
 
 def initialize_path(
-        path: torch.tensor,
-        times: torch.tensor,
-        init_points: torch.tensor,
-        lr: float = 0.001,
-        max_steps: int = 10000 # 5000
+    path: torch.tensor,
+    times: torch.tensor,
+    init_points: torch.tensor,
+    lr: float = 0.001,
+    max_steps: int = 10000,  # 5000
 ) -> torch.tensor:
     """
     Fit the path's parameters so it passes through given points at given times.
@@ -142,10 +154,12 @@ def initialize_path(
 
         loss.backward()
         optimizer.step()
-        rel_error = np.abs(prev_loss - loss.item())/prev_loss
+        rel_error = np.abs(prev_loss - loss.item()) / prev_loss
         # idx = idx + 1
         if idx % 1000 == 0:
-            logger.debug(f"\tIteration {idx}: Loss {loss:.4} | Relative Error {rel_error:.5}")
+            logger.debug(
+                f"\tIteration {idx}: Loss {loss:.4} | Relative Error {rel_error:.5}"
+            )
         #     fig, ax = plt.subplots()
         #     path_output = path.get_path()
         #     geometric_path = path_output.geometric_path.detach().cpu().numpy()
@@ -160,7 +174,7 @@ def initialize_path(
         # raise ValueError(f"INFO: Maximum number of steps reached: {max_steps}")
         pass
 
-        #print(prev_loss, loss, jnp.abs(prev_loss - loss)/prev_loss)
+        # print(prev_loss, loss, jnp.abs(prev_loss - loss)/prev_loss)
 
     logger.info(f"Finished path initialization after {idx} iterations")
     # fig, ax = plt.subplots()

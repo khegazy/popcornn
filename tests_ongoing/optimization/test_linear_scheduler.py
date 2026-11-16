@@ -1,6 +1,10 @@
-import os
-import torch
+from __future__ import annotations
+
+from pathlib import Path
+
 import numpy as np
+import torch
+
 from popcornn import tools
 from popcornn.tools.scheduler import Linear
 from popcornn.tools.tests import popcornn_run_test, scheduler_test
@@ -11,24 +15,20 @@ def test_linear_scheduler():
     start, end = 0.0, 1.0
     def schedule_fxn(start, end, N_steps, device):
         return torch.linspace(start, end, N_steps, device=device)
-    
+
     # Compare scheduler stepping
     scheduler = Linear(start, end, N_steps)
-    comparison = schedule_fxn(start, end, N_steps, 'cpu')
+    comparison = schedule_fxn(start, end, N_steps, "cpu")
     for i in range(N_steps):
         assert np.allclose([scheduler.get_value()], [comparison[i]]),\
             "Linear scheduler value does not match expected"
         scheduler.step()
 
-    benchmark_path = os.path.join(
-        "optimization", "benchmarks"
-    )
-    for potential in ['wolfe_schlegel', 'morse']:
+    benchmark_path = Path("optimization") / "benchmarks"
+    for potential in ["wolfe_schlegel", "morse"]:
         # Test high level functionality
         name = f"scheduler_linear_{potential}"
-        config_path = os.path.join(
-            "configs", f"{name}.yaml"
-        )
+        config_path = Path("configs") / f"{name}.yaml"
         mep, _, _ = popcornn_run_test(name, config_path, benchmark_path)
 
         # Test scheduler effects match calculated scheduled weights

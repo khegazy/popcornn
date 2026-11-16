@@ -1,0 +1,24 @@
+name: lint
+on: push  # every push, on every branch
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      # Runs the same hooks as the local commit hook (ruff check + ruff format),
+      # at the ruff version pinned in .pre-commit-config.yaml. Rules are in
+      # [tool.ruff] in pyproject.toml. Fails if a hook reports an error or
+      # would change a file.
+      - name: Run pre-commit
+        run: pre-commit run --all-files --show-diff-on-failure

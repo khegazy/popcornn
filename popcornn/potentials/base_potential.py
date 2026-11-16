@@ -1,9 +1,13 @@
-import torch
-from torch import nn
+from __future__ import annotations
+
 from dataclasses import dataclass
 
+import torch
+from torch import nn
+
+
 @dataclass
-class PotentialOutput():
+class PotentialOutput:
     """
     Data class representing the output of a path computation.
 
@@ -14,11 +18,11 @@ class PotentialOutput():
     forces : torch.Tensor, optional
         The forces along the path.
     """
+
     energies: torch.Tensor = None
     forces: torch.Tensor = None
     energies_decomposed: torch.Tensor = None
     forces_decomposed: torch.Tensor = None
-
 
 
 class BasePotential(nn.Module):
@@ -34,7 +38,9 @@ class BasePotential(nn.Module):
     forces from autograd.
     """
 
-    def __init__(self, images, device, dtype, add_azimuthal_dof=False, add_translation_dof=False, **kwargs) -> None:
+    def __init__(
+        self, images, device, dtype, add_azimuthal_dof=False, add_translation_dof=False
+    ) -> None:
         """
         Parameters
         ----------
@@ -46,8 +52,12 @@ class BasePotential(nn.Module):
             Reserved augmentation flags; flagged for removal.
         """
         super().__init__()
-        self.atomic_numbers = images.atomic_numbers if images.atomic_numbers is not None else None
-        self.n_atoms = len(images.atomic_numbers) if images.atomic_numbers is not None else None
+        self.atomic_numbers = (
+            images.atomic_numbers if images.atomic_numbers is not None else None
+        )
+        self.n_atoms = (
+            len(images.atomic_numbers) if images.atomic_numbers is not None else None
+        )
         self.pbc = images.pbc if images.pbc is not None else None
         self.cell = images.cell if images.cell is not None else None
         self.tags = images.tags if images.tags is not None else None
@@ -62,7 +72,7 @@ class BasePotential(nn.Module):
             self.point_option = 2  # TODO: remove this
         self.device = device
         self.dtype = dtype
-        
+
         # Put model in eval mode
         self.eval()
 
@@ -83,7 +93,9 @@ class BasePotential(nn.Module):
         )[0]
 
     @staticmethod
-    def calculate_conservative_forces_decomposed(energies_decomposed, position, create_graph=True):
+    def calculate_conservative_forces_decomposed(
+        energies_decomposed, position, create_graph=True
+    ):
         """
         Per-component forces for energy-decomposed potentials.
 
@@ -91,22 +103,21 @@ class BasePotential(nn.Module):
         per energy component (rather than a single total force).
         """
         _forceterm_fxn = torch.vmap(
-            lambda vec: -torch.autograd.grad(
-                energies_decomposed.flatten(), 
-                position,
-                grad_outputs=vec,
-                create_graph=create_graph,
-            )[0],
+            lambda vec: (
+                -torch.autograd.grad(
+                    energies_decomposed.flatten(),
+                    position,
+                    grad_outputs=vec,
+                    create_graph=create_graph,
+                )[0]
+            ),
         )
         inp_vec = torch.eye(
             energies_decomposed.shape[1], device=energies_decomposed.device
         ).repeat(1, energies_decomposed.shape[0])
         return _forceterm_fxn(inp_vec).transpose(0, 1)
 
-    def forward(
-            self,
-            positions: torch.Tensor
-    ) -> PotentialOutput:
+    def forward(self, positions: torch.Tensor) -> PotentialOutput:
         """
         Evaluate the potential. Subclasses must override.
 

@@ -7,6 +7,8 @@ so the transition-state finder consumes the integrator's own samples without
 paying for any extra path forwards.
 """
 
+from __future__ import annotations
+
 import pytest
 import torch
 
@@ -19,14 +21,17 @@ from popcornn.tools.integrand import evaluate_integrand_sum
 @pytest.fixture
 def muller_brown_setup():
     torch.manual_seed(0)
-    device = torch.device('cpu')
+    device = torch.device("cpu")
     dtype = torch.float64
     images = process_images(
-        'tests/images/muller_brown.json', device=device, dtype=dtype
+        "tests/images/muller_brown.json", device=device, dtype=dtype
     )
-    path = get_path('mlp', images=images, device=device, dtype=dtype)
+    path = get_path("mlp", images=images, device=device, dtype=dtype)
     potential = get_potential(
-        'muller_brown', images=images, device=device, dtype=dtype,
+        "muller_brown",
+        images=images,
+        device=device,
+        dtype=dtype,
     )
     path.set_potential(potential)
     return path, device, dtype
@@ -35,11 +40,13 @@ def muller_brown_setup():
 def test_track_ts_aligned_with_quadrature_mesh(muller_brown_setup):
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(
-        method='gk21',
-        path_integrand_names='pvre',
-        rtol=1e-2, atol=1e-2,
+        method="gk21",
+        path_integrand_names="pvre",
+        rtol=1e-2,
+        atol=1e-2,
         track_ts=True,
-        device=device, dtype=dtype,
+        device=device,
+        dtype=dtype,
     )
 
     out = integrator.integrate_path(path)
@@ -70,11 +77,13 @@ def test_track_ts_aligned_with_quadrature_mesh(muller_brown_setup):
 def test_track_ts_off_yields_none(muller_brown_setup):
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(
-        method='gk21',
-        path_integrand_names='pvre',
-        rtol=1e-2, atol=1e-2,
+        method="gk21",
+        path_integrand_names="pvre",
+        rtol=1e-2,
+        atol=1e-2,
         track_ts=False,
-        device=device, dtype=dtype,
+        device=device,
+        dtype=dtype,
     )
 
     out = integrator.integrate_path(path)
@@ -91,26 +100,34 @@ def test_batch_size_measured_once(muller_brown_setup, monkeypatch):
     """
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(
-        method='gk21',
-        path_integrand_names='pvre',
-        rtol=1e-2, atol=1e-2,
+        method="gk21",
+        path_integrand_names="pvre",
+        rtol=1e-2,
+        atol=1e-2,
         track_loss=True,
-        device=device, dtype=dtype,
+        device=device,
+        dtype=dtype,
     )
-    n_measurements = {'main': 0, 'loss': 0}
-    for name, solver in (('main', integrator._solver), ('loss', integrator._loss_solver)):
+    n_measurements = {"main": 0, "loss": 0}
+    for name, solver in (
+        ("main", integrator._solver),
+        ("loss", integrator._loss_solver),
+    ):
+
         def counting(*args, _measure=solver._setup_memory_checks, _name=name, **kwargs):
             n_measurements[_name] += 1
             return _measure(*args, **kwargs)
-        monkeypatch.setattr(solver, '_setup_memory_checks', counting)
+
+        monkeypatch.setattr(solver, "_setup_memory_checks", counting)
 
     out = integrator.integrate_path(path)
     assert torch.isfinite(out.integral).all()
     measured = integrator._solver.previous_max_batch
-    assert isinstance(measured, int) and measured > 0
+    assert isinstance(measured, int)
+    assert measured > 0
 
     integrator.integrate_path(path)
-    assert n_measurements == {'main': 1, 'loss': 0}
+    assert n_measurements == {"main": 1, "loss": 0}
     assert integrator._solver.previous_max_batch == measured
 
 
@@ -125,19 +142,21 @@ def _simulate_oom(monkeypatch, limit, integrand):
     batch_sizes = []
 
     def evaluate_with_limit(terms, t, path, **kwargs):
-        if ('also_resolve' in kwargs) == (integrand == 'main'):
+        if ("also_resolve" in kwargs) == (integrand == "main"):
             batch_sizes.append(t.shape[0])
             if t.shape[0] > limit:
-                raise torch.OutOfMemoryError(f"simulated out-of-memory error at {t.shape[0]} points")
+                raise torch.OutOfMemoryError(
+                    f"simulated out-of-memory error at {t.shape[0]} points"
+                )
         return evaluate_integrand_sum(terms, t, path, **kwargs)
 
     monkeypatch.setattr(
-        'popcornn.tools.integrator.evaluate_integrand_sum', evaluate_with_limit
+        "popcornn.tools.integrator.evaluate_integrand_sum", evaluate_with_limit
     )
     return batch_sizes
 
 
-@pytest.mark.parametrize('integrand', ['main', 'loss'])
+@pytest.mark.parametrize("integrand", ["main", "loss"])
 def test_oom_batch_reduction_persists(muller_brown_setup, monkeypatch, integrand):
     """An out-of-memory error makes padaquad shrink the batch and retry. With
     ``same_f=True`` each solver keeps its reduced size, so the error must not
@@ -148,12 +167,14 @@ def test_oom_batch_reduction_persists(muller_brown_setup, monkeypatch, integrand
     limit = 50  # more than gk21's 23 nodes per panel, so one panel always fits
     batch_sizes = _simulate_oom(monkeypatch, limit, integrand)
     integrator = PathIntegrator(
-        method='gk21',
-        path_integrand_names='pvre',
-        rtol=1e-2, atol=1e-2,
+        method="gk21",
+        path_integrand_names="pvre",
+        rtol=1e-2,
+        atol=1e-2,
         max_batch=400,
         track_loss=True,
-        device=device, dtype=dtype,
+        device=device,
+        dtype=dtype,
     )
 
     integrator.integrate_path(path)
@@ -169,14 +190,16 @@ def test_oom_raises_without_integrate_gradient(muller_brown_setup, monkeypatch):
     batch, so it cannot shrink the batch and retry: the error reaches the caller.
     """
     path, device, dtype = muller_brown_setup
-    _simulate_oom(monkeypatch, 50, 'main')
+    _simulate_oom(monkeypatch, 50, "main")
     integrator = PathIntegrator(
-        method='gk21',
-        path_integrand_names='pvre',
-        rtol=1e-2, atol=1e-2,
+        method="gk21",
+        path_integrand_names="pvre",
+        rtol=1e-2,
+        atol=1e-2,
         max_batch=400,
         integrate_gradient=False,
-        device=device, dtype=dtype,
+        device=device,
+        dtype=dtype,
     )
     with pytest.raises(torch.OutOfMemoryError):
         integrator.integrate_path(path)
@@ -190,12 +213,13 @@ def test_gpu_index_reaches_padaquad(monkeypatch):
     devices = []
 
     def record_device(*args, **kwargs):
-        devices.append(kwargs['device'])
+        devices.append(kwargs["device"])
         return object()
 
-    monkeypatch.setattr('popcornn.tools.integrator.adaptive_quadrature', record_device)
+    monkeypatch.setattr("popcornn.tools.integrator.adaptive_quadrature", record_device)
     PathIntegrator(
-        path_integrand_names='pvre',
-        device=torch.device('cuda', 1), dtype=torch.float64,
+        path_integrand_names="pvre",
+        device=torch.device("cuda", 1),
+        dtype=torch.float64,
     )
-    assert devices == [torch.device('cuda', 1)] * 2
+    assert devices == [torch.device("cuda", 1)] * 2

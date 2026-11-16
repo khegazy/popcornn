@@ -9,7 +9,7 @@ variability is what triggers most CUDA out-of-memory errors.
 `popcornn/popcornn.py` already sets
 
 ```python
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 ```
 
 at import time, which solves most OOM cases. If you're still hitting
@@ -31,7 +31,8 @@ make sure to set it before any CUDA allocator calls:
 
 ```python
 import os
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 ```
 
 at the very top of your entry-point file.

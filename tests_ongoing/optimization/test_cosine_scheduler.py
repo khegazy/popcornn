@@ -1,6 +1,10 @@
-import os
-import torch
+from __future__ import annotations
+
+from pathlib import Path
+
 import numpy as np
+import torch
+
 from popcornn import tools
 from popcornn.tools.scheduler import Cosine
 from popcornn.tools.tests import popcornn_run_test, scheduler_test
@@ -13,24 +17,20 @@ def test_cosine_scheduler():
         comparison = torch.linspace(0, 1, N_steps, device=device)
         return end\
             - (end - start)*(1 + torch.cos(comparison*torch.pi))/2.
-        
+
     # Compare scheduler stepping
     scheduler = Cosine(start, end, N_steps)
-    comparison = schedule_fxn(start, end, N_steps, 'cpu')
+    comparison = schedule_fxn(start, end, N_steps, "cpu")
     for i in range(N_steps):
         assert np.allclose([scheduler.get_value()], [comparison[i]], atol=1e-6, rtol=1e-5),\
             "Cosine scheduler value does not match expected"
         scheduler.step()
 
-    benchmark_path = os.path.join(
-        "optimization", "benchmarks"
-    )
-    for potential in ['wolfe_schlegel', 'morse']:
+    benchmark_path = Path("optimization") / "benchmarks"
+    for potential in ["wolfe_schlegel", "morse"]:
         # Test high level functionality
         name = f"scheduler_cosine_{potential}"
-        config_path = os.path.join(
-            "configs", f"{name}.yaml"
-        )
+        config_path = Path("configs") / f"{name}.yaml"
         mep, _, _ = popcornn_run_test(name, config_path, benchmark_path)
 
         # Test scheduler effects match calculated scheduled weights

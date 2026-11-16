@@ -1,11 +1,7 @@
-import matplotlib.pyplot as plt
-import torch
+from __future__ import annotations
+
 from torch import optim
 from torch.optim import lr_scheduler
-from popcornn.tools import scheduler
-from popcornn.tools.scheduler import get_schedulers
-
-from popcornn.tools.integrand import build_integrand_terms, evaluate_integrand_sum
 
 
 def _update_term_scales(terms, scales: dict) -> None:
@@ -17,7 +13,7 @@ def _update_term_scales(terms, scales: dict) -> None:
                 break
 
 
-class PathOptimizer():
+class PathOptimizer:
     """
     Single-stage path optimizer.
 
@@ -28,21 +24,20 @@ class PathOptimizer():
     """
 
     def __init__(
-            self,
-            path,
-            optimizer=None,
-            track_ts=False,
-            lr_scheduler=None,
-            # path_integrand_schedulers=None,
-            # ts_time_loss_names=None,
-            # ts_time_loss_scales=torch.ones(1),
-            # ts_time_loss_schedulers=None,
-            threshold=None,
-            patience=1,
-            device='cpu',
-            dtype=None,
-            **config
-        ):
+        self,
+        path,
+        optimizer=None,
+        track_ts=False,
+        lr_scheduler=None,
+        # path_integrand_schedulers=None,
+        # ts_time_loss_names=None,
+        # ts_time_loss_scales=torch.ones(1),
+        # ts_time_loss_schedulers=None,
+        threshold=None,
+        patience=1,
+        device="cpu",
+        dtype=None,
+    ):
         """
         Parameters
         ----------
@@ -64,14 +59,12 @@ class PathOptimizer():
             Number of consecutive iterations the trigger must hold.
         device : str
         dtype : torch.dtype
-        **config
-            Reserved for forward compatibility.
         """
         super().__init__()
 
         self.track_ts = track_ts
-        self.device=device
-        self.dtype=dtype
+        self.device = device
+        self.dtype = dtype
         self.iteration = 0
         self.threshold = threshold
         self.patience = patience
@@ -100,13 +93,15 @@ class PathOptimizer():
         #####  Initialize schedulers  #####
         # self.integrand_schedulers = get_schedulers(path_integrand_schedulers)
         # self.ts_time_loss_schedulers = get_schedulers(ts_time_loss_schedulers)
-        
+
         #####  Initialize optimizer  #####
         self.path = path
         if optimizer is not None:
             self.set_optimizer(**optimizer)
         else:
-            raise ValueError("Must specify optimizer parameters (dict) with key 'optimizer'")
+            raise ValueError(
+                "Must specify optimizer parameters (dict) with key 'optimizer'"
+            )
 
         #####  Initialize learning rate scheduler  #####
         if lr_scheduler is not None:
@@ -123,7 +118,9 @@ class PathOptimizer():
         — i.e. ``"adam"`` finds ``torch.optim.Adam``, ``"lbfgs"`` finds
         ``torch.optim.LBFGS``. Extra kwargs forward to the constructor.
         """
-        optimizer_dict = {key.lower(): key for key in dir(optim) if not key.startswith('_')}
+        optimizer_dict = {
+            key.lower(): key for key in dir(optim) if not key.startswith("_")
+        }
         name = optimizer_dict[name.lower()]
         optimizer_class = getattr(optim, name)
         self.optimizer = optimizer_class(self.path.parameters(), **config)
@@ -133,22 +130,19 @@ class PathOptimizer():
         Attach a ``torch.optim.lr_scheduler`` by class name. Same
         case-insensitive name resolution as ``set_optimizer``.
         """
-        scheduler_dict = {key.lower(): key for key in dir(lr_scheduler) if not key.startswith('_')}
-        assert name.lower() in scheduler_dict,\
+        scheduler_dict = {
+            key.lower(): key for key in dir(lr_scheduler) if not key.startswith("_")
+        }
+        assert name.lower() in scheduler_dict, (
             f"Scheduler class does not support '{name}', either add this functionality or select from {list(scheduler_dict.keys())}"
+        )
         name = scheduler_dict[name.lower()]
         scheduler_class = getattr(lr_scheduler, name)
         self.lr_scheduler = scheduler_class(self.optimizer, **config)
 
-    
     def optimization_step(
-            self,
-            path,
-            integrator,
-            t_init=torch.tensor([0.]),
-            t_final=torch.tensor([1.]),
-            update_path=True
-        ):
+        self, path, integrator, t_init=0.0, t_final=1.0, update_path=True
+    ):
         """
         Run one optimizer step.
 
@@ -174,8 +168,6 @@ class PathOptimizer():
             popcornn-level fields attached.
         """
         self.optimizer.zero_grad()
-        t_init = t_init.to(self.dtype).to(self.device)
-        t_final = t_final.to(self.dtype).to(self.device)
         # integrand_scales = {
         #     name : schd.get_value() for name, schd in self.integrand_schedulers.items()
         # }
@@ -239,5 +231,3 @@ class PathOptimizer():
         self.iteration = self.iteration + 1
 
         return integral_output
-
-    

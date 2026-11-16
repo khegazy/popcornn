@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 
 import torch
@@ -5,7 +7,7 @@ import torch
 logger = logging.getLogger(__name__)
 
 
-class MinimaUpdate():
+class MinimaUpdate:
     """
     Plain SGD wrapper for relaxing a point to a local minimum of a
     potential. Used to refresh reactant/product positions when the
@@ -28,14 +30,14 @@ class MinimaUpdate():
         self.step_size = step_size
         self.n_steps = n_steps
 
-    def find_minima(self, initial_positions=[]):
+    def find_minima(self, initial_positions=()):
         """Relax each point in ``initial_positions`` and return the relaxed list."""
         self.minima = [
             self.find_minimum(torch.tensor(point)) for point in initial_positions
         ]
         return self.minima
 
-    def find_minimum(self, point, log_frequency=1000):
+    def find_minimum(self, point):
         """
         Relax a single point to a local minimum.
 
@@ -44,26 +46,24 @@ class MinimaUpdate():
         point : torch.Tensor
             Starting configuration. A leading batch dim is added if
             missing and stripped before returning.
-        log_frequency : int, default=1000
-            Reserved; the in-loop logging hook is currently disabled.
         """
         # Adding batch dimension if point is a single point
         unsqueeze = False
         if len(point.shape) == 1:
             point = point.unsqueeze(0)
             unsqueeze = True
-        
+
         point.requires_grad = True
         optimizer = torch.optim.SGD([point], lr=self.step_size)
         logger.debug(f"computing minima ... {point}")
-        for step in range(self.n_steps):
+        for _ in range(self.n_steps):
             energy = torch.sum(self.potential(point))
             energy.backward()
             optimizer.step()
-            #if step % log_frequency == 0:
+            # if step % log_frequency == 0:
             #    self.training_logger(step, self.potential(point))
         point.requires_grad = False
-        
+
         if unsqueeze:
-            point = point[0]   
+            point = point[0]
         return point

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "popcornn"
 description="Path Optimization with a Continuous Representation Neural Network (popcornn) optimizes molecular reaction paths along analytic and MLIP potentials."
-version = "0.2.2"
+version = "0.3.0"
 readme = "README.md"
 license = { text = "CC-BY 4.0" }
 authors = [
@@ -43,7 +43,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.4.0", "pytest-cov>=3.0.0", "ruff>=0.0.285"]
+dev = ["pytest>=7.4.0", "pytest-cov>=3.0.0", "ruff>=0.0.285", "pre-commit"]
 docs = [
     "mkdocs-material>=9.4.0",
     "mkdocstrings[python]>=0.22.0",
@@ -76,19 +76,6 @@ xfail_strict = true
 log_cli_level = "warn"
 pythonpath = "popcornn/popcornn"
 testpaths = ["tests"]
-
-[tool.black]
-exclude = '''
-/(
-    \.git
-  | \.tox
-)/
-'''
-skip-magic-trailing-comma = true
-
-[tool.isort]
-profile = "black"
-skip_gitignore = true
 
 [tool.coverage.run]
 source = ["popcornn"]
@@ -135,7 +122,6 @@ lint.select = [
   "T20",    # flake8-print
   "TCH",    # flake8-type-checking
   "TID",    # flake8-tidy-imports
-  "TRIO",   # flake8-trio
   "UP",     # pyupgrade
   "W",      # pycodestyle warning
   "YTT",    # flake8-2020
@@ -145,7 +131,6 @@ lint.ignore = [
   "ISC001",   # single-line-implicit-string-concatenation
   "PERF203",  # try-except-in-loop
   "PLR",    # Design related pylint codes
-  "PT004",  # Fixture does not return anything
   "PT011",  # pytest.raises
   "PT012",  # pytest.raises
   "RET505", # Unnecessary `elif` after `return`
@@ -155,13 +140,24 @@ lint.unfixable = [
   "T20",  # Removes print statements
   "F841", # Removes unused variables
 ]
+# Math notation in comments/docstrings (RUF001-003): allow these symbols.
+lint.allowed-confusables = [
+  "−",  # U+2212 MINUS SIGN
+  "–",  # U+2013 EN DASH (e.g. Gauss–Kronrod)
+  "σ",  # U+03C3 GREEK SMALL LETTER SIGMA
+  "×",  # U+00D7 MULTIPLICATION SIGN
+]
 lint.pydocstyle.convention = "numpy"
 lint.isort.known-first-party = ["popcornn"]
 lint.isort.required-imports = ["from __future__ import annotations"]
 extend-include = ["*.ipynb"]
+extend-exclude = ["tests_ongoing"]
+force-exclude = true  # honor excludes even when files are passed explicitly (e.g. by pre-commit)
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+# get_potential() imports each potential lazily because they are slow to import.
+"popcornn/potentials/__init__.py" = ["PLC0415"]
 "tests/**" = ["ANN", "ARG", "D", "E402", "PTH", "S101"]
 
 [tool.docformatter]

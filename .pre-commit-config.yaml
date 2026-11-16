@@ -1,3 +1,5 @@
+# Install once per clone: `pip install -e .[dev]` then `pre-commit install`.
+# Rules are configured in [tool.ruff] in pyproject.toml.
 ci:
   autoupdate_schedule: monthly
   autofix_commit_msg: pre-commit auto-fixes
@@ -5,19 +7,8 @@ ci:
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.3.7
+    rev: v0.17.4  # the one place the ruff version is set; CI runs these hooks too
     hooks:
-      - id: ruff
-        args: [--fix, --unsafe-fixes]
+      - id: ruff-check
+        args: [--fix]
       - id: ruff-format
-
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
-    hooks:
-      - id: end-of-file-fixer
-      - id: trailing-whitespace
-
-  - repo: https://github.com/adamchainz/blacken-docs
-    rev: 1.16.0
-    hooks:
-      - id: blacken-docs

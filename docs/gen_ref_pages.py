@@ -16,7 +16,6 @@ from pathlib import Path
 
 import mkdocs_gen_files
 
-
 SRC_ROOT = Path("popcornn")
 REF_ROOT = Path("reference")
 

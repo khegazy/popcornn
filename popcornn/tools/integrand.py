@@ -8,6 +8,8 @@ functions own variable resolution (``resolve_variables``), term construction
 and never reach into the path object.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -32,13 +34,13 @@ class PathIntegrand(ABC):
 class Geodesic(PathIntegrand):
     """``‖F_decomposed · v‖₂``. Use with ``repel`` for geodesic interpolation."""
 
-    requires = ('forces_decomposed', 'velocities')
+    requires = ("forces_decomposed", "velocities")
 
     def evaluate(self, variables):
         projection = torch.einsum(
-            'bki,bi->bk',
-            variables['forces_decomposed'],
-            variables['velocities'],
+            "bki,bi->bk",
+            variables["forces_decomposed"],
+            variables["velocities"],
         )
         return torch.linalg.norm(projection, dim=-1, keepdim=True)
 
@@ -46,11 +48,11 @@ class Geodesic(PathIntegrand):
 class VRE(PathIntegrand):
     """``‖F‖ · ‖v‖`` — magnitudes-only product. Pair with pVRE for angular error."""
 
-    requires = ('forces', 'velocities')
+    requires = ("forces", "velocities")
 
     def evaluate(self, variables):
-        F = torch.linalg.norm(variables['forces'], dim=-1, keepdim=True)
-        V = torch.linalg.norm(variables['velocities'], dim=-1, keepdim=True)
+        F = torch.linalg.norm(variables["forces"], dim=-1, keepdim=True)
+        V = torch.linalg.norm(variables["velocities"], dim=-1, keepdim=True)
         return F * V
 
 
@@ -64,11 +66,11 @@ class pVRE(PathIntegrand):
     ``examples/configs/muller_brown.yaml``.
     """
 
-    requires = ('forces', 'velocities')
+    requires = ("forces", "velocities")
 
     def evaluate(self, variables):
         overlap = torch.sum(
-            variables['velocities'] * variables['forces'],
+            variables["velocities"] * variables["forces"],
             dim=-1,
             keepdim=True,
         )
@@ -78,11 +80,11 @@ class pVRE(PathIntegrand):
 class pVREMag(PathIntegrand):
     """``‖v ⊙ F‖₂`` — per-component product, then norm."""
 
-    requires = ('forces', 'velocities')
+    requires = ("forces", "velocities")
 
     def evaluate(self, variables):
         return torch.linalg.norm(
-            variables['velocities'] * variables['forces'],
+            variables["velocities"] * variables["forces"],
             dim=-1,
             keepdim=True,
         )
@@ -100,15 +102,15 @@ class pVRESquared(PathIntegrand):
     discontinuities.
     """
 
-    requires = ('forces', 'velocities')
+    requires = ("forces", "velocities")
 
     def evaluate(self, variables):
         overlap = torch.sum(
-            variables['velocities'] * variables['forces'],
+            variables["velocities"] * variables["forces"],
             dim=-1,
             keepdim=True,
         )
-        return overlap ** 2
+        return overlap**2
 
 
 class pVREHuber(PathIntegrand):
@@ -124,7 +126,7 @@ class pVREHuber(PathIntegrand):
     δ → ∞ recovers ``½·pvre_squared``; δ → 0 recovers ``δ·pvre``.
     """
 
-    requires = ('forces', 'velocities')
+    requires = ("forces", "velocities")
 
     def __init__(self, delta=1.0):
         if delta <= 0:
@@ -133,12 +135,12 @@ class pVREHuber(PathIntegrand):
 
     def evaluate(self, variables):
         overlap = torch.sum(
-            variables['velocities'] * variables['forces'],
+            variables["velocities"] * variables["forces"],
             dim=-1,
             keepdim=True,
         )
         abs_overlap = overlap.abs()
-        quadratic = 0.5 * overlap ** 2
+        quadratic = 0.5 * overlap**2
         linear = self.delta * (abs_overlap - 0.5 * self.delta)
         return torch.where(abs_overlap <= self.delta, quadratic, linear)
 
@@ -155,7 +157,7 @@ class pVREPseudoHuber(PathIntegrand):
     ``|s|=δ`` provokes.
     """
 
-    requires = ('forces', 'velocities')
+    requires = ("forces", "velocities")
 
     def __init__(self, delta=1.0):
         if delta <= 0:
@@ -164,35 +166,35 @@ class pVREPseudoHuber(PathIntegrand):
 
     def evaluate(self, variables):
         overlap = torch.sum(
-            variables['velocities'] * variables['forces'],
+            variables["velocities"] * variables["forces"],
             dim=-1,
             keepdim=True,
         )
-        return self.delta ** 2 * (torch.sqrt(1.0 + (overlap / self.delta) ** 2) - 1.0)
+        return self.delta**2 * (torch.sqrt(1.0 + (overlap / self.delta) ** 2) - 1.0)
 
 
 class Energy(PathIntegrand):
     """Raw potential energy."""
 
-    requires = ('energies',)
+    requires = ("energies",)
 
     def evaluate(self, variables):
-        return variables['energies']
+        return variables["energies"]
 
 
 class EnergyMean(PathIntegrand):
     """Mean energy across the trailing dim."""
 
-    requires = ('energies',)
+    requires = ("energies",)
 
     def evaluate(self, variables):
-        return torch.mean(variables['energies'], dim=-1, keepdim=True)
+        return torch.mean(variables["energies"], dim=-1, keepdim=True)
 
 
 class VREError(PathIntegrand):
     """``VRE - pVRE``. Force-velocity angular mismatch; → 0 on a true MEP."""
 
-    requires = ('forces', 'velocities')
+    requires = ("forces", "velocities")
 
     def __init__(self):
         self._pvre = pVRE()
@@ -205,24 +207,24 @@ class VREError(PathIntegrand):
 class ForceMagnitude(PathIntegrand):
     """``‖F‖₂``. Useful as a TS-time loss."""
 
-    requires = ('forces',)
+    requires = ("forces",)
 
     def evaluate(self, variables):
-        return torch.linalg.norm(variables['forces'], dim=-1, keepdim=True)
+        return torch.linalg.norm(variables["forces"], dim=-1, keepdim=True)
 
 
 PATH_INTEGRANDS: dict[str, type[PathIntegrand]] = {
-    'geodesic': Geodesic,
-    'pvre': pVRE,
-    'pvre_mag': pVREMag,
-    'pvre_squared': pVRESquared,
-    'pvre_huber': pVREHuber,
-    'pvre_pseudo_huber': pVREPseudoHuber,
-    'vre': VRE,
-    'vre_error': VREError,
-    'E': Energy,
-    'E_mean': EnergyMean,
-    'F_mag': ForceMagnitude,
+    "geodesic": Geodesic,
+    "pvre": pVRE,
+    "pvre_mag": pVREMag,
+    "pvre_squared": pVRESquared,
+    "pvre_huber": pVREHuber,
+    "pvre_pseudo_huber": pVREPseudoHuber,
+    "vre": VRE,
+    "vre_error": VREError,
+    "E": Energy,
+    "E_mean": EnergyMean,
+    "F_mag": ForceMagnitude,
 }
 
 
@@ -286,7 +288,7 @@ def build_integrand_terms(names, scales=None, kwargs=None) -> list[IntegrandTerm
 
     seen: set[str] = set()
     terms: list[IntegrandTerm] = []
-    for name, scale in zip(names, scales):
+    for name, scale in zip(names, scales, strict=True):
         if name not in PATH_INTEGRANDS:
             raise ValueError(
                 f"Unknown integrand {name!r}; choose from {sorted(PATH_INTEGRANDS)}."
@@ -294,11 +296,13 @@ def build_integrand_terms(names, scales=None, kwargs=None) -> list[IntegrandTerm
         if name in seen:
             raise ValueError(f"Cannot use the same integrand twice: {name!r}.")
         seen.add(name)
-        terms.append(IntegrandTerm(
-            name=name,
-            integrand=PATH_INTEGRANDS[name](**kwargs.get(name, {})),
-            scale=float(scale),
-        ))
+        terms.append(
+            IntegrandTerm(
+                name=name,
+                integrand=PATH_INTEGRANDS[name](**kwargs.get(name, {})),
+                scale=float(scale),
+            )
+        )
     return terms
 
 
@@ -324,11 +328,13 @@ def resolve_variables(
     """
     requires = set(requires)
 
-    needs_velocities = 'velocities' in requires
-    needs_energies = 'energies' in requires and energies is None
-    needs_energies_dec = 'energies_decomposed' in requires and energies_decomposed is None
-    needs_forces = 'forces' in requires and forces is None
-    needs_forces_dec = 'forces_decomposed' in requires and forces_decomposed is None
+    needs_velocities = "velocities" in requires
+    needs_energies = "energies" in requires and energies is None
+    needs_energies_dec = (
+        "energies_decomposed" in requires and energies_decomposed is None
+    )
+    needs_forces = "forces" in requires and forces is None
+    needs_forces_dec = "forces_decomposed" in requires and forces_decomposed is None
 
     missing_any_energy = needs_energies or needs_energies_dec
     missing_any_force = needs_forces or needs_forces_dec
@@ -363,13 +369,13 @@ def resolve_variables(
         velocities = path.calculate_velocities(time)
 
     return {
-        'time': time,
-        'positions': positions,
-        'velocities': velocities,
-        'energies': energies,
-        'energies_decomposed': energies_decomposed,
-        'forces': forces,
-        'forces_decomposed': forces_decomposed,
+        "time": time,
+        "positions": positions,
+        "velocities": velocities,
+        "energies": energies,
+        "energies_decomposed": energies_decomposed,
+        "forces": forces,
+        "forces_decomposed": forces_decomposed,
     }
 
 

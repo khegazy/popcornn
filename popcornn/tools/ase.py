@@ -1,10 +1,12 @@
-import numpy as np
-import torch
+from __future__ import annotations
+
 import ase
+import torch
 from ase import Atoms
-from ase.geometry import find_mic
 from ase.calculators.singlepoint import SinglePointCalculator
-# fairchem is lazy-imported in radius_graph_fairchem to keep `import popcornn`
+from ase.geometry import find_mic
+
+# fairchem is lazy-imported when radius_graph_fairchem is called to keep `import popcornn`
 # off the Ray Serve / FSDP / wandb cold-import path (~5s on login, ~35s on compute).
 # from popcornn.paths.base_path import PathOutput
 # from popcornn.tools.preprocess import Images
@@ -13,7 +15,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 def output_to_atoms(output, ref_images):
     """
     Convert output to ase.Atoms.
-    
+
     Parameters:
     -----------
     output : paths.PathOutput
@@ -32,28 +34,37 @@ def output_to_atoms(output, ref_images):
         atoms = ase.Atoms(
             numbers=ref_images.atomic_numbers.detach().cpu().numpy(),
             positions=output.positions[i].detach().cpu().numpy().reshape(n_atoms, 3),
-            velocities=output.velocities[i].detach().cpu().numpy().reshape(n_atoms, 3) if output.velocities is not None else None,
+            velocities=output.velocities[i].detach().cpu().numpy().reshape(n_atoms, 3)
+            if output.velocities is not None
+            else None,
             pbc=ref_images.pbc.detach().cpu().numpy(),
             cell=ref_images.cell.detach().cpu().numpy(),
-            constraint=ase.constraints.FixAtoms(mask=ref_images.fix_positions.detach().cpu().numpy()),
+            constraint=ase.constraints.FixAtoms(
+                mask=ref_images.fix_positions.detach().cpu().numpy()
+            ),
             tags=ref_images.tags.detach().cpu().numpy(),
-            info={'charge': ref_images.charge.item(), 'spin': ref_images.spin.item()},
+            info={"charge": ref_images.charge.item(), "spin": ref_images.spin.item()},
         )
         calc = SinglePointCalculator(
             atoms,
-            energy=output.energies[i].detach().cpu().numpy().item() if output.energies is not None else None,
-            forces=output.forces[i].detach().cpu().numpy().reshape(n_atoms, 3) if output.forces is not None else None,
+            energy=output.energies[i].detach().cpu().numpy().item()
+            if output.energies is not None
+            else None,
+            forces=output.forces[i].detach().cpu().numpy().reshape(n_atoms, 3)
+            if output.forces is not None
+            else None,
         )
         atoms.calc = calc
         images.append(atoms)
     return images
 
+
 def wrap_positions(
-        positions: torch.Tensor,
-        cell: torch.Tensor,
-        pbc: torch.Tensor,
-        center: torch.Tensor = 0.5,
-    ) -> torch.Tensor:
+    positions: torch.Tensor,
+    cell: torch.Tensor,
+    pbc: torch.Tensor,
+    center: torch.Tensor = 0.5,
+) -> torch.Tensor:
     """
     PyTorch implementation of ase.geometry.wrap_positions function.
     This function is also used for interatomic distances under minimum image convention.
@@ -73,7 +84,9 @@ def wrap_positions(
     """
 
     if not isinstance(center, torch.Tensor):
-        center = torch.ones(cell.shape[0], dtype=cell.dtype, device=cell.device) * center
+        center = (
+            torch.ones(cell.shape[0], dtype=cell.dtype, device=cell.device) * center
+        )
 
     if not isinstance(pbc, torch.Tensor):
         pbc = torch.ones(cell.shape[0], dtype=torch.bool, device=cell.device) * pbc
@@ -84,15 +97,18 @@ def wrap_positions(
 
     assert cell[pbc].any(dim=1).all(), (cell, pbc)
 
-    fractional = torch.linalg.solve(cell.T, positions.view(-1, cell.shape[-1]).T).T - shift
+    fractional = (
+        torch.linalg.solve(cell.T, positions.view(-1, cell.shape[-1]).T).T - shift
+    )
 
     fractional[:, pbc] = fractional[:, pbc] % 1.0 - shift[pbc]
 
     return torch.matmul(fractional, cell).view(*positions.shape)
 
+
 def unwrap_atoms(
-        images: list[Atoms],
-    ) -> list[Atoms]:
+    images: list[Atoms],
+) -> list[Atoms]:
     """
     Unwrap atoms in a list of ASE Atoms objects.
     This function ensures that the positions of atoms in consecutive images
@@ -109,14 +125,15 @@ def unwrap_atoms(
         images[i + 1].set_positions(positions_i + diff)
     return images
 
+
 def radius_graph(
-        positions: torch.Tensor,
-        cell: torch.Tensor,
-        pbc: torch.Tensor,
-        cutoff: float = None,
-        max_neighbors: int = None,
-        method: str = "mic",
-    ) -> torch.Tensor:
+    positions: torch.Tensor,
+    cell: torch.Tensor,
+    pbc: torch.Tensor,
+    cutoff: float | None = None,
+    max_neighbors: int | None = None,
+    method: str = "mic",
+) -> torch.Tensor:
     """
     Create a graph of atom pairs within a cutoff distance.
 
@@ -142,19 +159,19 @@ def radius_graph(
         Graph of atom pairs within the cutoff distance.
     """
     if method == "mic":
-        return radius_graph_mic(positions, cell, pbc, cutoff, max_neighbors)
+        return _radius_graph_mic(positions, cell, pbc, cutoff)
     elif method == "fairchem":
-        return radius_graph_fairchem(positions, cell, pbc, cutoff, max_neighbors)
+        return _radius_graph_fairchem(positions, cell, pbc, cutoff, max_neighbors)
     else:
         raise ValueError(f"Invalid method: {method}. Options are 'mic' and 'fairchem'.")
 
-def radius_graph_mic(
-        positions: torch.Tensor,
-        cell: torch.Tensor,
-        pbc: torch.Tensor,
-        cutoff: float = None,
-        max_neighbors: int = None,
-    ) -> torch.Tensor:
+
+def _radius_graph_mic(
+    positions: torch.Tensor,
+    cell: torch.Tensor,
+    pbc: torch.Tensor,
+    cutoff: float | None = None,
+) -> torch.Tensor:
     """
     Create a graph of atom pairs within a cutoff distance.
 
@@ -180,12 +197,14 @@ def radius_graph_mic(
         Graph of atom pairs within the cutoff distance.
     """
     device = positions.device
-    dtype = positions.dtype
     n_data, n_atoms, _ = positions.shape
 
     # Create all-pairs distance matrix
     edge_index = torch.triu_indices(n_atoms, n_atoms, offset=1, device=device)
-    edge_index = edge_index[:, None, :] + torch.arange(n_data, device=device)[None, :, None] * n_atoms
+    edge_index = (
+        edge_index[:, None, :]
+        + torch.arange(n_data, device=device)[None, :, None] * n_atoms
+    )
     edge_index = edge_index.view(2, -1)
     positions_flat = positions.view(-1, 3)
     disp = positions_flat[edge_index[0]] - positions_flat[edge_index[1]]
@@ -202,23 +221,23 @@ def radius_graph_mic(
         edge_distance = dist[mask]
         edge_distance_vec = disp[mask]
     else:
-        edge_index = edge_index
         edge_distance = dist
         edge_distance_vec = disp
 
     return {
-        'edge_index': edge_index,
-        'edge_distance': edge_distance,
-        'edge_distance_vec': edge_distance_vec,
+        "edge_index": edge_index,
+        "edge_distance": edge_distance,
+        "edge_distance_vec": edge_distance_vec,
     }
 
-def radius_graph_fairchem(
-        positions: torch.Tensor,
-        cell: torch.Tensor,
-        pbc: torch.Tensor,
-        cutoff: float,
-        max_neighbors: int,
-    ) -> torch.Tensor:
+
+def _radius_graph_fairchem(
+    positions: torch.Tensor,
+    cell: torch.Tensor,
+    pbc: torch.Tensor,
+    cutoff: float,
+    max_neighbors: int,
+) -> torch.Tensor:
     """
     Create a graph of atom pairs within a cutoff distance.
 
@@ -253,13 +272,13 @@ def radius_graph_fairchem(
         - 'neighbors': int tensor of shape (n_graphs,)
             Number of neighbors for each atom.
     """
-    from fairchem.core.graph.compute import generate_graph
-    from fairchem.core.datasets import data_list_collater
-    from fairchem.core.datasets.atomic_data import AtomicData
+    from fairchem.core.datasets import data_list_collater  # noqa: PLC0415
+    from fairchem.core.datasets.atomic_data import AtomicData  # noqa: PLC0415
+    from fairchem.core.graph.compute import generate_graph  # noqa: PLC0415
 
     device = positions.device
     dtype = positions.dtype
-    n_data, n_atoms, _ = positions.shape
+    _, n_atoms, _ = positions.shape
 
     data_list = []
     for pos in positions:
@@ -285,7 +304,7 @@ def radius_graph_fairchem(
     # batch.cell = batch.cell.to(dtype=dtype)
     # batch.cell_offsets = batch.cell_offsets.to(dtype=dtype)
 
-    graph_dict = generate_graph(
+    return generate_graph(
         batch,
         cutoff=cutoff,
         max_neighbors=max_neighbors,
@@ -293,5 +312,3 @@ def radius_graph_fairchem(
         radius_pbc_version=2,
         pbc=batch.pbc,
     )
-
-    return graph_dict

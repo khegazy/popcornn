@@ -16,7 +16,8 @@ mep.optimize_path(
         "potential_params": {"name": "repel"},
         "integrator_params": {
             "path_integrand_names": "geodesic",
-            "rtol": 0.5, "atol": 0.05,
+            "rtol": 0.5,
+            "atol": 0.05,
         },
         "optimizer_params": {
             "optimizer": {"name": "adam", "lr": 5.0e-3},
@@ -216,13 +217,14 @@ write a subclass of `PathIntegrand`, and register it in
 
 ```python
 class MyLoss(PathIntegrand):
-    requires = ('forces', 'velocities')   # cache keys this term consumes
+    requires = ("forces", "velocities")  # cache keys this term consumes
 
     def evaluate(self, variables) -> torch.Tensor:
         # return shape [N, 1]
         return ...
 
-PATH_INTEGRANDS['my_loss'] = MyLoss
+
+PATH_INTEGRANDS["my_loss"] = MyLoss
 ```
 
 Then reference it from any config as `path_integrand_names: my_loss`.
