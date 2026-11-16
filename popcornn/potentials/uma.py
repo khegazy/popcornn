@@ -35,7 +35,6 @@ class UMAPotential(BasePotential):
         self.predictor = self.load_model(model_name, task_name)
         self.n_eval = 0
 
-
     def _cuda_device_context(self):
         """Make ``self.device`` the current CUDA device inside a ``with`` block.
 
@@ -51,7 +50,9 @@ class UMAPotential(BasePotential):
         no-op context.
         """
         if self.device.type == "cuda":
-            return torch.cuda.device(self.device)  # index-less 'cuda' keeps the current GPU
+            return torch.cuda.device(
+                self.device
+            )  # index-less 'cuda' keeps the current GPU
         return contextlib.nullcontext()
 
     def forward(self, positions):
@@ -60,12 +61,14 @@ class UMAPotential(BasePotential):
             pred = self.predictor.predict(data)
         self.n_eval += 1
         energies = (
-            pred["energy"].unsqueeze(-1)
-            .to(dtype=self.dtype)  # https://github.com/facebookresearch/fairchem/issues/1317
+            pred["energy"]
+            .unsqueeze(-1)
+            .to(
+                dtype=self.dtype
+            )  # https://github.com/facebookresearch/fairchem/issues/1317
         )
         forces = pred["forces"].view(*positions.shape)
         return PotentialOutput(energies=energies, forces=forces)
-
 
     def load_model(self, model_name, task_name):
         # Propagate self.dtype to fairchem's model via InferenceSettings.
@@ -76,11 +79,14 @@ class UMAPotential(BasePotential):
         # current CUDA device set by the context.
         with self._cuda_device_context():
             predictor = pretrained_mlip.get_predict_unit(
-                model_name=model_name, device=self.device.type,
+                model_name=model_name,
+                device=self.device.type,
                 inference_settings=inference_settings,
             )
             calc = FAIRChemCalculator(predictor, task_name=task_name)
-        calc.predictor.model.module.output_heads["energyandforcehead"].head.training = True
+        calc.predictor.model.module.output_heads[
+            "energyandforcehead"
+        ].head.training = True
         return calc.predictor
 
     def data_formatter(self, positions):
@@ -92,7 +98,9 @@ class UMAPotential(BasePotential):
                 atomic_numbers=self.atomic_numbers.long(),
                 cell=self.cell.unsqueeze(0),
                 pbc=self.pbc.unsqueeze(0),
-                natoms=torch.tensor([self.n_atoms], device=self.device, dtype=torch.long),
+                natoms=torch.tensor(
+                    [self.n_atoms], device=self.device, dtype=torch.long
+                ),
                 edge_index=torch.empty((2, 0), device=self.device, dtype=torch.long),
                 cell_offsets=torch.empty((0, 3), device=self.device, dtype=self.dtype),
                 nedges=torch.tensor([0], device=self.device, dtype=torch.long),

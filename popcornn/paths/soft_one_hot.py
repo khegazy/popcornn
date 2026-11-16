@@ -79,6 +79,7 @@ class SoftOneHotPath(BasePath):
         path.c.requires_grad_(False)
         path.log_tau.requires_grad_(False)
     """
+
     def __init__(
         self,
         n: int = 128,
@@ -94,12 +95,8 @@ class SoftOneHotPath(BasePath):
         d = 2.0 / (self.n - 1)
         tau_init = 2.0 * (self.k * d) ** 2
 
-        self.c = nn.Parameter(
-            torch.linspace(-1, 1, self.n, dtype=self.dtype)
-        )
-        self.log_tau = nn.Parameter(
-            torch.tensor(math.log(tau_init), dtype=self.dtype)
-        )
+        self.c = nn.Parameter(torch.linspace(-1, 1, self.n, dtype=self.dtype))
+        self.log_tau = nn.Parameter(torch.tensor(math.log(tau_init), dtype=self.dtype))
         self.out = nn.Linear(self.n, D, dtype=self.dtype, bias=True)
 
         self.to(self.device)
@@ -126,12 +123,12 @@ class SoftOneHotPath(BasePath):
         # product exactly regardless of basis/head weights.
         # Input is rescaled to z = 2t - 1 ∈ [-1, 1] so the Gaussian
         # centers c_i = linspace(-1, 1, n) span the time domain exactly.
-        z = 2 * time - 1                                 # [N, 1] in [-1, 1]
+        z = 2 * time - 1  # [N, 1] in [-1, 1]
         tau = self.log_tau.exp()
         # Broadcast subtraction: z [N, 1] - c [n] -> [N, n].
-        logits = -((z - self.c) ** 2) / tau              # [N, n]
-        h = torch.softmax(logits, dim=-1)                # [N, n]
-        mlp_out = self.out(h) * (1 - time) * time        # [N, D]
+        logits = -((z - self.c) ** 2) / tau  # [N, n]
+        h = torch.softmax(logits, dim=-1)  # [N, n]
+        mlp_out = self.out(h) * (1 - time) * time  # [N, D]
         if self.fix_positions is not None:
             mlp_out[:, self.fix_positions] = 0.0
         base_out = self.base.get_positions(time)

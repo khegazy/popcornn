@@ -24,11 +24,11 @@ class LegendrePotential(BasePotential):
         positions = positions.requires_grad_(True)
         s = positions.sum(dim=-1, keepdim=True)
         if self.n == 2:
-            E = -1 * (3 * s ** 2 - 1) / 2.
+            E = -1 * (3 * s**2 - 1) / 2.0
         elif self.n == 3:
-            E = (5 * s ** 3 - 2 * s ** 2 - 3 * s) / 2.
+            E = (5 * s**3 - 2 * s**2 - 3 * s) / 2.0
         elif self.n == 4:
-            E = (35 * s ** 4 - 30 * s ** 2 + 3) / 8. - 0.75 * s ** 2
+            E = (35 * s**4 - 30 * s**2 + 3) / 8.0 - 0.75 * s**2
         else:
             raise ValueError(self.n)
         F = self.calculate_conservative_forces(E, positions, create_graph=False)
@@ -56,7 +56,7 @@ def test_ts_search():
 
     truth = {
         2: (0.5, 0.5),
-        3: (0.5 + (-1./3) / 2., 8./27),
+        3: (0.5 + (-1.0 / 3) / 2.0, 8.0 / 27),
         4: (0.5, 0.375),
     }
 
@@ -79,12 +79,14 @@ def test_ts_search():
         positions = path(time)
         s = positions.sum(dim=-1, keepdim=True)
         if degree == 2:
-            E = -1 * (3 * s ** 2 - 1) / 2.
+            E = -1 * (3 * s**2 - 1) / 2.0
         elif degree == 3:
-            E = (5 * s ** 3 - 2 * s ** 2 - 3 * s) / 2.
+            E = (5 * s**3 - 2 * s**2 - 3 * s) / 2.0
         else:
-            E = (35 * s ** 4 - 30 * s ** 2 + 3) / 8. - 0.75 * s ** 2
-        F = BasePotential.calculate_conservative_forces(E, positions, create_graph=False)
+            E = (35 * s**4 - 30 * s**2 + 3) / 8.0 - 0.75 * s**2
+        F = BasePotential.calculate_conservative_forces(
+            E, positions, create_graph=False
+        )
         v = (x_final - x_init).expand_as(F)
         dEdt = -(F * v).sum(dim=-1)
 
@@ -103,7 +105,8 @@ def test_ts_search():
             f"{base_path.ts_time.item()}, expected {ts_time_truth}"
         )
         assert np.isclose(
-            ts_energy_truth, base_path.ts_energy.flatten().cpu().item(),
+            ts_energy_truth,
+            base_path.ts_energy.flatten().cpu().item(),
             atol=1e-3,
         ), (
             f"Did not match TS energy for legendre {degree}, got "

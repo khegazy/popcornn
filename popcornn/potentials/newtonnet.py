@@ -28,7 +28,6 @@ class NewtonNetPotential(BasePotential):
         self.transform = RadiusGraph(self.model.embedding_layer.norm.r)
         self.n_eval = 0
 
-
     def forward(self, positions):
         data = self.data_formatter(positions)
         pred = self.model(data.z, data.disp, data.edge_index, data.batch)
@@ -40,9 +39,10 @@ class NewtonNetPotential(BasePotential):
         forces = forces.view(*positions.shape)
         return PotentialOutput(energies=energies, forces=forces)
 
-
     def load_model(self, model_path):
-        calc = MLAseCalculator(model_path, properties=["energy", "forces"], device=self.device)
+        calc = MLAseCalculator(
+            model_path, properties=["energy", "forces"], device=self.device
+        )
         model = calc.models[0]
         # model.aggregators[0] = NullAggregator()
         model.eval()

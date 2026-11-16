@@ -33,8 +33,9 @@ class OrbPotential(BasePotential):
         self.model = self.load_model(model_path)
         self.use_autograd = use_autograd
         self.n_eval = 0
-        self.atomic_numbers_embedding = one_hot(self.atomic_numbers, num_classes=118).to(self.dtype)
-
+        self.atomic_numbers_embedding = one_hot(
+            self.atomic_numbers, num_classes=118
+        ).to(self.dtype)
 
     def forward(self, positions):
         data = self.data_formatter(positions)
@@ -50,7 +51,6 @@ class OrbPotential(BasePotential):
             forces = forces.view(*positions.shape)
             return PotentialOutput(energies=energies, forces=forces)
 
-
     def load_model(self, model_path):
         model = torch.load(model_path, weights_only=False, map_location=self.device)
         model.to(self.device).to(self.dtype)
@@ -64,7 +64,9 @@ class OrbPotential(BasePotential):
 
         batch = torch.arange(n_data, device=self.device).repeat_interleave(n_atoms)
         positions = pos.view(n_data * n_atoms, 3)
-        recievers, senders = radius_graph(positions, batch=batch, r=10.0, max_num_neighbors=20)
+        recievers, senders = radius_graph(
+            positions, batch=batch, r=10.0, max_num_neighbors=20
+        )
         n_node = n_atoms.repeat(n_data)
         n_edge = torch.tensor([len(recievers)], device=self.device)
         atomic_numbers = self.atomic_numbers.repeat(n_data)

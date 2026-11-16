@@ -24,7 +24,6 @@ class AniPotential(BasePotential):
         self.model = self.load_model(model_path)
         self.n_eval = 0
 
-
     def forward(self, positions):
         data = self.data_formatter(positions)
         pred = self.model(data)
@@ -32,7 +31,6 @@ class AniPotential(BasePotential):
         energies = pred.energies.view(*positions.shape[:-1], 1) * HARTREE_TO_EV
         forces = self.calculate_conservative_forces(energies, positions)
         return PotentialOutput(energies=energies, forces=forces)
-
 
     def load_model(self, model_path):
         # calc = ANICalculator(model_path)

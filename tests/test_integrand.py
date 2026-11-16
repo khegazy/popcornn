@@ -35,8 +35,9 @@ def test_single_integrand_outputs_match_per_class():
         terms = build_integrand_terms([name])
         composite, _ = evaluate_integrand_sum(terms, time, path=None, cache=cache)
         direct = cls().evaluate(cache)
-        assert torch.allclose(composite, direct), \
+        assert torch.allclose(composite, direct), (
             f"{name}: composite sum diverged from direct evaluate"
+        )
 
 
 def test_weighted_sum_matches_linear_combination():
@@ -64,12 +65,12 @@ def test_weighted_sum_matches_linear_combination():
     for name_a, name_b in pairs:
         terms = build_integrand_terms([name_a, name_b], scales)
         combined, _ = evaluate_integrand_sum(terms, time, path=None, cache=cache)
-        direct = (
-            scales[0] * PATH_INTEGRANDS[name_a]().evaluate(cache)
-            + scales[1] * PATH_INTEGRANDS[name_b]().evaluate(cache)
-        )
-        assert torch.allclose(combined, direct), \
+        direct = scales[0] * PATH_INTEGRANDS[name_a]().evaluate(cache) + scales[
+            1
+        ] * PATH_INTEGRANDS[name_b]().evaluate(cache)
+        assert torch.allclose(combined, direct), (
             f"weighted sum {name_a} + {name_b} did not match"
+        )
 
 
 def test_also_resolve_returns_requested_fields():
@@ -93,7 +94,11 @@ def test_also_resolve_returns_requested_fields():
     # be required. With it, the resolver still threads them through.
     terms = build_integrand_terms(["F_mag"])
     _, variables = evaluate_integrand_sum(
-        terms, time, path=None, cache=cache, also_resolve=("energies",),
+        terms,
+        time,
+        path=None,
+        cache=cache,
+        also_resolve=("energies",),
     )
     assert variables["energies"] is not None
     assert torch.equal(variables["energies"], energies)
@@ -110,7 +115,7 @@ def test_pvre_squared_equals_pvre_squared():
     cache = {"velocities": velocities, "forces": forces}
     pvre = PATH_INTEGRANDS["pvre"]().evaluate(cache)
     pvre_sq = PATH_INTEGRANDS["pvre_squared"]().evaluate(cache)
-    assert torch.allclose(pvre_sq, pvre ** 2)
+    assert torch.allclose(pvre_sq, pvre**2)
     assert (pvre_sq >= 0).all()
 
 
@@ -131,7 +136,7 @@ def test_pvre_huber_matches_manual():
     abs_overlap = overlap.abs()
     expected = torch.where(
         abs_overlap <= delta,
-        0.5 * overlap ** 2,
+        0.5 * overlap**2,
         delta * (abs_overlap - 0.5 * delta),
     )
     assert torch.allclose(huber, expected)
@@ -204,7 +209,7 @@ def test_pvre_pseudo_huber_matches_manual():
     pseudo = PATH_INTEGRANDS["pvre_pseudo_huber"](delta=delta).evaluate(cache)
 
     overlap = torch.sum(velocities * forces, dim=-1, keepdim=True)
-    expected = delta ** 2 * (torch.sqrt(1.0 + (overlap / delta) ** 2) - 1.0)
+    expected = delta**2 * (torch.sqrt(1.0 + (overlap / delta) ** 2) - 1.0)
     assert torch.allclose(pseudo, expected)
     assert (pseudo >= 0).all()
 
@@ -224,15 +229,19 @@ def test_pvre_pseudo_huber_limit_behaviors():
     # δ → ∞: Taylor gives L = s²/2 − s⁴/(8δ²) + …. Pick δ where the
     # analytic remainder dominates over float64 cancellation in √(1+x)−1.
     delta_large = 1e2
-    pseudo_large = PATH_INTEGRANDS["pvre_pseudo_huber"](delta=delta_large).evaluate(cache)
+    pseudo_large = PATH_INTEGRANDS["pvre_pseudo_huber"](delta=delta_large).evaluate(
+        cache
+    )
     # Remainder bound: |L − s²/2| ≤ s⁴ / (8 δ²) ≤ 5 · max(s²)² / δ².
-    bound = 5.0 * pvre_sq.max() ** 2 / delta_large ** 2
+    bound = 5.0 * pvre_sq.max() ** 2 / delta_large**2
     assert (pseudo_large - 0.5 * pvre_sq).abs().max() < bound
 
     # δ → 0 with all |s| ≫ δ: √(1+(s/δ)²) ≈ |s|/δ, so L ≈ δ·|s| − δ².
     delta_small = 1e-6
-    pseudo_small = PATH_INTEGRANDS["pvre_pseudo_huber"](delta=delta_small).evaluate(cache)
-    expected = delta_small * pvre - delta_small ** 2
+    pseudo_small = PATH_INTEGRANDS["pvre_pseudo_huber"](delta=delta_small).evaluate(
+        cache
+    )
+    expected = delta_small * pvre - delta_small**2
     assert torch.allclose(pseudo_small, expected, rtol=1e-3, atol=1e-12)
 
 

@@ -7,6 +7,7 @@ functions own variable resolution (``resolve_variables``), term construction
 (``evaluate_integrand_sum``) so that integrand classes themselves stay pure
 and never reach into the path object.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -109,7 +110,7 @@ class pVRESquared(PathIntegrand):
             dim=-1,
             keepdim=True,
         )
-        return overlap ** 2
+        return overlap**2
 
 
 class pVREHuber(PathIntegrand):
@@ -139,7 +140,7 @@ class pVREHuber(PathIntegrand):
             keepdim=True,
         )
         abs_overlap = overlap.abs()
-        quadratic = 0.5 * overlap ** 2
+        quadratic = 0.5 * overlap**2
         linear = self.delta * (abs_overlap - 0.5 * self.delta)
         return torch.where(abs_overlap <= self.delta, quadratic, linear)
 
@@ -169,7 +170,7 @@ class pVREPseudoHuber(PathIntegrand):
             dim=-1,
             keepdim=True,
         )
-        return self.delta ** 2 * (torch.sqrt(1.0 + (overlap / self.delta) ** 2) - 1.0)
+        return self.delta**2 * (torch.sqrt(1.0 + (overlap / self.delta) ** 2) - 1.0)
 
 
 class Energy(PathIntegrand):
@@ -295,11 +296,13 @@ def build_integrand_terms(names, scales=None, kwargs=None) -> list[IntegrandTerm
         if name in seen:
             raise ValueError(f"Cannot use the same integrand twice: {name!r}.")
         seen.add(name)
-        terms.append(IntegrandTerm(
-            name=name,
-            integrand=PATH_INTEGRANDS[name](**kwargs.get(name, {})),
-            scale=float(scale),
-        ))
+        terms.append(
+            IntegrandTerm(
+                name=name,
+                integrand=PATH_INTEGRANDS[name](**kwargs.get(name, {})),
+                scale=float(scale),
+            )
+        )
     return terms
 
 
@@ -327,7 +330,9 @@ def resolve_variables(
 
     needs_velocities = "velocities" in requires
     needs_energies = "energies" in requires and energies is None
-    needs_energies_dec = "energies_decomposed" in requires and energies_decomposed is None
+    needs_energies_dec = (
+        "energies_decomposed" in requires and energies_decomposed is None
+    )
     needs_forces = "forces" in requires and forces is None
     needs_forces_dec = "forces_decomposed" in requires and forces_decomposed is None
 

@@ -25,7 +25,9 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
 
     # Run the optimization
     mep = Popcornn(device=device, **config.get("initialization_params", {}))
-    path_output, ts_output = mep.optimize_path(*config.get("optimization_params", []), output_ase_atoms=False)
+    path_output, ts_output = mep.optimize_path(
+        *config.get("optimization_params", []), output_ase_atoms=False
+    )
 
     # Compare path output with saved benchmarks
     T_atol, T_rtol = 1e-6, 1e-6
@@ -40,20 +42,20 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
             energies_decomposed = None
             forces_decomposed = None
         else:
-           energies_decomposed = path_output.energies_decomposed.tolist()
-           forces_decomposed = path_output.forces_decomposed.tolist()
+            energies_decomposed = path_output.energies_decomposed.tolist()
+            forces_decomposed = path_output.forces_decomposed.tolist()
         with path_benchmark_filename.open("w") as file:
             json.dump(
                 {
-                    "time" : path_output.time.tolist(),
-                    "positions" : path_output.positions.tolist(),
-                    "velocities" : path_output.velocities.tolist(),
-                    "energies" : path_output.energies.tolist(),
-                    "energies_decomposed" : energies_decomposed,
-                    "forces" : path_output.forces.tolist(),
-                    "forces_decomposed" : forces_decomposed,
+                    "time": path_output.time.tolist(),
+                    "positions": path_output.positions.tolist(),
+                    "velocities": path_output.velocities.tolist(),
+                    "energies": path_output.energies.tolist(),
+                    "energies_decomposed": energies_decomposed,
+                    "forces": path_output.forces.tolist(),
+                    "forces_decomposed": forces_decomposed,
                 },
-                file
+                file,
             )
     with path_benchmark_filename.open() as file:
         path_benchmark = json.load(file)
@@ -61,48 +63,58 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
     time_test = torch.allclose(
         path_output.time.cpu().to(torch.float32),
         torch.tensor(path_benchmark["time"]),
-        atol=T_atol, rtol=T_rtol
+        atol=T_atol,
+        rtol=T_rtol,
     )
     assert time_test, "path output time does not match benchmark"
     position_test = torch.allclose(
         path_output.positions.cpu().to(torch.float32),
         torch.tensor(path_benchmark["positions"]),
-        atol=pos_atol, rtol=pos_rtol
+        atol=pos_atol,
+        rtol=pos_rtol,
     )
     assert position_test, "path output position does not match benchmark"
     velocity_test = torch.allclose(
         path_output.velocities.cpu().to(torch.float32),
         torch.tensor(path_benchmark["velocities"]),
-        atol=V_atol, rtol=V_rtol
+        atol=V_atol,
+        rtol=V_rtol,
     )
     assert velocity_test, "path output velocity does not match benchmark"
     energy_test = torch.allclose(
         path_output.energies.cpu().to(torch.float32),
         torch.tensor(path_benchmark["energies"]),
-        atol=E_atol, rtol=E_rtol
+        atol=E_atol,
+        rtol=E_rtol,
     )
     assert energy_test, "path output energy does not match benchmark"
     if path_output.energies_decomposed is not None:
         energies_decomposed_test = torch.allclose(
             path_output.energies_decomposed.cpu().to(torch.float32),
             torch.tensor(path_benchmark["energies_decomposed"]),
-            atol=E_atol, rtol=E_rtol
+            atol=E_atol,
+            rtol=E_rtol,
         )
-        assert energies_decomposed_test, "path output energies_decomposed does not match benchmark"
+        assert energies_decomposed_test, (
+            "path output energies_decomposed does not match benchmark"
+        )
     force_test = torch.allclose(
         path_output.forces.cpu().to(torch.float32),
         torch.tensor(path_benchmark["forces"]),
-        atol=F_atol, rtol=F_rtol
+        atol=F_atol,
+        rtol=F_rtol,
     )
     assert force_test, "path output force does not match benchmark"
     if path_output.forces_decomposed is not None:
         forces_decomposed_test = torch.allclose(
             path_output.forces_decomposed.cpu().to(torch.float32),
             torch.tensor(path_benchmark["forces_decomposed"]),
-            atol=F_atol, rtol=F_rtol
+            atol=F_atol,
+            rtol=F_rtol,
         )
-        assert forces_decomposed_test, "path output forces_decomposed does not match benchmark"
-
+        assert forces_decomposed_test, (
+            "path output forces_decomposed does not match benchmark"
+        )
 
     # Compare TS output with benchmark
     ts_benchmark_filename = Path(benchmark_path) / f"{name}_ts.json"
@@ -111,20 +123,20 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
             energies_decomposed = None
             forces_decomposed = None
         else:
-           energies_decomposed = ts_output.energies_decomposed.tolist()
-           forces_decomposed = ts_output.forces_decomposed.tolist()
+            energies_decomposed = ts_output.energies_decomposed.tolist()
+            forces_decomposed = ts_output.forces_decomposed.tolist()
         with ts_benchmark_filename.open("w") as file:
             json.dump(
                 {
-                    "time" : ts_output.time.tolist(),
-                    "positions" : ts_output.positions.tolist(),
-                    "velocities" : ts_output.velocities.tolist(),
-                    "energies" : ts_output.energies.tolist(),
-                    "energies_decomposed" : energies_decomposed,
-                    "forces" : ts_output.forces.tolist(),
-                    "forces_decomposed" : forces_decomposed,
+                    "time": ts_output.time.tolist(),
+                    "positions": ts_output.positions.tolist(),
+                    "velocities": ts_output.velocities.tolist(),
+                    "energies": ts_output.energies.tolist(),
+                    "energies_decomposed": energies_decomposed,
+                    "forces": ts_output.forces.tolist(),
+                    "forces_decomposed": forces_decomposed,
                 },
-                file
+                file,
             )
     with ts_benchmark_filename.open() as file:
         ts_benchmark = json.load(file)
@@ -132,47 +144,58 @@ def popcornn_run_test(name, config_path, benchmark_path, save_results=False):
     time_test = torch.allclose(
         ts_output.time.cpu().to(torch.float32),
         torch.tensor(ts_benchmark["time"]),
-        atol=T_atol, rtol=T_rtol
+        atol=T_atol,
+        rtol=T_rtol,
     )
     assert time_test, "path output time does not match benchmark"
     position_test = torch.allclose(
         ts_output.positions.cpu().to(torch.float32),
         torch.tensor(ts_benchmark["positions"]),
-        atol=pos_atol, rtol=pos_rtol
+        atol=pos_atol,
+        rtol=pos_rtol,
     )
     assert position_test, "path output position does not match benchmark"
     velocity_test = torch.allclose(
         ts_output.velocities.cpu().to(torch.float32),
         torch.tensor(ts_benchmark["velocities"]),
-        atol=V_atol, rtol=V_rtol
+        atol=V_atol,
+        rtol=V_rtol,
     )
     assert velocity_test, "path output velocity does not match benchmark"
     energy_test = torch.allclose(
         ts_output.energies.cpu().to(torch.float32),
         torch.tensor(ts_benchmark["energies"]),
-        atol=E_atol, rtol=E_rtol
+        atol=E_atol,
+        rtol=E_rtol,
     )
     assert energy_test, "path output energy does not match benchmark"
     if ts_output.energies_decomposed is not None:
         energies_decomposed_test = torch.allclose(
             ts_output.energies_decomposed.cpu().to(torch.float32),
             torch.tensor(ts_benchmark["energies_decomposed"]),
-            atol=E_atol, rtol=E_rtol
+            atol=E_atol,
+            rtol=E_rtol,
         )
-        assert energies_decomposed_test, "path output energies_decomposed does not match benchmark"
+        assert energies_decomposed_test, (
+            "path output energies_decomposed does not match benchmark"
+        )
     force_test = torch.allclose(
         ts_output.forces.cpu().to(torch.float32),
         torch.tensor(ts_benchmark["forces"]),
-        atol=F_atol, rtol=F_rtol
+        atol=F_atol,
+        rtol=F_rtol,
     )
     assert force_test, "path output force does not match benchmark"
     if ts_output.forces_decomposed is not None:
         forces_decomposed_test = torch.allclose(
             ts_output.forces_decomposed.cpu().to(torch.float32),
             torch.tensor(ts_benchmark["forces_decomposed"]),
-            atol=F_atol, rtol=F_rtol
+            atol=F_atol,
+            rtol=F_rtol,
         )
-        assert forces_decomposed_test, "path output forces_decomposed does not match benchmark"
+        assert forces_decomposed_test, (
+            "path output forces_decomposed does not match benchmark"
+        )
 
     return mep, path_output, ts_output
 
@@ -185,14 +208,8 @@ def scheduler_test(path, config, schedule_fxn, device):
     fxn2_name = config["integrator_params"]["path_integrand_names"][1]
 
     # Run optimizer and get integration values with scheduler
-    integrator = PathIntegrator(
-        **config["integrator_params"], device=device
-    )
-    optimizer = PathOptimizer(
-        path=path,
-        **config["optimizer_params"],
-        device=device
-    )
+    integrator = PathIntegrator(**config["integrator_params"], device=device)
+    optimizer = PathOptimizer(path=path, **config["optimizer_params"], device=device)
 
     time = None
     scheduled_evals = []
@@ -200,12 +217,9 @@ def scheduler_test(path, config, schedule_fxn, device):
         integral_output = optimizer.optimization_step(
             path, integrator, time=time, update_path=False
         )
-        scheduled_evals.append(
-            torch.flatten(integral_output.y, start_dim=0, end_dim=1)
-        )
+        scheduled_evals.append(torch.flatten(integral_output.y, start_dim=0, end_dim=1))
         time = torch.concatenate(
-            [integral_output.t[:,0,:], torch.tensor([[1]], device=device)],
-            dim=0
+            [integral_output.t[:, 0, :], torch.tensor([[1]], device=device)], dim=0
         )
     scheduled_evals = torch.stack(scheduled_evals)
 
@@ -213,22 +227,22 @@ def scheduler_test(path, config, schedule_fxn, device):
     time = torch.flatten(integral_output.t, start_dim=0, end_dim=1)
     fxn1_terms = build_integrand_terms([fxn1_name])
     fxn1_val, _ = evaluate_integrand_sum(fxn1_terms, time, path)
-    fxn1_scheduled_vals = fxn1_val.unsqueeze(0)*schedule_fxn(
+    fxn1_scheduled_vals = fxn1_val.unsqueeze(0) * schedule_fxn(
         scheduler_config[fxn1_name]["start_value"],
         scheduler_config[fxn1_name]["end_value"],
         scheduler_config[fxn1_name]["last_step"],
-        device=device
+        device=device,
     ).unsqueeze(-1).unsqueeze(-1)
     fxn2_terms = build_integrand_terms([fxn2_name])
     fxn2_val, _ = evaluate_integrand_sum(fxn2_terms, time, path)
-    fxn2_scheduled_vals = fxn2_val.unsqueeze(0)*schedule_fxn(
+    fxn2_scheduled_vals = fxn2_val.unsqueeze(0) * schedule_fxn(
         scheduler_config[fxn2_name]["start_value"],
         scheduler_config[fxn2_name]["end_value"],
         scheduler_config[fxn2_name]["last_step"],
-        device=device
+        device=device,
     ).unsqueeze(-1).unsqueeze(-1)
 
-    compare_schedule = fxn1_scheduled_vals[:,:,0] + fxn2_scheduled_vals[:,:,0]
+    compare_schedule = fxn1_scheduled_vals[:, :, 0] + fxn2_scheduled_vals[:, :, 0]
     assert torch.allclose(
-        scheduled_evals[:,:,0], compare_schedule, atol=1e-6, rtol=1e-4
+        scheduled_evals[:, :, 0], compare_schedule, atol=1e-6, rtol=1e-4
     )

@@ -28,6 +28,7 @@ The locked layout (used across the fp32 3-seed plots) is:
   - per-series convergence trigger marked as dashed vertical line
   - optional white-bg annotation textbox in the top panel
 """
+
 from __future__ import annotations
 
 import json
@@ -58,6 +59,7 @@ __all__ = [
 @dataclass
 class Series:
     """One trajectory to plot. `rows` is a list of {field: value} dicts."""
+
     rows: list[dict]
     label: str | None = None
     color: str = "C0"
@@ -72,6 +74,7 @@ class Series:
 @dataclass
 class Panel:
     """One panel in the stacked figure."""
+
     field: str
     ylabel: str
     log_y: bool = False
@@ -82,6 +85,7 @@ class Panel:
 # ---------------------------------------------------------------------------
 # I/O helpers
 # ---------------------------------------------------------------------------
+
 
 def read_jsonl(path: str | Path) -> list[dict]:
     """Read a JSONL file into a list of dicts (one per line)."""
@@ -94,7 +98,9 @@ def read_jsonl(path: str | Path) -> list[dict]:
     return rows
 
 
-def extract_xy(rows: list[dict], field: str, iter_field: str = "iter") -> tuple[np.ndarray, np.ndarray]:
+def extract_xy(
+    rows: list[dict], field: str, iter_field: str = "iter"
+) -> tuple[np.ndarray, np.ndarray]:
     """Pull (x=iter, y=field) arrays, skipping rows where the value is None/NaN."""
     xs, ys = [], []
     for r in rows:
@@ -133,29 +139,31 @@ def last_value(rows: list[dict], field: str) -> float | None:
 # Plotting
 # ---------------------------------------------------------------------------
 
+
 def _set_uniform_font(font_size: int) -> None:
-    plt.rcParams.update({
-        "font.size": font_size,
-        "axes.titlesize": font_size,
-        "axes.labelsize": font_size,
-        "xtick.labelsize": font_size,
-        "ytick.labelsize": font_size,
-        "legend.fontsize": font_size,
-        "figure.titlesize": font_size,
-    })
+    plt.rcParams.update(
+        {
+            "font.size": font_size,
+            "axes.titlesize": font_size,
+            "axes.labelsize": font_size,
+            "xtick.labelsize": font_size,
+            "ytick.labelsize": font_size,
+            "legend.fontsize": font_size,
+            "figure.titlesize": font_size,
+        }
+    )
 
 
-def _draw_panel(ax: Axes, panel: Panel, series: Iterable[Series], xlabel: str | None) -> None:
+def _draw_panel(
+    ax: Axes, panel: Panel, series: Iterable[Series], xlabel: str | None
+) -> None:
     for s in series:
         xs, ys = extract_xy(s.rows, panel.field, s.iter_field)
         if len(xs) == 0:
             continue
-        ax.plot(xs, ys,
-                color=s.color, linestyle=s.linestyle,
-                lw=s.lw, alpha=s.alpha)
+        ax.plot(xs, ys, color=s.color, linestyle=s.linestyle, lw=s.lw, alpha=s.alpha)
     for y, lbl in panel.hlines:
-        ax.axhline(y, color="k", ls=":", lw=0.9, alpha=0.7, zorder=0,
-                   label=lbl)
+        ax.axhline(y, color="k", ls=":", lw=0.9, alpha=0.7, zorder=0, label=lbl)
     if panel.log_y:
         ax.set_yscale("log")
     if xlabel is not None:
@@ -171,25 +179,24 @@ def _draw_triggers(ax: Axes, series: Iterable[Series]) -> None:
         it = last_iter(s.rows, s.iter_field)
         if it is None:
             continue
-        ax.axvline(it, color=s.color, linestyle=s.linestyle,
-                   lw=0.8, alpha=0.55)
+        ax.axvline(it, color=s.color, linestyle=s.linestyle, lw=0.8, alpha=0.55)
 
 
 def plot_stacked_traces(
-        series: list[Series],
-        panels: list[Panel],
-        title: str,
-        output_path: str | Path,
-        *,
-        figsize: tuple[float, float] | None = None,
-        font_size: int = 10,
-        legend_handles: list[Line2D] | None = None,
-        legend_loc: str = "best",
-        annotation: str | None = None,
-        annotation_loc: tuple[float, float] = (0.985, 0.04),
-        sharex: bool = True,
-        xlabel: str | None = None,
-        dpi: int = 140,
+    series: list[Series],
+    panels: list[Panel],
+    title: str,
+    output_path: str | Path,
+    *,
+    figsize: tuple[float, float] | None = None,
+    font_size: int = 10,
+    legend_handles: list[Line2D] | None = None,
+    legend_loc: str = "best",
+    annotation: str | None = None,
+    annotation_loc: tuple[float, float] = (0.985, 0.04),
+    sharex: bool = True,
+    xlabel: str | None = None,
+    dpi: int = 140,
 ) -> Path:
     """Render a vertically stacked sharex figure to ``output_path``.
 
@@ -235,10 +242,11 @@ def plot_stacked_traces(
     if len(panels) == 1:
         axes = [axes]
     for i, (ax, panel) in enumerate(zip(axes, panels, strict=True)):
-        is_last = (i == len(panels) - 1)
+        is_last = i == len(panels) - 1
         # Only the last panel gets an xlabel when sharex (default), all panels otherwise.
-        _draw_panel(ax, panel, series,
-                    xlabel=xlabel if (is_last or not sharex) else None)
+        _draw_panel(
+            ax, panel, series, xlabel=xlabel if (is_last or not sharex) else None
+        )
         _draw_triggers(ax, series)
 
     # Legend (auto from series unless caller overrides).
@@ -248,19 +256,31 @@ def plot_stacked_traces(
         for s in series:
             if s.label is None:
                 continue
-            auto.append(Line2D([0], [0], color=s.color, linestyle=s.linestyle,
-                              lw=1.4, label=s.label))
+            auto.append(
+                Line2D(
+                    [0],
+                    [0],
+                    color=s.color,
+                    linestyle=s.linestyle,
+                    lw=1.4,
+                    label=s.label,
+                )
+            )
         legend_handles = auto
     if legend_handles:
         ax_top.legend(handles=legend_handles, loc=legend_loc, framealpha=0.85)
 
     if annotation:
-        ax_top.text(annotation_loc[0], annotation_loc[1], annotation,
-                    transform=ax_top.transAxes,
-                    ha="right" if annotation_loc[0] > 0.5 else "left",
-                    va="bottom" if annotation_loc[1] < 0.5 else "top",
-                    family="monospace",
-                    bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "0.6"})
+        ax_top.text(
+            annotation_loc[0],
+            annotation_loc[1],
+            annotation,
+            transform=ax_top.transAxes,
+            ha="right" if annotation_loc[0] > 0.5 else "left",
+            va="bottom" if annotation_loc[1] < 0.5 else "top",
+            family="monospace",
+            bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "0.6"},
+        )
 
     ax_top.set_title(title)
     fig.tight_layout()

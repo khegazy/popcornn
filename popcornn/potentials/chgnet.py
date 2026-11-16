@@ -22,8 +22,9 @@ class CHGNetPotential(BasePotential):
         super().__init__(**kwargs)
         self.model = self.load_model(model_path)
         self.n_eval = 0
-        self.node_attrs = one_hot(self.atomic_numbers, num_classes=118)[:, self.model.atomic_numbers].double()
-
+        self.node_attrs = one_hot(self.atomic_numbers, num_classes=118)[
+            :, self.model.atomic_numbers
+        ].double()
 
     def forward(self, positions):
         data = self.data_formatter(positions)
@@ -35,15 +36,13 @@ class CHGNetPotential(BasePotential):
         # forces = forces.view(*positions.shape)
         # return PotentialOutput(energies=energies, forces=forces)
 
-
     def load_model(self, model_path):
         # DEBUG: mace_off is not yet imported, import it and fix the line below
-        model = None #mace_off(device=self.device).models[0]
+        model = None  # mace_off(device=self.device).models[0]
         state_dict = torch.load(model_path, map_location=self.device)
         model.load_state_dict(state_dict)
         model.eval()
         model.requires_grad_(False)
-        test = a
         return model
 
     def data_formatter(self, pos):

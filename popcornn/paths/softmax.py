@@ -13,7 +13,7 @@ class SquaredSoftmax(nn.Module):
         self.sharpening = sharpening
 
     def forward(self, x):
-        return torch.softmax(-(x * self.sharpening)**2, dim=-1)
+        return torch.softmax(-((x * self.sharpening) ** 2), dim=-1)
 
 
 class SoftMaxPath(BasePath):
@@ -30,7 +30,9 @@ class SoftMaxPath(BasePath):
         self.mlp = nn.Sequential(
             nn.Linear(1, width, dtype=self.dtype, bias=True),
             SquaredSoftmax(sharpening=sharpening),
-            nn.Linear(width, self.final_position.shape[-1], dtype=self.dtype, bias=True)
+            nn.Linear(
+                width, self.final_position.shape[-1], dtype=self.dtype, bias=True
+            ),
         )
         # with torch.no_grad():
         #     self.mlp[0].bias.mul_(self.mlp[0].weight.squeeze(-1))

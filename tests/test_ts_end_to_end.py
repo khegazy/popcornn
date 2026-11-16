@@ -6,6 +6,7 @@ that ``get_ts`` then returns a non-None ``ts_image``. This is a small-iteration 
 test — convergence quality is checked manually by running
 ``examples/run.py`` against the config.
 """
+
 from __future__ import annotations
 
 import torch

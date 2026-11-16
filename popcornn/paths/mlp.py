@@ -10,8 +10,12 @@ from .linear import LinearPath
 # ±C saturation at large |z|. Unbounded/linear-asymptote activations need
 # (1/κ)·σ(κz) so the κz·slope wing matches the original σ(z) ≈ z slope.
 _BOUNDED_ACTIVATION_TYPES = (
-    nn.Tanh, nn.Sigmoid, nn.Hardtanh, nn.Softsign,
-    nn.Threshold, nn.Hardsigmoid,
+    nn.Tanh,
+    nn.Sigmoid,
+    nn.Hardtanh,
+    nn.Softsign,
+    nn.Threshold,
+    nn.Hardsigmoid,
 )
 
 
@@ -31,6 +35,7 @@ class TemperedSoftmax(nn.Module):
     (validated 2026-05-25, 1% match across MB/LJ13/rost50 × τ∈{1,3,10,30}).
     Thresholds derive from σ ≈ 0.25, NOT from ‖h‖ scaling.
     """
+
     def __init__(self, tau: float = 1.0):
         super().__init__()
         self.tau = float(tau)
@@ -42,6 +47,7 @@ class TemperedSoftmax(nn.Module):
 
     def extra_repr(self):
         return f"tau={self.tau}"
+
 
 class SquaredSoftmax(nn.Module):
     """``softmax(τ·z)`` along the last (hidden) dim.
@@ -59,14 +65,15 @@ class SquaredSoftmax(nn.Module):
     (validated 2026-05-25, 1% match across MB/LJ13/rost50 × τ∈{1,3,10,30}).
     Thresholds derive from σ ≈ 0.25, NOT from ‖h‖ scaling.
     """
+
     def __init__(self, tau: float = 1.0):
         super().__init__()
         self.tau = float(tau)
 
     def forward(self, z):
         if self.tau == 1.0:
-            return torch.softmax(- z ** 2, dim=-1)
-        return torch.softmax(- self.tau * z ** 2, dim=-1)
+            return torch.softmax(-(z**2), dim=-1)
+        return torch.softmax(-self.tau * z**2, dim=-1)
 
     def extra_repr(self):
         return f"tau={self.tau}"
@@ -96,7 +103,10 @@ class SharpActivation(nn.Module):
     — bounded form needed; broken form ``(1/κ)·tanh(κz)`` shrinks the
     saturated magnitude to ±1/κ and pins the path to the linear base.
     """
-    def __init__(self, base_activation: nn.Module, kappa: float, bounded: bool | None = None):
+
+    def __init__(
+        self, base_activation: nn.Module, kappa: float, bounded: bool | None = None
+    ):
         super().__init__()
         self.base = base_activation
         self.kappa = float(kappa)
@@ -170,6 +180,7 @@ class MLPpath(BasePath):
     base : BasePath, optional
         Base path the MLP corrects. Defaults to ``LinearPath``.
     """
+
     def __init__(
         self,
         width: int = 128,
@@ -191,7 +202,9 @@ class MLPpath(BasePath):
                 )
             self.activation = SquaredSoftmax(tau=kappa)
         else:
-            activation_dict = {key.lower(): key for key in dir(nn) if not key.startswith("_")}
+            activation_dict = {
+                key.lower(): key for key in dir(nn) if not key.startswith("_")
+            }
             name = activation_dict[activation.lower()]
             activation_class = getattr(nn, name)
             base_activation = activation_class()
@@ -201,13 +214,15 @@ class MLPpath(BasePath):
                 self.activation = base_activation
         self.kappa = float(kappa)
         # Hidden width is `width` (default 128). System-independent.
-        input_sizes = [1] + [width]*(depth - 1)
+        input_sizes = [1] + [width] * (depth - 1)
         output_sizes = [*input_sizes[1:], self.final_position.shape[-1]]
         self.layers = [
             nn.Linear(
-                input_sizes[i//2], output_sizes[i//2], dtype=self.dtype, bias=True
-            ) if i%2 == 0 else self.activation\
-            for i in range(depth*2 - 1)
+                input_sizes[i // 2], output_sizes[i // 2], dtype=self.dtype, bias=True
+            )
+            if i % 2 == 0
+            else self.activation
+            for i in range(depth * 2 - 1)
         ]
 
         self.mlp = nn.Sequential(*self.layers)
@@ -256,6 +271,7 @@ class MLPpath(BasePath):
             out[:, self.fix_positions] = 0.0
         base_out = self.base.get_positions(time)
         return base_out + out
+
 
 # class ResNetLayer(nn.Module):
 #     def __init__(

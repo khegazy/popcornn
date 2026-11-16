@@ -34,28 +34,37 @@ def output_to_atoms(output, ref_images):
         atoms = ase.Atoms(
             numbers=ref_images.atomic_numbers.detach().cpu().numpy(),
             positions=output.positions[i].detach().cpu().numpy().reshape(n_atoms, 3),
-            velocities=output.velocities[i].detach().cpu().numpy().reshape(n_atoms, 3) if output.velocities is not None else None,
+            velocities=output.velocities[i].detach().cpu().numpy().reshape(n_atoms, 3)
+            if output.velocities is not None
+            else None,
             pbc=ref_images.pbc.detach().cpu().numpy(),
             cell=ref_images.cell.detach().cpu().numpy(),
-            constraint=ase.constraints.FixAtoms(mask=ref_images.fix_positions.detach().cpu().numpy()),
+            constraint=ase.constraints.FixAtoms(
+                mask=ref_images.fix_positions.detach().cpu().numpy()
+            ),
             tags=ref_images.tags.detach().cpu().numpy(),
             info={"charge": ref_images.charge.item(), "spin": ref_images.spin.item()},
         )
         calc = SinglePointCalculator(
             atoms,
-            energy=output.energies[i].detach().cpu().numpy().item() if output.energies is not None else None,
-            forces=output.forces[i].detach().cpu().numpy().reshape(n_atoms, 3) if output.forces is not None else None,
+            energy=output.energies[i].detach().cpu().numpy().item()
+            if output.energies is not None
+            else None,
+            forces=output.forces[i].detach().cpu().numpy().reshape(n_atoms, 3)
+            if output.forces is not None
+            else None,
         )
         atoms.calc = calc
         images.append(atoms)
     return images
 
+
 def wrap_positions(
-        positions: torch.Tensor,
-        cell: torch.Tensor,
-        pbc: torch.Tensor,
-        center: torch.Tensor = 0.5,
-    ) -> torch.Tensor:
+    positions: torch.Tensor,
+    cell: torch.Tensor,
+    pbc: torch.Tensor,
+    center: torch.Tensor = 0.5,
+) -> torch.Tensor:
     """
     PyTorch implementation of ase.geometry.wrap_positions function.
     This function is also used for interatomic distances under minimum image convention.
@@ -75,7 +84,9 @@ def wrap_positions(
     """
 
     if not isinstance(center, torch.Tensor):
-        center = torch.ones(cell.shape[0], dtype=cell.dtype, device=cell.device) * center
+        center = (
+            torch.ones(cell.shape[0], dtype=cell.dtype, device=cell.device) * center
+        )
 
     if not isinstance(pbc, torch.Tensor):
         pbc = torch.ones(cell.shape[0], dtype=torch.bool, device=cell.device) * pbc
@@ -86,15 +97,18 @@ def wrap_positions(
 
     assert cell[pbc].any(dim=1).all(), (cell, pbc)
 
-    fractional = torch.linalg.solve(cell.T, positions.view(-1, cell.shape[-1]).T).T - shift
+    fractional = (
+        torch.linalg.solve(cell.T, positions.view(-1, cell.shape[-1]).T).T - shift
+    )
 
     fractional[:, pbc] = fractional[:, pbc] % 1.0 - shift[pbc]
 
     return torch.matmul(fractional, cell).view(*positions.shape)
 
+
 def unwrap_atoms(
-        images: list[Atoms],
-    ) -> list[Atoms]:
+    images: list[Atoms],
+) -> list[Atoms]:
     """
     Unwrap atoms in a list of ASE Atoms objects.
     This function ensures that the positions of atoms in consecutive images
@@ -111,14 +125,15 @@ def unwrap_atoms(
         images[i + 1].set_positions(positions_i + diff)
     return images
 
+
 def radius_graph(
-        positions: torch.Tensor,
-        cell: torch.Tensor,
-        pbc: torch.Tensor,
-        cutoff: float | None = None,
-        max_neighbors: int | None = None,
-        method: str = "mic",
-    ) -> torch.Tensor:
+    positions: torch.Tensor,
+    cell: torch.Tensor,
+    pbc: torch.Tensor,
+    cutoff: float | None = None,
+    max_neighbors: int | None = None,
+    method: str = "mic",
+) -> torch.Tensor:
     """
     Create a graph of atom pairs within a cutoff distance.
 
@@ -150,12 +165,13 @@ def radius_graph(
     else:
         raise ValueError(f"Invalid method: {method}. Options are 'mic' and 'fairchem'.")
 
+
 def _radius_graph_mic(
-        positions: torch.Tensor,
-        cell: torch.Tensor,
-        pbc: torch.Tensor,
-        cutoff: float | None = None,
-    ) -> torch.Tensor:
+    positions: torch.Tensor,
+    cell: torch.Tensor,
+    pbc: torch.Tensor,
+    cutoff: float | None = None,
+) -> torch.Tensor:
     """
     Create a graph of atom pairs within a cutoff distance.
 
@@ -185,7 +201,10 @@ def _radius_graph_mic(
 
     # Create all-pairs distance matrix
     edge_index = torch.triu_indices(n_atoms, n_atoms, offset=1, device=device)
-    edge_index = edge_index[:, None, :] + torch.arange(n_data, device=device)[None, :, None] * n_atoms
+    edge_index = (
+        edge_index[:, None, :]
+        + torch.arange(n_data, device=device)[None, :, None] * n_atoms
+    )
     edge_index = edge_index.view(2, -1)
     positions_flat = positions.view(-1, 3)
     disp = positions_flat[edge_index[0]] - positions_flat[edge_index[1]]
@@ -211,13 +230,14 @@ def _radius_graph_mic(
         "edge_distance_vec": edge_distance_vec,
     }
 
+
 def _radius_graph_fairchem(
-        positions: torch.Tensor,
-        cell: torch.Tensor,
-        pbc: torch.Tensor,
-        cutoff: float,
-        max_neighbors: int,
-    ) -> torch.Tensor:
+    positions: torch.Tensor,
+    cell: torch.Tensor,
+    pbc: torch.Tensor,
+    cutoff: float,
+    max_neighbors: int,
+) -> torch.Tensor:
     """
     Create a graph of atom pairs within a cutoff distance.
 

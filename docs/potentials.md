@@ -92,6 +92,7 @@ implement:
 ```python
 from popcornn.potentials.base_potential import BasePotential, PotentialOutput
 
+
 class MyPotential(BasePotential):
     def __init__(self, my_param=1.0, **kwargs):
         super().__init__(**kwargs)
@@ -100,8 +101,8 @@ class MyPotential(BasePotential):
     def forward(self, positions):
         # positions: [N, 3 * n_atoms] (or [N, n_dim] for toy systems)
         # return PotentialOutput(energies=..., forces=...)
-        energies = ...                                    # shape [N, 1]
-        forces = self.calculate_conservative_forces(      # autograd
+        energies = ...  # shape [N, 1]
+        forces = self.calculate_conservative_forces(  # autograd
             energies, positions
         )
         return PotentialOutput(energies=energies, forces=forces)

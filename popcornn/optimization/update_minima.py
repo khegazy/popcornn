@@ -62,7 +62,7 @@ class MinimaUpdate:
             energy = torch.sum(self.potential(point))
             energy.backward()
             optimizer.step()
-            #if step % log_frequency == 0:
+            # if step % log_frequency == 0:
             #    self.training_logger(step, self.potential(point))
         point.requires_grad = False
 

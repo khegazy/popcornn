@@ -9,14 +9,15 @@ from .soft_one_hot import SoftOneHotPath
 from .softmax import SoftMaxPath
 
 path_dict = {
-    "mlp" : MLPpath,
-    "linear" : LinearPath,
-    "soft_one_hot" : SoftOneHotPath,
-    "planted_softmax" : PlantedSoftmaxPath,
-    "softmax" : SoftMaxPath
+    "mlp": MLPpath,
+    "linear": LinearPath,
+    "soft_one_hot": SoftOneHotPath,
+    "planted_softmax": PlantedSoftmaxPath,
+    "softmax": SoftMaxPath,
 }
 
 logger = logging.getLogger(__name__)
+
 
 def get_path(name, **config):
     """
@@ -40,7 +41,9 @@ def get_path(name, **config):
     """
     name = name.lower()
     if name not in path_dict:
-        raise ValueError(f"Cannot get path {name}, can only handle paths {path_dict.keys()}")
+        raise ValueError(
+            f"Cannot get path {name}, can only handle paths {path_dict.keys()}"
+        )
     path = path_dict[name](**config)
     logger.debug("Built path:\n%s", path)
     return path

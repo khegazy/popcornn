@@ -27,8 +27,9 @@ class MacePotential(BasePotential):
         super().__init__(**kwargs)
         self.model = self.load_model(model_path)
         self.n_eval = 0
-        self.node_attrs = one_hot(self.atomic_numbers, num_classes=118)[:, self.model.atomic_numbers].to(self.dtype)
-
+        self.node_attrs = one_hot(self.atomic_numbers, num_classes=118)[
+            :, self.model.atomic_numbers
+        ].to(self.dtype)
 
     def forward(self, positions):
         data = self.data_formatter(positions)
@@ -41,7 +42,6 @@ class MacePotential(BasePotential):
         # return PotentialOutput(energies=energies)
         forces = forces.view(*positions.shape)
         return PotentialOutput(energies=energies, forces=forces)
-
 
     def load_model(self, model_path):
         # model = mace_off(device=self.device).models[0]
@@ -65,8 +65,12 @@ class MacePotential(BasePotential):
         batch = torch.arange(n_data, device=self.device).repeat_interleave(n_atoms)
         ptr = torch.arange(0, n_data + 1, device=self.device) * n_atoms
         edge_index = radius_graph(positions, r=self.model.r_max, batch=batch)
-        shifts = torch.zeros(edge_index.shape[1], 3, device=self.device, dtype=self.dtype)
-        unit_shifts = torch.zeros(edge_index.shape[1], 3, device=self.device, dtype=self.dtype)
+        shifts = torch.zeros(
+            edge_index.shape[1], 3, device=self.device, dtype=self.dtype
+        )
+        unit_shifts = torch.zeros(
+            edge_index.shape[1], 3, device=self.device, dtype=self.dtype
+        )
         return Data(
             positions=positions,
             cell=cell,

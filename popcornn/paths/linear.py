@@ -11,6 +11,7 @@ class LinearPath(BasePath):
     adds a learned correction on top of, and occasionally as a sanity
     baseline.
     """
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.vec = self.final_position - self.initial_position

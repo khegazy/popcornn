@@ -24,20 +24,20 @@ class PathOptimizer:
     """
 
     def __init__(
-            self,
-            path,
-            optimizer=None,
-            track_ts=False,
-            lr_scheduler=None,
-            # path_integrand_schedulers=None,
-            # ts_time_loss_names=None,
-            # ts_time_loss_scales=torch.ones(1),
-            # ts_time_loss_schedulers=None,
-            threshold=None,
-            patience=1,
-            device="cpu",
-            dtype=None,
-        ):
+        self,
+        path,
+        optimizer=None,
+        track_ts=False,
+        lr_scheduler=None,
+        # path_integrand_schedulers=None,
+        # ts_time_loss_names=None,
+        # ts_time_loss_scales=torch.ones(1),
+        # ts_time_loss_schedulers=None,
+        threshold=None,
+        patience=1,
+        device="cpu",
+        dtype=None,
+    ):
         """
         Parameters
         ----------
@@ -63,8 +63,8 @@ class PathOptimizer:
         super().__init__()
 
         self.track_ts = track_ts
-        self.device=device
-        self.dtype=dtype
+        self.device = device
+        self.dtype = dtype
         self.iteration = 0
         self.threshold = threshold
         self.patience = patience
@@ -99,7 +99,9 @@ class PathOptimizer:
         if optimizer is not None:
             self.set_optimizer(**optimizer)
         else:
-            raise ValueError("Must specify optimizer parameters (dict) with key 'optimizer'")
+            raise ValueError(
+                "Must specify optimizer parameters (dict) with key 'optimizer'"
+            )
 
         #####  Initialize learning rate scheduler  #####
         if lr_scheduler is not None:
@@ -116,7 +118,9 @@ class PathOptimizer:
         — i.e. ``"adam"`` finds ``torch.optim.Adam``, ``"lbfgs"`` finds
         ``torch.optim.LBFGS``. Extra kwargs forward to the constructor.
         """
-        optimizer_dict = {key.lower(): key for key in dir(optim) if not key.startswith("_")}
+        optimizer_dict = {
+            key.lower(): key for key in dir(optim) if not key.startswith("_")
+        }
         name = optimizer_dict[name.lower()]
         optimizer_class = getattr(optim, name)
         self.optimizer = optimizer_class(self.path.parameters(), **config)
@@ -126,22 +130,19 @@ class PathOptimizer:
         Attach a ``torch.optim.lr_scheduler`` by class name. Same
         case-insensitive name resolution as ``set_optimizer``.
         """
-        scheduler_dict = {key.lower(): key for key in dir(lr_scheduler) if not key.startswith("_")}
-        assert name.lower() in scheduler_dict,\
+        scheduler_dict = {
+            key.lower(): key for key in dir(lr_scheduler) if not key.startswith("_")
+        }
+        assert name.lower() in scheduler_dict, (
             f"Scheduler class does not support '{name}', either add this functionality or select from {list(scheduler_dict.keys())}"
+        )
         name = scheduler_dict[name.lower()]
         scheduler_class = getattr(lr_scheduler, name)
         self.lr_scheduler = scheduler_class(self.optimizer, **config)
 
-
     def optimization_step(
-            self,
-            path,
-            integrator,
-            t_init=0.0,
-            t_final=1.0,
-            update_path=True
-        ):
+        self, path, integrator, t_init=0.0, t_final=1.0, update_path=True
+    ):
         """
         Run one optimizer step.
 

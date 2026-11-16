@@ -29,7 +29,9 @@ class EScAIPPotential(BasePotential):
             Whether to force CPU execution.
         """
         super().__init__(**kwargs)
-        calc = OCPCalculator(config_yml=config_yml, checkpoint_path=checkpoint_path, cpu=cpu)
+        calc = OCPCalculator(
+            config_yml=config_yml, checkpoint_path=checkpoint_path, cpu=cpu
+        )
         self.trainer = calc.trainer
         self.trainer.model.eval()
         if self.trainer.ema is not None:
