@@ -79,3 +79,13 @@ citable release is on the way; until then, link to the GitHub repo.
 Popcornn is under active development. Open a
 [GitHub issue](https://github.com/khegazy/popcornn/issues) for bugs or
 questions, and pull requests are welcome.
+
+Before your first commit, install the development tools and the git hook
+that lints and formats your changes with ruff on every commit:
+
+```bash
+pip install -e "./popcornn[dev]"
+cd popcornn && pre-commit install
+```
+
+To check the whole repository by hand, run `pre-commit run --all-files`.
