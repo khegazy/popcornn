@@ -63,7 +63,9 @@ With `max_batch` left at `None`, padaquad measures the memory of one
 integrand evaluation on the first `integrate_path` call of a
 `PathIntegrator` and sizes the batch from it. The measurement is slow,
 so it runs once per integrator, not once per optimizer step: padaquad
-stores the batch size and popcornn reuses it on every later call.
+returns the batch size it measured (the `max_batch` it logs) with the
+result, and popcornn passes it, with the refined mesh, to every later
+call.
 
 If a batch still runs out of memory, what happens depends on the
 gradient mode:

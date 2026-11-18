@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-17
+
+Moves to padaquad 2.0.0, which no longer keeps a warm-start mesh and batch size on its solver. popcornn now passes them from one integration to the next itself.
+
+### Changed
+
+- **Breaking:** requires `padaquad >= 2.0.0, < 3` (was `>= 1.4.0`). padaquad 2.0.0 removed `same_f` and `solver.previous_max_batch`, which `PathIntegrator` used, so popcornn 0.4.0 does not run on padaquad 1.x and popcornn 0.3.0 does not run on padaquad 2.x.
+- `PathIntegrator` passes each solver's previous `mesh_optimal` and `max_batch` to its next call, which keeps the warm start of earlier releases. The `track_loss` integral still starts from the gradient integral's batch size, and a size reduced after an out-of-memory error is still kept for the rest of the stage.
+- With `max_batch: null`, the batch size reused after the first call is the one padaquad's memory measurement reports (the `max_batch` it logs), not padaquad 1.x's estimate from the memory free at the end of the first integration. The two differ slightly; in one Müller–Brown run they were 4174 and 4164 points. Pin `max_batch` for runs where memory is tight.
+- `integrate_path` bounds that differ from the previous mesh's ends cut that mesh (a bound inside it) or extend it (a bound outside it), as before; no caller in popcornn changes the bounds.
+
 ## [0.3.0] - 2026-11-15
 
 Code is linted and formatted with ruff, on every commit through a pre-commit hook and on every push in CI.

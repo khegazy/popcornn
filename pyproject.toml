@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "popcornn"
 description="Path Optimization with a Continuous Representation Neural Network (popcornn) optimizes molecular reaction paths along analytic and MLIP potentials."
-version = "0.3.0"
+version = "0.4.0"
 readme = "README.md"
 license = { text = "CC-BY 4.0" }
 authors = [
@@ -38,7 +38,7 @@ dependencies = [
     "pytest",
     "pytest-cov",
     "PyYAML",
-    "padaquad >= 1.4.0",
+    "padaquad >= 2.0.0, < 3",
     "fairchem-core >= 2.4.0",
 ]
 

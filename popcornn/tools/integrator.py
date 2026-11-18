@@ -43,12 +43,12 @@ class PathIntegrator:
     popcornn API the optimizer uses:
 
     - the solver is built **once** in ``__init__`` and reused across every
-      ``integrate_path`` call (padaquad is stateful, unlike a free-function
-      integrator), so warm-start and memory benchmarking persist,
-    - **warm-start**: every call passes ``same_f=True``, so padaquad starts
-      from the optimized (pruned + refined) mesh and the batch size it stored
-      at the end of the previous call, which skips most adaptive-refinement
-      cost when the integrand changes only slightly between optimizer steps,
+      ``integrate_path`` call,
+    - **warm-start**: every call passes the previous call's
+      ``mesh_optimal`` (pruned + refined mesh) and ``max_batch`` back to
+      padaquad, which skips most adaptive-refinement cost when the integrand
+      changes only slightly between optimizer steps, and runs the slow memory
+      benchmark only once per integrator,
     - per-iteration ``integrand_scales`` updates so schedulers take effect,
     - direct scatter of ``∂L/∂θ`` into ``path.parameters().grad``
       (no separate ``.backward()`` call — we integrate the gradient itself
@@ -147,8 +147,9 @@ class PathIntegrator:
             them before evaluating more, so it also bounds the working memory.
             Read only at construction. ``None`` makes padaquad
             measure the memory of one evaluation on the first
-            ``integrate_path`` and size the batch from it; the stored size
-            is reused on every later call (``same_f=True``), so the slow
+            ``integrate_path`` and size the batch from it; that size (the
+            ``max_batch`` padaquad logs at the end of its measurement, returned
+            as ``result.max_batch``) is passed to every later call, so the slow
             measurement runs once per integrator.
 
             Out-of-memory errors: with ``integrate_gradient=True``, and in
@@ -208,7 +209,10 @@ class PathIntegrator:
         self.device = device
         self.dtype = dtype
         self.N_integrals = 0
+        # Last results of the main and loss solvers; each call starts from their
+        # mesh_optimal and max_batch (padaquad keeps no state between calls).
         self.integral_output = None
+        self._loss_output = None
 
         if path_integrand_names is None:
             self._terms = []
@@ -219,15 +223,16 @@ class PathIntegrator:
                 path_integrand_kwargs,
             )
 
-        # padaquad rejects dtype=None in _set_dtype — coalesce to float64 (the
-        # per-call set_dtype_by_input then matches the actual mesh-bound dtype
-        # anyway). The device is passed unchanged so a GPU index (cuda:1) is kept.
+        # padaquad rejects dtype=None in _set_dtype — coalesce to float64 (on
+        # each call, set_dtype_by_input then switches to the dtype of the mesh
+        # passed, or of the bounds on the first call). The device is passed
+        # unchanged so a GPU index (cuda:1) is kept.
         solver_dtype = self.dtype if self.dtype is not None else torch.float64
 
         # Build the adaptive-quadrature solver ONCE; reused across every
-        # integrate_path call so the warm-start state padaquad stores on it
-        # (mesh and batch size, used by same_f=True) persists for the
-        # integrator's lifetime.
+        # integrate_path call. padaquad keeps no warm-start state: each call
+        # starts from the previous result's mesh_optimal and max_batch, held in
+        # self.integral_output (main solver) and self._loss_output (loss solver).
         self._solver = adaptive_quadrature(
             sampling_type="uniform",  # str -> steps.ADAPTIVE_UNIFORM
             method=self.method,
@@ -240,7 +245,7 @@ class PathIntegrator:
         )
 
         # Detached loss integral runs on its own solver so it can use its own
-        # tolerances and keep an independent warm-start mesh. Only
+        # tolerances and its own warm-start mesh (self._loss_output). Only
         # needed in integrate_gradient mode; when integrate_gradient=False the
         # main pass already integrates the loss, so .loss comes for free.
         if self.integrate_gradient:
@@ -306,7 +311,9 @@ class PathIntegrator:
             Updated values for per-term scales (from schedulers).
         t_init, t_final : float or torch.Tensor, default 0.0 and 1.0
             Integration bounds, in [0, 1]. Passed to padaquad as 1-D
-            ``[1]`` mesh bounds.
+            ``[1]`` mesh bounds, together with the previous call's
+            ``mesh_optimal``: bounds inside that mesh cut it, and a bound
+            outside it extends it (padaquad >= 2.0.0).
         """
         if integrand_scales:
             self.update_integrand_scales(**integrand_scales)
@@ -382,16 +389,17 @@ class PathIntegrator:
 
             take_gradient = True
 
-        # same_f=True: padaquad starts from the mesh and batch size it stored at
-        # the end of the previous call on this solver (pruned + refined mesh;
-        # batch size including any out-of-memory reduction), so the slow memory
-        # measurement runs only on the first call. With nothing stored yet it
-        # uses a fresh random mesh and the constructor's max_batch.
+        # Warm start: start from the previous call's mesh (pruned + refined) and
+        # batch size (including any out-of-memory reduction), so the slow memory
+        # measurement runs only on the first call. The first call gets a fresh
+        # random mesh and the constructor's max_batch (or the measurement).
+        previous = self.integral_output
         result = self._solver.integrate(
             f,
-            same_f=True,
+            mesh=None if previous is None else previous.mesh_optimal,
             mesh_init=t_init_1d,
             mesh_final=t_final_1d,
+            max_batch=None if previous is None else previous.max_batch,
             error_norm=self.norm,
             take_gradient=take_gradient,  # see integrate_gradient branch above
             result_device=self.device,
@@ -453,24 +461,30 @@ class PathIntegrator:
                 loss, _ = evaluate_integrand_sum(self._terms, t, path)
                 return loss.reshape(t.shape[0], -1).detach()  # [N, 1], bare tensor
 
+            # Warm start from this solver's previous result. Its first call
+            # starts from the gradient solver's batch size, which skips a second
+            # memory measurement; the gradient integrand (a batched Jacobian)
+            # needs more memory per point than this one, so the size is safe.
+            previous = self._loss_output
             loss_result = self._loss_solver.integrate(
                 fval,
-                same_f=True,
+                mesh=None if previous is None else previous.mesh_optimal,
                 mesh_init=t_init_1d,
                 mesh_final=t_final_1d,
+                max_batch=result.max_batch if previous is None else previous.max_batch,
                 error_norm=self.norm,
                 take_gradient=False,
-                # Read only on this solver's first call (same_f=True then uses
-                # its own stored size); starting from the gradient solver's
-                # size skips a second memory measurement.
-                max_batch=self._solver.previous_max_batch,
                 result_device=self.device,
             )
+            self._loss_output = loss_result
             integral_output.loss = loss_result.integral.detach()  # [1]
         else:
             # The main pass already integrated the loss — it's free here.
             integral_output.loss = result.integral.detach()  # [1]
 
+        # The returned result is also the next call's warm start (its
+        # mesh_optimal and max_batch). If the loss integral above raised, it is
+        # not updated, and the next call starts from the older mesh.
         self.integral_output = integral_output
         self.N_integrals += 1
         return integral_output
