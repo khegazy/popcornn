@@ -174,7 +174,7 @@ threshold derivation is closed-form.
 
 ## Combining terms with schedulers
 
-The `loss_example.yaml` config ramps a geodesic-style term down and
-a pVRE term up over the first 100 iterations using cosine schedulers,
-so the path first untangles itself and then targets the TS. See
-[Advanced](advanced.md) for the syntax.
+The `loss_example.yaml` config combines `pvre` and `vre` with fixed
+scales (`path_integrand_scales: [1.0, 0.1]`). Ramping the scales with
+`path_integrand_schedulers` (syntax in [Advanced](advanced.md)) is
+currently disabled in `PathOptimizer`, so that config no longer uses it.
