@@ -10,10 +10,10 @@ Moves to padaquad 2.0.0, which no longer keeps a warm-start mesh and batch size 
 
 ### Changed
 
-- **Breaking:** requires `padaquad >= 2.0.0, < 3` (was `>= 1.4.0`). padaquad 2.0.0 removed `same_f` and `solver.previous_max_batch`, which `PathIntegrator` used, so popcornn 0.4.0 does not run on padaquad 1.x and popcornn 0.3.0 does not run on padaquad 2.x.
+- **Breaking:** requires `padaquad >= 2.0.0, < 3` (was `>= 1.4.0`). padaquad 2.0.0 removed `same_f` and `solver.previous_max_batch`, which `PathIntegrator` used, so popcornn 0.4.0 does not run on padaquad 1.x and popcornn 0.2.0 to 0.3.0 do not run on padaquad 2.x. Their requirements (`padaquad >= 1.3.0` or `>= 1.4.0`) do not exclude 2.x, so install them with `padaquad < 2`.
 - `PathIntegrator` passes each solver's previous `mesh_optimal` and `max_batch` to its next call, which keeps the warm start of earlier releases. The `track_loss` integral still starts from the gradient integral's batch size, and a size reduced after an out-of-memory error is still kept for the rest of the stage.
 - With `max_batch: null`, the batch size reused after the first call is the one padaquad's memory measurement reports (the `max_batch` it logs), not padaquad 1.x's estimate from the memory free at the end of the first integration. The two differ slightly; in one Müller–Brown run they were 4174 and 4164 points. Pin `max_batch` for runs where memory is tight.
-- `integrate_path` bounds that differ from the previous mesh's ends cut that mesh (a bound inside it) or extend it (a bound outside it), as before; no caller in popcornn changes the bounds.
+- `integrate_path` bounds that differ from the previous mesh's ends cut that mesh (a bound inside it) or extend it (a bound outside it), as before, except that padaquad 2.0.0 also drops the mesh points within a few rounding steps of a new bound; no caller in popcornn changes the bounds.
 
 ## [0.3.0] - 2026-11-15
 

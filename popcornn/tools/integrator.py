@@ -318,8 +318,9 @@ class PathIntegrator:
         if integrand_scales:
             self.update_integrand_scales(**integrand_scales)
 
-        # padaquad wants 1-D ``[T]`` mesh bounds (T=1 here), not 0-d. Their
-        # dtype also drives the solver's working precision (set_dtype_by_input).
+        # padaquad wants 1-D ``[T]`` mesh bounds (T=1 here), not 0-d. On the
+        # first call their dtype sets the solver's working precision; later calls
+        # follow the mesh passed, which has that dtype (see __init__).
         t_init_1d = torch.as_tensor(
             t_init, dtype=self.dtype, device=self.device
         ).reshape(1)

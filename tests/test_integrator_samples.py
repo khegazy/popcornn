@@ -214,12 +214,15 @@ def test_bounds_relative_to_previous_mesh(
     torch.manual_seed(0)
     fresh = PathIntegrator(**_WARM_START_PARAMS, device=device, dtype=dtype)
     expected = fresh.integrate_path(path, t_final=second_final)
-    # padaquad bounds each panel's error in the L2 norm (norm="2") by
+    # padaquad bounds each panel's estimated error in the L2 norm (norm="2") by
     # max(atol, rtol*||I||) = 1e-2*||I|| here (||I|| ~ 80-150), so compare the
     # whole vector in that norm, not element by element (small components carry
-    # large relative errors). Measured 2026-11-17, seeds 0-2: relative L2
-    # difference at most 7.1e-3 (extend) and 2.5e-6 (cut); 5e-2 leaves room for
-    # errors summed over panels of two independently refined meshes.
+    # large relative errors). The bound is per panel, not on the total, and
+    # max_iter can accept a panel that misses it, so no tolerance follows from
+    # it: 5e-2 is an empirical margin. Measured 2026-11-17 on CPU, seeds 0-5 for
+    # the meshes (this test uses 0): relative L2 difference at most 7.1e-3
+    # (extend) and 2.5e-6 (cut). Both runs are seeded, so the result is
+    # deterministic on a given machine.
     diff = (out.grad_integral - expected.grad_integral).norm()
     assert diff <= 5e-2 * expected.grad_integral.norm()
 
@@ -253,8 +256,9 @@ def _simulate_oom(monkeypatch, limit, integrand):
 def test_oom_batch_reduction_persists(muller_brown_setup, monkeypatch, integrand):
     """An out-of-memory error makes padaquad shrink the batch and retry. The
     reduced size comes back as ``result.max_batch``, which each solver passes
-    to its next call, so the error must not recur on the next ``integrate_path``. ``'main'`` exercises ``_solver``,
-    ``'loss'`` exercises ``_loss_solver`` on its own.
+    to its next call, so the error must not recur on the next
+    ``integrate_path``. ``'main'`` exercises ``_solver``, ``'loss'`` exercises
+    ``_loss_solver`` on its own.
     """
     path, device, dtype = muller_brown_setup
     limit = 50  # more than gk21's 23 nodes per panel, so one panel always fits
