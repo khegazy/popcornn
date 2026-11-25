@@ -41,22 +41,24 @@ python run.py --config configs/<name>.yaml
 
 | Config | What it is | Needs | Runtime* |
 | --- | --- | --- | --- |
-| `wolfe.yaml` | 2D Wolfe–Schlegel analytic surface | nothing beyond the base install | 38 s (opt. 4 s, 77 iterations) |
-| `muller_brown.yaml` | 2D Müller–Brown analytic surface | nothing beyond the base install | 46 s (opt. 12 s, 211 iterations) |
-| `loss_example.yaml` | Wolfe–Schlegel with the `pvre` and `vre` integrands combined | nothing beyond the base install | 39 s (opt. 11 s, 186 iterations); 54 s on CPU |
-| `lj13.yaml` | 13-atom Lennard–Jones cluster rearrangement | nothing beyond the base install | 48 s (opt. 16 s, 174 iterations) |
-| `gg3.yaml` | a Grambow–Green organic reaction (3rd entry of the GG benchmark set) | GPU + the UMA model installed (see [`docs/potentials.md`](docs/potentials.md)) | 16.6 min (opt. 5.5 s repel stage, 49 iterations; 15.3 min UMA stage, 148 iterations) |
-| `rost50.yaml` | a 71-atom reaction | GPU + the UMA model installed | more than 4 h (opt. 15 s repel stage, 59 iterations; UMA stage stopped by the 4 h limit at iteration 648 of 1000, about 22 s per iteration, not converged) |
+| `wolfe.yaml` | 2D Wolfe–Schlegel analytic surface | nothing beyond the base install | 17 s (opt. 2.2 s, 77 iterations) |
+| `muller_brown.yaml` | 2D Müller–Brown analytic surface | nothing beyond the base install | 25 s (opt. 10.5 s, 211 iterations) |
+| `loss_example.yaml` | Wolfe–Schlegel with the `pvre` and `vre` integrands combined | nothing beyond the base install | 25 s (opt. 10.1 s, 186 iterations) |
+| `lj13.yaml` | 13-atom Lennard–Jones cluster rearrangement | nothing beyond the base install | 30 s (opt. 14.3 s, 174 iterations) |
+| `gg3.yaml` | a Grambow–Green organic reaction (3rd entry of the GG benchmark set) | GPU + the UMA model installed (see [`docs/potentials.md`](docs/potentials.md)) | 11 min† (opt. 4.2 s repel stage, 49 iterations; 10.5 min UMA stage, 108 iterations) |
+| `rost50.yaml` | a 71-atom reaction | GPU + the UMA model installed | several hours† (opt. 13 s repel stage, 59 iterations; UMA stage about 36 s per iteration over its first 60, not run to the end) |
 
 \*Wall time of `python run.py --config configs/<name>.yaml` on one
-NVIDIA A100-SXM4-40GB (NERSC Perlmutter GPU node), popcornn 0.4.0 with
-padaquad 2.0.0, measured 2026-11-17. About 25–35 s of each run is spent
+NVIDIA A100-SXM4-80GB (NERSC Perlmutter GPU node), popcornn 0.4.0 with
+padaquad 2.0.0, measured 2026-11-18. About 15 s of each run is spent
 outside the optimization stages (start-up such as imports and CUDA
 initialization, and writing the output). "opt."
 is the optimization time of the stages and the number of iterations
 until the convergence threshold was met. Every run except `rost50`
 stopped at its threshold, so the iteration counts, and the times,
-depend on the seed and the machine.
+depend on the seed and the machine. †Timed without imports or writing
+the output (the `Popcornn` constructor and `optimize_path` only); an
+earlier `rost50` run had not converged after 648 UMA iterations (4 h).
 
 Each run writes the optimized path and predicted transition state to
 `popcornn_path.xyz` / `popcornn_ts.xyz`. To swap in your own reaction,

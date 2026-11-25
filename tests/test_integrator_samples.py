@@ -94,13 +94,13 @@ def test_track_ts_off_yields_none(muller_brown_setup):
     assert out.samples is None
 
 
-def test_batch_size_measured_once(muller_brown_setup, monkeypatch):
-    """With ``max_batch=None``, padaquad measures the memory of one integrand
-    evaluation (``_setup_memory_checks``) on the first ``integrate_path`` and
-    returns the batch size as ``result.max_batch``. ``PathIntegrator`` passes it
-    to every later call, so the slow measurement runs once per integrator, and
-    never on the loss solver, which starts from the gradient solver's size.
-    ``max_batch`` is deliberately not pinned: the measurement is what is tested.
+def test_batch_size_found_once(muller_brown_setup, monkeypatch):
+    """With ``max_batch=None``, padaquad finds a starting batch size with test
+    calls of the integrand (``_initialize_max_batch``) on the first
+    ``integrate_path`` and returns it in the state. ``PathIntegrator`` passes
+    the state to every later call, so each solver (gradient and loss) runs the
+    test calls once per integrator. ``max_batch`` is deliberately not pinned:
+    finding it is what is tested.
     """
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(
@@ -112,31 +112,30 @@ def test_batch_size_measured_once(muller_brown_setup, monkeypatch):
         device=device,
         dtype=dtype,
     )
-    n_measurements = {"main": 0, "loss": 0}
+    n_searches = {"main": 0, "loss": 0}
     for name, solver in (
         ("main", integrator._solver),
         ("loss", integrator._loss_solver),
     ):
 
-        def counting(*args, _measure=solver._setup_memory_checks, _name=name, **kwargs):
-            n_measurements[_name] += 1
-            return _measure(*args, **kwargs)
+        def counting(*args, _search=solver._initialize_max_batch, _name=name, **kwargs):
+            n_searches[_name] += 1
+            return _search(*args, **kwargs)
 
-        monkeypatch.setattr(solver, "_setup_memory_checks", counting)
+        monkeypatch.setattr(solver, "_initialize_max_batch", counting)
 
     out = integrator.integrate_path(path)
     assert torch.isfinite(out.integral).all()
-    assert isinstance(out.max_batch, int)
-    assert out.max_batch > 0
+    assert integrator._state.max_batch > 0
 
     integrator.integrate_path(path)
-    assert n_measurements == {"main": 1, "loss": 0}
+    assert n_searches == {"main": 1, "loss": 1}
 
 
 def _record_integrate_calls(monkeypatch, integrator):
     """Wrap both padaquad solvers' ``integrate`` to record, per call, the
-    ``mesh`` and ``max_batch`` passed and the result returned. Returns
-    ``{"main": [...], "loss": [...]}`` of ``(mesh, max_batch, result)``."""
+    ``state`` passed and the state returned. Returns
+    ``{"main": [...], "loss": [...]}`` of ``(state_in, state_out)``."""
     calls = {"main": [], "loss": []}
     for name, solver in (
         ("main", integrator._solver),
@@ -144,9 +143,9 @@ def _record_integrate_calls(monkeypatch, integrator):
     ):
 
         def recording(*args, _integrate=solver.integrate, _name=name, **kwargs):
-            result = _integrate(*args, **kwargs)
-            calls[_name].append((kwargs["mesh"], kwargs["max_batch"], result))
-            return result
+            result, state = _integrate(*args, **kwargs)
+            calls[_name].append((kwargs["state"], state))
+            return result, state
 
         monkeypatch.setattr(solver, "integrate", recording)
     return calls
@@ -154,7 +153,7 @@ def _record_integrate_calls(monkeypatch, integrator):
 
 # Tolerances and batch size shared by the warm-start tests: loose tolerances
 # keep them fast; max_batch=400 holds every batch of these integrals and skips
-# padaquad's memory measurement.
+# padaquad's batch-size search.
 _WARM_START_PARAMS = {
     "method": "gk21",
     "path_integrand_names": "pvre",
@@ -165,10 +164,9 @@ _WARM_START_PARAMS = {
 }
 
 
-def test_warm_start_passes_previous_mesh_and_batch(muller_brown_setup, monkeypatch):
-    """Each call starts from its own solver's previous ``mesh_optimal`` and
-    ``max_batch``; the loss solver's first call starts from a fresh mesh and
-    the gradient solver's batch size."""
+def test_warm_start_passes_previous_state(muller_brown_setup, monkeypatch):
+    """Each call starts from the state its own solver returned last (mesh and
+    batch size); the first call of each solver starts from none."""
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(**_WARM_START_PARAMS, device=device, dtype=dtype)
     calls = _record_integrate_calls(monkeypatch, integrator)
@@ -176,15 +174,13 @@ def test_warm_start_passes_previous_mesh_and_batch(muller_brown_setup, monkeypat
     integrator.integrate_path(path)
     integrator.integrate_path(path)
 
-    (mesh_1, _, main_1), (mesh_2, batch_2, _) = calls["main"]
-    (loss_mesh_1, loss_batch_1, loss_1), (loss_mesh_2, loss_batch_2, _) = calls["loss"]
-    assert mesh_1 is None
-    assert mesh_2 is main_1.mesh_optimal
-    assert batch_2 == main_1.max_batch
-    assert loss_mesh_1 is None
-    assert loss_batch_1 == main_1.max_batch
-    assert loss_mesh_2 is loss_1.mesh_optimal
-    assert loss_batch_2 == loss_1.max_batch
+    for name in ("main", "loss"):
+        (state_in_1, state_out_1), (state_in_2, _) = calls[name]
+        assert state_in_1 is None
+        assert state_in_2 is state_out_1
+        assert state_out_1.max_batch == _WARM_START_PARAMS["max_batch"]
+    assert integrator._state is calls["main"][1][1]
+    assert integrator._loss_state is calls["loss"][1][1]
 
 
 @pytest.mark.parametrize(
@@ -207,9 +203,9 @@ def test_bounds_relative_to_previous_mesh(
     integrator.integrate_path(path, t_final=first_final)
     out = integrator.integrate_path(path, t_final=second_final)
 
-    (_, _, first), (mesh_2, _, _) = calls["main"]
-    assert mesh_2 is first.mesh_optimal
-    assert out.mesh_optimal[-1].item() == second_final
+    (_, first_state), (state_2, second_state) = calls["main"]
+    assert state_2 is first_state
+    assert second_state.mesh[-1].item() == second_final
 
     torch.manual_seed(0)
     fresh = PathIntegrator(**_WARM_START_PARAMS, device=device, dtype=dtype)
@@ -252,13 +248,19 @@ def _simulate_oom(monkeypatch, limit, integrand):
     return batch_sizes
 
 
-@pytest.mark.parametrize("integrand", ["main", "loss"])
-def test_oom_batch_reduction_persists(muller_brown_setup, monkeypatch, integrand):
+@pytest.mark.parametrize(
+    ("integrand", "integrate_gradient"),
+    [("main", True), ("loss", True), ("main", False)],
+)
+def test_oom_batch_reduction_persists(
+    muller_brown_setup, monkeypatch, integrand, integrate_gradient
+):
     """An out-of-memory error makes padaquad shrink the batch and retry. The
-    reduced size comes back as ``result.max_batch``, which each solver passes
-    to its next call, so the error must not recur on the next
-    ``integrate_path``. ``'main'`` exercises ``_solver``, ``'loss'`` exercises
-    ``_loss_solver`` on its own.
+    reduced size comes back in the state, which each solver passes to its next
+    call, so the error must not recur on the next ``integrate_path``.
+    ``'main'`` exercises ``_solver`` (in both gradient modes; with
+    ``integrate_gradient=False`` padaquad takes the gradient itself),
+    ``'loss'`` exercises ``_loss_solver`` on its own.
     """
     path, device, dtype = muller_brown_setup
     limit = 50  # more than gk21's 23 nodes per panel, so one panel always fits
@@ -269,6 +271,7 @@ def test_oom_batch_reduction_persists(muller_brown_setup, monkeypatch, integrand
         rtol=1e-2,
         atol=1e-2,
         max_batch=400,
+        integrate_gradient=integrate_gradient,
         track_loss=True,
         device=device,
         dtype=dtype,
@@ -282,24 +285,72 @@ def test_oom_batch_reduction_persists(muller_brown_setup, monkeypatch, integrand
     assert max(batch_sizes) <= limit
 
 
-def test_oom_raises_without_integrate_gradient(muller_brown_setup, monkeypatch):
-    """With ``integrate_gradient=False`` padaquad backpropagates through each
-    batch, so it cannot shrink the batch and retry: the error reaches the caller.
-    """
+@pytest.mark.parametrize(
+    "memory_options",
+    [
+        {"trade_speed_for_memory": False},
+        {"evaluation_buffer": None},
+        {"evaluation_buffer": 10_000},
+        {"result_device": None},
+        {"record_evaluations": False},
+        {"record_evaluations": False, "track_ts": False},
+    ],
+    ids=[
+        "no_trade",
+        "no_buffer",
+        "small_buffer",
+        "result_on_device",
+        "no_record_ts",
+        "no_record",
+    ],
+)
+def test_memory_options_leave_results_unchanged(muller_brown_setup, memory_options):
+    """padaquad's memory options change only where and when integrand values
+    are held, never the evaluated points, the mesh or the integral, which
+    padaquad states holds bit for bit. Each option is compared with popcornn's
+    defaults (``trade_speed_for_memory=True``, a 5 GiB ``evaluation_buffer``
+    that these passes never fill) over two warm-started calls.
+    ``max_batch=46`` spreads a pass over several calls of the integrand, so
+    ``no_buffer`` and ``small_buffer`` (10 kB, less than one call's values)
+    compute the quadrature after every call. With
+    ``track_ts`` on, the values are recorded even with
+    ``record_evaluations=False``, so the TS samples must match too
+    (``no_record_ts``); ``no_record`` turns ``track_ts`` off so that nothing
+    is recorded; its next mesh is built differently, so only its first call
+    is compared."""
     path, device, dtype = muller_brown_setup
-    _simulate_oom(monkeypatch, 50, "main")
-    integrator = PathIntegrator(
-        method="gk21",
-        path_integrand_names="pvre",
-        rtol=1e-2,
-        atol=1e-2,
-        max_batch=400,
-        integrate_gradient=False,
-        device=device,
-        dtype=dtype,
-    )
-    with pytest.raises(torch.OutOfMemoryError):
-        integrator.integrate_path(path)
+    params = {
+        "method": "gk21",
+        "path_integrand_names": "pvre",
+        "rtol": 1e-2,
+        "atol": 1e-2,
+        "max_batch": 46,
+        "track_loss": True,
+        "track_ts": True,
+        "device": device,
+        "dtype": dtype,
+    }
+    runs = []
+    for options in ({}, memory_options):
+        torch.manual_seed(0)  # the first mesh is random
+        integrator = PathIntegrator(**(params | options))
+        runs.append([integrator.integrate_path(path) for _ in range(2)])
+    if "track_ts" in memory_options:
+        # Nothing recorded: padaquad builds the next call's mesh with
+        # merge_rule="power_law" instead of "predicted", so only the first
+        # call is the same.
+        assert runs[1][0].samples is None
+        runs = [run[:1] for run in runs]
+    for default, changed in zip(*runs, strict=True):
+        assert torch.equal(changed.grad_integral, default.grad_integral)
+        assert torch.equal(changed.loss, default.loss)
+        if changed.samples is None:
+            continue
+        for field in ("time", "energies", "dEdt"):
+            assert torch.equal(
+                getattr(changed.samples, field), getattr(default.samples, field)
+            )
+        assert changed.samples.time.numel() > 0
 
 
 def test_gpu_index_reaches_padaquad(monkeypatch):

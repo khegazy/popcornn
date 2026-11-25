@@ -4,15 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - 2026-11-17
+## [0.4.0] - 2026-11-18
 
-Moves to padaquad 2.0.0, which no longer keeps a warm-start mesh and batch size on its solver. popcornn now passes them from one integration to the next itself.
+Moves to padaquad 2.0.0, which no longer keeps a warm-start mesh and batch size on its solver and no longer runs a memory benchmark. popcornn now passes each solver's state from one integration to the next itself.
+
+### Added
+
+- padaquad's four memory options in `integrator_params`, passed to both of `PathIntegrator`'s solvers: `trade_speed_for_memory` (default `true`; padaquad's default is `false`), `evaluation_buffer` (default 5 GiB; padaquad's default is `null`), `result_device` (default `cpu`) and `record_evaluations` (default `true`). They decide where and when integrand values are held during an integral and never change the evaluated points, the mesh or the integral. With `trade_speed_for_memory: true` the GPU holds at most the buffer plus one call's values instead of a refinement pass's, which matters when the gradient is very large, as in catalysis with many atoms kept in the path. `trade_speed_for_memory` and `evaluation_buffer` apply only with `integrate_gradient: true` and are ignored otherwise. The values are always recorded while `track_ts` is on, because the transition-state samples are read from them. See [Memory & OOM](docs/memory-and-oom.md#memory-options).
 
 ### Changed
 
-- **Breaking:** requires `padaquad >= 2.0.0, < 3` (was `>= 1.4.0`). padaquad 2.0.0 removed `same_f` and `solver.previous_max_batch`, which `PathIntegrator` used, so popcornn 0.4.0 does not run on padaquad 1.x and popcornn 0.2.0 to 0.3.0 do not run on padaquad 2.x. Their requirements (`padaquad >= 1.3.0` or `>= 1.4.0`) do not exclude 2.x, so install them with `padaquad < 2`.
-- `PathIntegrator` passes each solver's previous `mesh_optimal` and `max_batch` to its next call, which keeps the warm start of earlier releases. The `track_loss` integral still starts from the gradient integral's batch size, and a size reduced after an out-of-memory error is still kept for the rest of the stage.
-- With `max_batch: null`, the batch size reused after the first call is the one padaquad's memory measurement reports (the `max_batch` it logs), not padaquad 1.x's estimate from the memory free at the end of the first integration. The two differ slightly; in one Müller–Brown run they were 4174 and 4164 points. Pin `max_batch` for runs where memory is tight.
+- **Breaking:** requires `padaquad >= 2.0.0, < 3` (was `>= 1.4.0`). padaquad 2.0.0 removed `same_f` and `solver.previous_max_batch`, which `PathIntegrator` used, and `integrate` now returns `(result, state)`. popcornn 0.4.0 does not run on padaquad 1.x, and popcornn 0.2.0 to 0.3.0 do not run on padaquad 2.x. Their requirements (`padaquad >= 1.3.0` or `>= 1.4.0`) do not exclude 2.x, so install them with `padaquad < 2`.
+- `PathIntegrator` passes the `IntegrationState` each solver returned (its refined mesh and batch size) to that solver's next call, which keeps the warm start of earlier releases. A size reduced after an out-of-memory error is still kept for the rest of the stage. The returned `IntegrationResult` no longer has `mesh_optimal` (padaquad moved it to the state).
+- With `max_batch: null`, padaquad no longer measures memory. It calls the integrand on 10 and 100 points, then grows the batch by factors of 10 until a call runs out of memory and retries that call at 0.75 times its size until it fits. Expect a few "Caught OOM" warnings in the first integration of a stage. On a CPU, pin `max_batch`: an allocation that does not fit can get the process killed instead of raising an error.
+- The `track_loss` integral finds its own batch size instead of starting from the gradient integral's, which needs far more memory per point (and, once reduced after an out-of-memory error, would never grow again).
+- With `integrate_gradient: false`, an out-of-memory error in the integrand or in a backward pass is retried with smaller batches instead of raised. popcornn passes the path's parameters to padaquad (`parameters=`), so the retry also works when a potential uses a custom autograd function.
+- The per-panel arrays of padaquad's result (nodes, tracked variables) are stored on the CPU by default (`result_device: cpu`) instead of the integration device; the transition-state samples are moved back to the integration device as before.
 - `integrate_path` bounds that differ from the previous mesh's ends cut that mesh (a bound inside it) or extend it (a bound outside it), as before, except that padaquad 2.0.0 also drops the mesh points within a few rounding steps of a new bound; no caller in popcornn changes the bounds.
 
 ## [0.3.0] - 2026-11-15
