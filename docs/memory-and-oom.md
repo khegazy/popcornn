@@ -142,6 +142,15 @@ practical difference for the shipped examples.
   `track_ts` is on (including the diagnostic integral at the end of
   each stage), because the transition-state samples are read from them.
 
+**`runtime_checks`** (popcornn default `false`; padaquad's is `true`)
+is not a memory option, but it also saves memory: with `true`, padaquad
+checks every call's output for NaN or Inf and every pass's nodes and
+mesh for order, which builds temporary arrays as large as a call's
+output (padaquad's CHANGELOG reports the finite check running out of
+memory on a 40 GB A100 after the call itself fit). With `false`, a NaN
+or Inf value is accepted and reaches the gradient, so turn it on to find
+where a path or potential produces one.
+
 padaquad logs a warning on the first integral of each stage when
 `trade_speed_for_memory` is on with `evaluation_buffer: null`. It is
 advice; the run is correct.

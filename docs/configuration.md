@@ -85,6 +85,7 @@ and `task_name`; NewtonNet needs a `model_path`).
 | `evaluation_buffer` | `int` or `None` | `5368709120` (5 GiB) | With `trade_speed_for_memory: true`, bytes of integrand values that may wait on the GPU before their quadrature is computed. A pass that fits is integrated once; `None` computes it after every call (least memory, about 0.2 ms per call). Ignored with `integrate_gradient: false`. See [Memory & OOM](memory-and-oom.md#memory-options). |
 | `result_device` | `str` or `None` | `cpu` | Where the integrand values of accepted panels and the per-panel results are stored; `None` keeps them on the integration device. See [Memory & OOM](memory-and-oom.md#memory-options). |
 | `record_evaluations` | `bool` | `true` | Keep the integrand values of accepted panels. popcornn does not read them, so `false` saves memory for very large systems, but the next call's starting mesh is built with padaquad's `power_law` merge rule. Always on while `track_ts` is on. See [Memory & OOM](memory-and-oom.md#memory-options). |
+| `runtime_checks` | `bool` | `false` | padaquad's checks while integrating (padaquad's default is `true`): raise naming the points where the integrand is NaN or Inf, and check the order of the nodes and the mesh on every pass. `false` skips them, saving time and temporary arrays as large as a call's output; a NaN or Inf value then reaches the gradient. Turn it on to find where a path or potential produces NaN or Inf. |
 
 ### `optimizer_params`
 

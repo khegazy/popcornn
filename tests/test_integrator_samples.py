@@ -294,6 +294,7 @@ def test_oom_batch_reduction_persists(
         {"result_device": None},
         {"record_evaluations": False},
         {"record_evaluations": False, "track_ts": False},
+        {"runtime_checks": True},
     ],
     ids=[
         "no_trade",
@@ -302,6 +303,7 @@ def test_oom_batch_reduction_persists(
         "result_on_device",
         "no_record_ts",
         "no_record",
+        "runtime_checks",
     ],
 )
 def test_memory_options_leave_results_unchanged(muller_brown_setup, memory_options):
@@ -317,7 +319,8 @@ def test_memory_options_leave_results_unchanged(muller_brown_setup, memory_optio
     ``record_evaluations=False``, so the TS samples must match too
     (``no_record_ts``); ``no_record`` turns ``track_ts`` off so that nothing
     is recorded; its next mesh is built differently, so only its first call
-    is compared."""
+    is compared. ``runtime_checks=True`` (popcornn's default is False) only
+    adds checks, so it must not change the results either."""
     path, device, dtype = muller_brown_setup
     params = {
         "method": "gk21",
@@ -353,21 +356,25 @@ def test_memory_options_leave_results_unchanged(muller_brown_setup, memory_optio
         assert changed.samples.time.numel() > 0
 
 
-def test_gpu_index_reaches_padaquad(monkeypatch):
+@pytest.mark.parametrize("runtime_checks", [None, True])
+def test_device_and_runtime_checks_reach_padaquad(monkeypatch, runtime_checks):
     """The GPU index of ``device`` must reach padaquad, so a ``cuda:1`` run
-    integrates on GPU 1. Runs without a GPU: only the solver construction is
-    intercepted.
+    integrates on GPU 1, and ``runtime_checks`` must reach both solvers,
+    False when not given (padaquad's own default is True). Runs without a
+    GPU: only the solver construction is intercepted.
     """
-    devices = []
+    calls = []
 
-    def record_device(*args, **kwargs):
-        devices.append(kwargs["device"])
+    def record_options(*args, **kwargs):
+        calls.append((kwargs["device"], kwargs["runtime_checks"]))
         return object()
 
-    monkeypatch.setattr("popcornn.tools.integrator.adaptive_quadrature", record_device)
+    monkeypatch.setattr("popcornn.tools.integrator.adaptive_quadrature", record_options)
+    given = {} if runtime_checks is None else {"runtime_checks": runtime_checks}
     PathIntegrator(
         path_integrand_names="pvre",
         device=torch.device("cuda", 1),
         dtype=torch.float64,
+        **given,
     )
-    assert devices == [torch.device("cuda", 1)] * 2
+    assert calls == [(torch.device("cuda", 1), bool(runtime_checks))] * 2

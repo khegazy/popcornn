@@ -80,6 +80,7 @@ class PathIntegrator:
         evaluation_buffer=5 * 2**30,
         result_device="cpu",
         record_evaluations=True,
+        runtime_checks=False,
         max_iter=5,
         track_loss=False,
         loss_rtol=0.0,
@@ -205,6 +206,15 @@ class PathIntegrator:
               mesh with ``merge_rule="power_law"`` (and warns). The values
               are recorded on every call with ``track_ts`` on, whatever this
               is, because the transition-state samples are read from them.
+        runtime_checks : bool, default=False
+            padaquad's ``runtime_checks`` (padaquad's default is True), passed
+            to both solvers. True raises ``ValueError`` naming the points
+            where the integrand returned NaN or Inf, and checks on every pass
+            that the nodes and the mesh are in order. False skips these
+            checks, which saves time and the temporary arrays they build (as
+            large as a call's output, the ``[D]`` gradient per point); a NaN
+            or Inf value is then accepted and reaches the gradient. Turn it on
+            to find where a path or potential produces NaN or Inf.
         max_iter : int, default=5
             Maximum adaptive-refinement depth, passed to padaquad as
             ``max_adaptive_splits``: the most times any single quadrature panel
@@ -218,10 +228,10 @@ class PathIntegrator:
             ``atol=0``) would otherwise split every panel forever, burning
             unbounded compute. The default of 5 leaves well-behaved integrals
             untouched (production runs converge well before depth 5; verified
-            identical grad_norm at 5/10/20 on Müller-Brown). Note this does
-            NOT rescue an integrand that returns NaN/Inf: padaquad raises a
-            ``ValueError`` naming the offending ``t``, so such degenerate
-            inputs must be avoided upstream.
+            identical grad_norm at 5/10/20 on Müller-Brown). A panel where
+            the integrand is NaN/Inf is accepted, not split, so it does not
+            refine forever either; with ``runtime_checks=True`` padaquad
+            raises a ``ValueError`` naming the offending ``t`` instead.
         track_loss : bool, default=False
             Run a separate detached integral of the scalar loss
             ``∫L(t) dt`` for monitoring. Costs an extra pass; when
@@ -285,6 +295,7 @@ class PathIntegrator:
             rtol=self.rtol,
             max_batch=max_batch,
             max_adaptive_splits=self.max_iter,  # per-panel split-depth cap; bounds refinement
+            runtime_checks=runtime_checks,
             dtype=solver_dtype,
             device=self.device,
         )
@@ -301,6 +312,7 @@ class PathIntegrator:
                 rtol=self.loss_rtol,
                 max_batch=max_batch,
                 max_adaptive_splits=self.max_iter,
+                runtime_checks=runtime_checks,
                 dtype=solver_dtype,
                 device=self.device,
             )
