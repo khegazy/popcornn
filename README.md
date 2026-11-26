@@ -25,6 +25,12 @@ git clone https://github.com/khegazy/popcornn.git
 pip install -e ./popcornn
 ```
 
+The `pip install` step takes about 2.5 min: 153 s and 158 s in two runs
+on a NERSC Perlmutter node (2026-11-25), each in a fresh Python 3.12
+environment with pip's cache off. It downloads 137 packages, mostly
+PyTorch with its CUDA libraries and `fairchem-core`, and the
+environment then takes 6.1 GB. On a slower network it takes longer.
+
 That gets you everything you need for the analytic potentials. Each
 machine-learned potential (MACE, Orb, UMA, …) has its own install steps —
 see [`docs/potentials.md`](docs/potentials.md).
