@@ -24,6 +24,10 @@ Moves to padaquad 2.0.0, which no longer keeps a warm-start mesh and batch size 
 - The per-panel arrays of padaquad's result (nodes, tracked variables) are stored on the CPU by default (`result_device: cpu`) instead of the integration device; the transition-state samples are moved back to the integration device as before.
 - `integrate_path` bounds that differ from the previous mesh's ends cut that mesh (a bound inside it) or extend it (a bound outside it), as before, except that padaquad 2.0.0 also drops the mesh points within a few rounding steps of a new bound; no caller in popcornn changes the bounds.
 
+### Removed
+
+- The `rost50.yaml` example (a 71-atom reaction with UMA) and its `rost50.xyz`: a run takes several hours (about 36 s per UMA iteration on an A100, and an earlier run had not converged after 648 iterations). `gg3.yaml` remains the UMA example.
+
 ## [0.3.0] - 2026-11-15
 
 Code is linted and formatted with ruff, on every commit through a pre-commit hook and on every push in CI.

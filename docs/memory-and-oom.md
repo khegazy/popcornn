@@ -104,9 +104,9 @@ the shipped network (`width: 128`, `depth: 2`) it is about
 129 · 3N + 256 (fit to the table in [paths](paths.md)). A 1,000-atom
 system, as in catalysis when a slab or a large cluster is kept in the
 path, has D ≈ 390,000, about 1.5 MB per point, so a pass of a few
-thousand points holds several GB. For rost50 (71 atoms, D = 27,733) a
-pass of about 100 points holds about 11 MB, so the options make no
-practical difference for the shipped examples.
+thousand points holds several GB. For gg3 (13 atoms, D = 5,287), the
+largest shipped example, a pass of about 100 points holds about 2 MB,
+so the options make no practical difference for the shipped examples.
 
 - **`trade_speed_for_memory`** (popcornn default `true`). With `false`,
   padaquad keeps every value of a refinement pass on the GPU until the
