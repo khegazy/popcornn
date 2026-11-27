@@ -13,9 +13,10 @@ class SamplesCache:
     """Per-quadrature-point energy + dE/dt samples harvested during integration.
 
     Shape contract (``P`` = total accepted quadrature points; padaquad returns
-    its node-level outputs already flattened across panels with shared panel
-    boundaries deduplicated, so there is no per-panel ``[N, K]`` layout to
-    flatten on our side):
+    its node-level outputs already flattened across panels, so there is no
+    per-panel ``[N, K]`` layout to flatten on our side; with the Gauss–Kronrod
+    methods every node is inside its panel, so ``t = 0`` and ``t = 1`` are not
+    among the samples):
     - ``time``: ``[P]``, taken from ``IntegralOutput.nodes``'s ``[P, T]``.
     - ``energies``: ``[P, E]`` (typically ``E=1``; potentials may emit a
       decomposed energy tensor).
@@ -152,15 +153,16 @@ class PathIntegrator:
             ``integrate_gradient=False`` padaquad evaluates at most
             ``max_batch // nodes-per-panel`` panels and backpropagates through
             them before evaluating more, so it also bounds the working memory;
-            there it must be at least the nodes per panel (9 for ``gk7``, 23
-            for ``gk21``: padaquad adds both panel endpoints, with zero
-            weight, to the Kronrod nodes). Read only at construction.
+            there it must be at least the nodes per panel (7 for ``gk7``, 21
+            for ``gk21``), else padaquad raises ``ValueError``. Read only at
+            construction.
 
             ``None`` lets padaquad find the size on the first
-            ``integrate_path``: it calls the integrand on 10 and 100 points,
-            then grows the batch by factors of 10 until a call runs out of
-            memory, and retries that call at 0.75 times its size until it
-            fits. Each solver (gradient and ``track_loss``) finds its own size
+            ``integrate_path``: it calls the integrand on 10, 100 and 1,000
+            copies of one point (fewer when the first pass is smaller), starts
+            from the largest call that ran, then grows the batch by factors of
+            10 until a call runs out of memory, and retries that call at 0.75
+            times its size until it fits. Each solver (gradient and ``track_loss``) finds its own size
             once and passes it, with the mesh, to every later call.
 
             Out-of-memory errors: padaquad shrinks the batch and retries, and
@@ -209,10 +211,11 @@ class PathIntegrator:
         runtime_checks : bool, default=False
             padaquad's ``runtime_checks`` (padaquad's default is True), passed
             to both solvers. True raises ``ValueError`` naming the points
-            where the integrand returned NaN or Inf, and checks on every pass
-            that the nodes and the mesh are in order. False skips these
-            checks, which saves time and the temporary arrays they build (as
-            large as a call's output, the ``[D]`` gradient per point); a NaN
+            where the integrand returned NaN or Inf, and checks padaquad's own
+            bookkeeping once at the end of each call. False skips these
+            checks, which saves time and the temporary arrays the NaN check
+            builds (as large as a call's output, the ``[D]`` gradient per
+            point); a NaN
             or Inf value is then accepted and reaches the gradient. Turn it on
             to find where a path or potential produces NaN or Inf.
         max_iter : int, default=5
@@ -565,8 +568,9 @@ class PathIntegrator:
         times; ``result.tracked_variables`` carries the ``(energies, dE/dt)``
         the integrand emitted, returned detached at the accepted nodes and
         aligned with ``nodes``. padaquad already returns these flattened across
-        panels with shared panel boundaries deduplicated (``P`` total points),
-        so we just move them to ``device`` and sort by time, letting consumers
+        panels (``P`` total points; a mesh point shared by two panels appears
+        once, and the Gauss–Kronrod methods evaluate no mesh point at all), so
+        we just move them to ``device`` and sort by time, letting consumers
         (TS search) scan in order without an extra ``argsort``.
 
         Note: unlike the old byte-keyed stitch, these are the *accepted* mesh

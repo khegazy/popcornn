@@ -369,10 +369,15 @@ class BasePath(torch.nn.Module):
         dEdt = samples.dEdt
         N = time.shape[0]
 
-        # Interior sign-change brackets. ``dE/dt`` touches zero at the
-        # endpoints (reactant/product minima), so a global sign search
-        # would falsely bracket the first/last segment; restrict to
-        # interior segments [i, i+1] with i ∈ [1, N-3].
+        # Interior sign-change brackets. ``dE/dt`` is close to zero near the
+        # endpoints (reactant/product minima), where its sign is noise, so a
+        # global sign search could falsely bracket the first/last segment;
+        # restrict to interior segments [i, i+1] with i ∈ [1, N-3]. With the
+        # Gauss–Kronrod methods the first and last samples are interior
+        # nodes, not t=0 and t=1, so this skips the stretch between the first
+        # two samples (and the last two); a saddle that close to an endpoint
+        # is not bracketed, and the endpoint candidates below cover a
+        # barrierless path.
         #
         # Use ``<= 0`` rather than ``< 0`` so a sample that lands exactly
         # on the saddle (``dE/dt = 0``) is still bracketed; the linear

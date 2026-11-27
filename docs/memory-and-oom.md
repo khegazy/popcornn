@@ -56,13 +56,14 @@ their outputs it holds at once is set by the memory options below. In `integrate
 at most `max_batch // nodes-per-panel` panels and backpropagates
 through them before evaluating more, so `max_batch` also bounds the
 working memory; there it must be at least the number of nodes per
-panel (9 for `gk7`, 23 for `gk21`: padaquad adds both panel endpoints,
-with zero weight, to the Kronrod nodes).
+panel (7 for `gk7`, 21 for `gk21`), else padaquad raises an error.
 
 With `max_batch` left at `None`, padaquad finds the batch size during
 the first `integrate_path` call of a `PathIntegrator`. It calls the
-integrand on 10 and 100 points, then lets the batch grow by factors of
-10 whenever more points are waiting, until a call runs out of memory;
+integrand on 10, 100 and 1,000 copies of one point (fewer when the
+first pass is smaller) and starts from the largest call that ran, then
+lets the batch grow by factors of 10 whenever more points are waiting,
+until a call runs out of memory;
 that call is retried at 0.75 times its size until it fits, and the
 batch size then stops growing. The gradient integral and the
 `track_loss` integral each find their own size. padaquad returns the
@@ -144,9 +145,9 @@ so the options make no practical difference for the shipped examples.
 
 **`runtime_checks`** (popcornn default `false`; padaquad's is `true`)
 is not a memory option, but it also saves memory: with `true`, padaquad
-checks every call's output for NaN or Inf and every pass's nodes and
-mesh for order, which builds temporary arrays as large as a call's
-output (padaquad's CHANGELOG reports the finite check running out of
+checks every call's output for NaN or Inf, which builds a temporary
+array as large as the call's output, and its own bookkeeping once per
+call (padaquad's CHANGELOG reports the finite check running out of
 memory on a 40 GB A100 after the call itself fit). With `false`, a NaN
 or Inf value is accepted and reaches the gradient, so turn it on to find
 where a path or potential produces one.

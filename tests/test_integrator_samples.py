@@ -58,7 +58,7 @@ def test_track_ts_aligned_with_quadrature_mesh(muller_brown_setup):
     assert isinstance(out.samples, SamplesCache)
 
     # Samples come from padaquad's accepted nodes, already flattened to
-    # [P, T] (shared panel boundaries deduplicated) -> P points.
+    # [P, T] -> P points.
     accepted_t = out.nodes[..., 0]
     expected_n = accepted_t.shape[0]
     assert out.samples.time.shape == (expected_n,)
@@ -94,44 +94,6 @@ def test_track_ts_off_yields_none(muller_brown_setup):
     assert out.samples is None
 
 
-def test_batch_size_found_once(muller_brown_setup, monkeypatch):
-    """With ``max_batch=None``, padaquad finds a starting batch size with test
-    calls of the integrand (``_initialize_max_batch``) on the first
-    ``integrate_path`` and returns it in the state. ``PathIntegrator`` passes
-    the state to every later call, so each solver (gradient and loss) runs the
-    test calls once per integrator. ``max_batch`` is deliberately not pinned:
-    finding it is what is tested.
-    """
-    path, device, dtype = muller_brown_setup
-    integrator = PathIntegrator(
-        method="gk21",
-        path_integrand_names="pvre",
-        rtol=1e-2,
-        atol=1e-2,
-        track_loss=True,
-        device=device,
-        dtype=dtype,
-    )
-    n_searches = {"main": 0, "loss": 0}
-    for name, solver in (
-        ("main", integrator._solver),
-        ("loss", integrator._loss_solver),
-    ):
-
-        def counting(*args, _search=solver._initialize_max_batch, _name=name, **kwargs):
-            n_searches[_name] += 1
-            return _search(*args, **kwargs)
-
-        monkeypatch.setattr(solver, "_initialize_max_batch", counting)
-
-    out = integrator.integrate_path(path)
-    assert torch.isfinite(out.integral).all()
-    assert integrator._state.max_batch > 0
-
-    integrator.integrate_path(path)
-    assert n_searches == {"main": 1, "loss": 1}
-
-
 def _record_integrate_calls(monkeypatch, integrator):
     """Wrap both padaquad solvers' ``integrate`` to record, per call, the
     ``state`` passed and the state returned. Returns
@@ -164,21 +126,32 @@ _WARM_START_PARAMS = {
 }
 
 
-def test_warm_start_passes_previous_state(muller_brown_setup, monkeypatch):
+@pytest.mark.parametrize("max_batch", [400, None], ids=["pinned", "found"])
+def test_warm_start_passes_previous_state(muller_brown_setup, monkeypatch, max_batch):
     """Each call starts from the state its own solver returned last (mesh and
-    batch size); the first call of each solver starts from none."""
+    batch size); the first call of each solver starts from none, so the loss
+    solver finds its own batch size rather than the gradient solver's.
+    ``max_batch=None`` (popcornn's default, the one exception to pinning it in
+    tests) lets padaquad find the batch size on the first call; that it then
+    reuses the state's size instead of searching again is padaquad's to test.
+    """
     path, device, dtype = muller_brown_setup
-    integrator = PathIntegrator(**_WARM_START_PARAMS, device=device, dtype=dtype)
+    params = _WARM_START_PARAMS | {"max_batch": max_batch}
+    integrator = PathIntegrator(**params, device=device, dtype=dtype)
     calls = _record_integrate_calls(monkeypatch, integrator)
 
-    integrator.integrate_path(path)
+    out = integrator.integrate_path(path)
     integrator.integrate_path(path)
 
+    assert torch.isfinite(out.integral).all()
     for name in ("main", "loss"):
         (state_in_1, state_out_1), (state_in_2, _) = calls[name]
         assert state_in_1 is None
         assert state_in_2 is state_out_1
-        assert state_out_1.max_batch == _WARM_START_PARAMS["max_batch"]
+        if max_batch is None:
+            assert state_out_1.max_batch > 0
+        else:
+            assert state_out_1.max_batch == max_batch
     assert integrator._state is calls["main"][1][1]
     assert integrator._loss_state is calls["loss"][1][1]
 
@@ -263,7 +236,7 @@ def test_oom_batch_reduction_persists(
     ``'loss'`` exercises ``_loss_solver`` on its own.
     """
     path, device, dtype = muller_brown_setup
-    limit = 50  # more than gk21's 23 nodes per panel, so one panel always fits
+    limit = 50  # more than gk21's 21 nodes per panel, so one panel always fits
     batch_sizes = _simulate_oom(monkeypatch, limit, integrand)
     integrator = PathIntegrator(
         method="gk21",
