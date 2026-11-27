@@ -331,7 +331,7 @@ Task 2 fixes every test's starting state. Within a test, padaquad still draws a 
     - **Bounds.** popcornn still passes `t_init` and `t_final`, and padaquad extends or cuts the mesh to them.
   - **No validation in popcornn.** padaquad raises a clear `ValueError` for a malformed mesh (Fact 10), so that check stays in one place.
   - **For tests:** `starting_mesh(seed: int) -> torch.Tensor` in `tests/__init__.py`.
-    - It returns a fixed irregular 13-point `[13, 1]` mesh on [0, 1], with the same layout as padaquad's fresh mesh: 3 equal segments with 4 sorted random points each, and the ends set to exactly 0 and 1.
+    - It returns exactly padaquad's own starting mesh for `torch.manual_seed(seed)`: 3 equal segments with 4 sorted random points each, the first segment shifted to start at 0 and the last to end at 1, giving 12 points (`[12, 1]`, 11 subintervals). (The first implementation built a different 13-point layout; the final review caught it, and a test now checks the match.)
     - It uses a local `torch.Generator().manual_seed(seed)`, so the global generator is never touched.
     - `cheap_integrator_params` adds `"initial_mesh": starting_mesh(TEST_SEED)`.
   - **Why not evenly spaced points?** padaquad's `random_initial_mesh=False` gives evenly spaced points, which can line up with features of the integrand. The sphere's corner at t = 0.5 on a panel boundary integrates exactly and hides the error of Fact 6.
@@ -452,11 +452,11 @@ Open: none. Implementation starts on your go-ahead.
 - **2026-11-27, implemented** on branch `onging_tests` (commits `3bbf668` to the Task 6 commit), in the order 1, 2, 3, 4, 5, 7, 6. Deviations, each recorded as a ruling:
   - **`test_uma`** takes `dtype` from the shared fixture (its values were the same) and keeps its own device list.
   - **Literal settings stay.** The tests with test-specific settings keep literal `rtol`/`atol`, because module-level dicts can't use a fixture.
-  - **Reference limit raised.** `test_default_tolerances.py`'s reference-agreement limit is 1e-2, not 2e-3. With fixed meshes the tight reference agrees with itself only to 2.2e-3 over meshes 0–5.
+  - **Reference limit.** A first version raised `test_default_tolerances.py`'s reference-agreement limit to 1e-2. The final review traced the cause to `starting_mesh` not matching padaquad's layout. With that fixed, the accepted 2e-3 holds again (measured 7.8e-4 for the pair the test uses; ≤ 1.6e-3 over meshes 0–5), and it is restored.
   - **Changelog.** An "Unreleased" CHANGELOG entry records `initial_mesh`.
 
   Measured after Task 7:
-  - **Default tolerances.** Cosine ≥ 0.9997, size error median 0.43 and max 1.31, path ratio 0.127.
-  - **Bounds-test margin.** Extend ≤ 6.8e-3, cut ≤ 2.4e-15.
+  - **Default tolerances.** Cosine ≥ 0.9997, size error median 0.13 and max 1.26 (as in Fact 9), path ratio 0.152.
+  - **Bounds-test margin.** Extend ≤ 7.1e-3, cut ≤ 2.1e-6.
   - **Random draws.** No `integrate_path` call in the suite draws random numbers.
   - **Full suite.** 152 passed, 21 skipped.

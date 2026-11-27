@@ -227,8 +227,8 @@ def test_bounds_relative_to_previous_mesh(
     # max_iter can accept a panel that misses it, so no tolerance follows from
     # it: 5e-2 is an empirical margin. Measured 2026-11-27 on CPU (padaquad
     # 2.0.0) over the starting meshes starting_mesh(0..5) (this test uses
-    # TEST_SEED = 0): relative L2 difference at most 6.8e-3 (extend) and
-    # 2.4e-15 (cut). Both runs start from the same fixed mesh, so the result
+    # TEST_SEED = 0): relative L2 difference at most 7.1e-3 (extend) and
+    # 2.1e-6 (cut). Both runs start from the same fixed mesh, so the result
     # is deterministic on a given machine.
     diff = (out.grad_integral - expected.grad_integral).norm()
     assert diff <= 5e-2 * expected.grad_integral.norm()

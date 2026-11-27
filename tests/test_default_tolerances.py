@@ -59,7 +59,7 @@ COMMON = {
     "runtime_checks": True,  # tests raise on NaN/Inf (popcornn's default is False)
 }
 # Tight reference. Its integrand has corners (where dE/dt changes sign), so even
-# these tolerances leave a relative gradient difference of up to 2.2e-3 between
+# these tolerances leave a relative gradient difference of up to 1.6e-3 between
 # starting meshes 0-5.
 TIGHT = {"method": "gk21", "rtol": 1e-8, "atol": 1e-12, "max_iter": 50}
 # Tight settings for the optimization comparison (fewer iterations, so looser).
@@ -69,11 +69,10 @@ NUM_ITERATIONS = 20
 T_RECORD = torch.linspace(0.0, 1.0, 21, dtype=DTYPE)
 
 # Thresholds (accepted 2026-11-17), with the values measured at the defaults.
-# 1e-2: 4.5x the worst agreement measured, and still 20x below SIZE_ERROR_MAX.
-REFERENCE_AGREEMENT_MAX = 1e-2  # measured 1.6e-3 (meshes 0 vs 3); <= 2.2e-3 over 0-5
+REFERENCE_AGREEMENT_MAX = 2e-3  # measured 7.8e-4 (meshes 0 vs 3); <= 1.6e-3 over 0-5
 COSINE_MIN = 0.99  # measured minimum over meshes 0-9: 0.9997
-SIZE_ERROR_MAX = 0.2  # measured median 0.43, maximum 1.31
-PATH_RATIO_MAX = 0.05  # measured 0.127 (mesh TEST_SEED)
+SIZE_ERROR_MAX = 0.2  # measured median 0.13, maximum 1.26
+PATH_RATIO_MAX = 0.05  # measured 0.152 (mesh TEST_SEED)
 
 
 def _integrated_gradient(mesh_seed: int, **integrator_params) -> torch.Tensor:
@@ -170,7 +169,7 @@ def test_default_gradient_direction(reference_gradient, default_gradients):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="Default tolerances get the gradient size wrong by up to 131% (plan 00, Fact 9).",
+    reason="Default tolerances get the gradient size wrong by up to 126% (plan 00, Fact 9).",
 )
 def test_default_gradient_size(reference_gradient, default_gradients):
     """At the default tolerances the gradient has the right size and direction."""
@@ -183,7 +182,7 @@ def test_default_gradient_size(reference_gradient, default_gradients):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="After 20 steps the default-tolerance path is 13% off the tight one (plan 00, Fact 9).",
+    reason="After 20 steps the default-tolerance path is 15% off the tight one (plan 00, Fact 9).",
 )
 def test_default_optimization_matches_tight():
     """A short optimization at the default tolerances ends near the tight-tolerance result."""
