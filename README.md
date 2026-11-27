@@ -47,15 +47,15 @@ python run.py --config configs/<name>.yaml
 
 | Config | What it is | Needs | Runtime* |
 | --- | --- | --- | --- |
-| `wolfe.yaml` | 2D Wolfe–Schlegel analytic surface | nothing beyond the base install | 19 s (opt. 2.7 s, 77 iterations) |
-| `muller_brown.yaml` | 2D Müller–Brown analytic surface | nothing beyond the base install | 23 s (opt. 10.7 s, 211 iterations) |
-| `loss_example.yaml` | Wolfe–Schlegel with the `pvre` and `vre` integrands combined | nothing beyond the base install | 28 s (opt. 13.5 s, 186 iterations) |
-| `lj13.yaml` | 13-atom Lennard–Jones cluster rearrangement | nothing beyond the base install | 27 s (opt. 15.6 s, 174 iterations) |
-| `gg3.yaml` | a Grambow–Green organic reaction (3rd entry of the GG benchmark set) | GPU + the UMA model installed (see [`docs/potentials.md`](docs/potentials.md)) | 11.5 min† (opt. 4.9 s repel stage, 49 iterations; 11.0 min UMA stage, 109 iterations) |
+| `wolfe.yaml` | 2D Wolfe–Schlegel analytic surface | nothing beyond the base install | 21 s (opt. 3.5 s, 108 iterations) |
+| `muller_brown.yaml` | 2D Müller–Brown analytic surface | nothing beyond the base install | 18 s (opt. 7.2 s, 192 iterations) |
+| `loss_example.yaml` | Wolfe–Schlegel with the `pvre` and `vre` integrands combined | nothing beyond the base install | 26 s (opt. 9.9 s, 186 iterations) |
+| `lj13.yaml` | 13-atom Lennard–Jones cluster rearrangement | nothing beyond the base install | 24 s (opt. 11.2 s, 171 iterations) |
+| `gg3.yaml` | a Grambow–Green organic reaction (3rd entry of the GG benchmark set) | GPU + the UMA model installed (see [`docs/potentials.md`](docs/potentials.md)) | 12.6 min† (opt. 3.4 s repel stage, 49 iterations; 12.0 min UMA stage, 142 iterations) |
 
 \*Wall time of `python run.py --config configs/<name>.yaml` on one
 NVIDIA A100-SXM4-80GB (NERSC Perlmutter GPU node), popcornn 0.4.0 with
-padaquad 2.0.0, measured 2026-11-25. About 12–16 s of each run is spent
+padaquad 2.0.0, measured 2026-11-26. About 11–18 s of each run is spent
 outside the optimization stages (start-up such as imports and CUDA
 initialization, and writing the output). "opt."
 is the optimization time of the stages and the number of iterations
