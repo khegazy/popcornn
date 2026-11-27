@@ -21,7 +21,6 @@ from tests import IMAGES_DIR
 
 @pytest.fixture
 def muller_brown_setup():
-    torch.manual_seed(0)
     device = torch.device("cpu")
     dtype = torch.float64
     images = process_images(

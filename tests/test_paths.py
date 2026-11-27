@@ -77,7 +77,6 @@ def test_mlp(dtype, device, caplog):
         pytest.skip(reason="CUDA is not available, skipping test.")
 
     caplog.set_level(logging.DEBUG, logger="popcornn")
-    torch.manual_seed(0)  # For reproducibility
     images = process_images(
         str(IMAGES_DIR / "muller_brown.json"), device=device, dtype=dtype
     )

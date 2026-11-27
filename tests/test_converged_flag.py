@@ -12,7 +12,6 @@ import logging
 import re
 
 import pytest
-import torch
 
 from popcornn import Popcornn
 
@@ -42,7 +41,6 @@ def _run(**popcornn_kwargs):
     cap, stage 3 has no trigger: the progress table has 3 stage headers,
     3 column headers, 5 rows, 1 "converged" line, and 3 "stage done" lines.
     """
-    torch.manual_seed(0)
     mep = Popcornn(
         images=[[-0.558, 1.442], [0.623, 0.028]],
         path_params={"name": "mlp", "width": 8, "depth": 2, "activation": "gelu"},
@@ -129,7 +127,6 @@ def test_log_file_fixed_at_construction(tmp_path, monkeypatch):
 
 def test_init_logs_path_fit(capsys):
     """The constructor shows the path-fit messages, and nothing else, for intermediate images."""
-    torch.manual_seed(0)
     Popcornn(
         images=[[-0.558, 1.442], [0.0, 0.8], [0.623, 0.028]],
         path_params={"name": "mlp", "width": 8, "depth": 2, "activation": "gelu"},

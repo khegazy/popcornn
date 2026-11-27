@@ -17,7 +17,6 @@ def test_single_integrand_outputs_match_per_class():
     forces_decomposed which isn't part of this synthetic harness."""
     T = 100
     N_atoms = 17
-    torch.manual_seed(0)
     time = torch.linspace(0, 1, T).unsqueeze(-1)
     energies = torch.randn(T, N_atoms) * 50 + 1400
     velocities = torch.rand((T, N_atoms * 3)) * 5 + 3

@@ -15,7 +15,6 @@ from popcornn import Popcornn
 
 
 def test_optimize_path_returns_ts_image():
-    torch.manual_seed(0)
     mep = Popcornn(
         images=[[-0.558, 1.442], [0.623, 0.028]],
         path_params={
