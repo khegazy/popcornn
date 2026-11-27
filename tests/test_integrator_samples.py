@@ -46,6 +46,7 @@ def test_track_ts_aligned_with_quadrature_mesh(muller_brown_setup):
         path_integrand_names="pvre",
         rtol=1e-2,
         atol=1e-2,
+        max_batch=500,  # holds every node: results equal padaquad's own batch size
         track_ts=True,
         device=device,
         dtype=dtype,
@@ -83,6 +84,7 @@ def test_track_ts_off_yields_none(muller_brown_setup):
         path_integrand_names="pvre",
         rtol=1e-2,
         atol=1e-2,
+        max_batch=500,  # holds every node: results equal padaquad's own batch size
         track_ts=False,
         device=device,
         dtype=dtype,
@@ -124,7 +126,13 @@ _WARM_START_PARAMS = {
 }
 
 
-@pytest.mark.parametrize("max_batch", [400, None], ids=["pinned", "found"])
+@pytest.mark.parametrize(
+    "max_batch",
+    [
+        pytest.param(400, id="pinned"),
+        pytest.param(None, id="found", marks=pytest.mark.unpinned_max_batch),
+    ],
+)
 def test_warm_start_passes_previous_state(muller_brown_setup, monkeypatch, max_batch):
     """Each call starts from the state its own solver returned last (mesh and
     batch size); the first call of each solver starts from none, so the loss
@@ -344,6 +352,7 @@ def test_device_and_runtime_checks_reach_padaquad(monkeypatch, runtime_checks):
     given = {} if runtime_checks is None else {"runtime_checks": runtime_checks}
     PathIntegrator(
         path_integrand_names="pvre",
+        max_batch=500,  # never integrates; pinned only for the conftest guard
         device=torch.device("cuda", 1),
         dtype=torch.float64,
         **given,

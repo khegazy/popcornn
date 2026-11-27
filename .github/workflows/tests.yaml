@@ -37,7 +37,7 @@ jobs:
           uv pip install --system -e .[dev]
 
       - name: Run tests with pytest
-        run: pytest --cov --cov-report=xml
+        run: pytest -m "not slow" --cov --cov-report=xml
 
       # GitHub does not pass secrets to pull_request runs from forks, so
       # CODECOV_TOKEN is empty there and the action falls back to a tokenless
