@@ -4,13 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - 2026-11-25
+## [0.4.0] - 2026-11-26
 
 Moves to padaquad 2.0.0, which no longer keeps a warm-start mesh and batch size on its solver and no longer runs a memory benchmark. popcornn now passes each solver's state from one integration to the next itself.
 
 ### Added
 
 - padaquad's four memory options in `integrator_params`, passed to both of `PathIntegrator`'s solvers: `trade_speed_for_memory` (default `true`; padaquad's default is `false`), `evaluation_buffer` (default 5 GiB; padaquad's default is `null`), `result_device` (default `cpu`) and `record_evaluations` (default `true`). They decide where and when integrand values are held during an integral and never change the evaluated points, the mesh or the integral. With `trade_speed_for_memory: true` the GPU holds at most the buffer plus one call's values instead of a refinement pass's, which matters when the gradient is very large, as in catalysis with many atoms kept in the path. `trade_speed_for_memory` and `evaluation_buffer` apply only with `integrate_gradient: true` and are ignored otherwise. The values are always recorded while `track_ts` is on, because the transition-state samples are read from them. See [Memory & OOM](docs/memory-and-oom.md#memory-options).
+- The README's examples table gives each example's runtime, and the README gives the time `pip install` takes (about 2.5 min).
 - padaquad's `runtime_checks` in `integrator_params`, passed to both solvers, default `false` (padaquad's default is `true`). `true` raises naming the points where the integrand is NaN or Inf and checks padaquad's own bookkeeping once per call; `false` skips these checks, which saves time and temporary arrays as large as a call's output.
 
 ### Changed
@@ -21,13 +22,24 @@ Moves to padaquad 2.0.0, which no longer keeps a warm-start mesh and batch size 
 - The `track_loss` integral finds its own batch size instead of starting from the gradient integral's, which needs far more memory per point (and, once reduced after an out-of-memory error, would never grow again).
 - With `integrate_gradient: false`, an out-of-memory error in the integrand or in a backward pass is retried with smaller batches instead of raised. popcornn passes the path's parameters to padaquad (`parameters=`), so the retry also works when a potential uses a custom autograd function.
 - **A NaN or Inf integrand value no longer raises by default.** padaquad 1.x raised a `ValueError` naming the points; with popcornn's default `runtime_checks: false` the value is accepted and reaches the gradient. Set `runtime_checks: true` to get the error.
-- The Gauss–Kronrod methods evaluate only their interior nodes (padaquad 2.0.0 no longer adds a zero-weight node at each panel end): a `gk7` panel (the default) costs 7 integrand evaluations instead of 9, and `gk21` 21 instead of 23. The integrals are unchanged, but padaquad's sums change at rounding level, so seeded runs follow other trajectories: the iteration count at which a run first meets its convergence threshold can differ a lot (Müller–Brown on a CPU: 49 iterations before, 95 after, same barrier). The transition-state samples no longer include `t = 0`, `t = 1` or the panel boundaries.
+- The Gauss–Kronrod methods evaluate only their interior nodes (padaquad 2.0.0 no longer adds a zero-weight node at each panel end): a `gk7` panel (the default) costs 7 integrand evaluations instead of 9, and `gk21` 21 instead of 23. The integrals are unchanged. The transition-state samples no longer include `t = 0`, `t = 1` or the panel boundaries.
 - The per-panel arrays of padaquad's result (nodes, tracked variables) are stored on the CPU by default (`result_device: cpu`) instead of the integration device; the transition-state samples are moved back to the integration device as before.
+- Seeded runs do not reproduce earlier releases' iteration counts: padaquad 2.0.0 evaluates other points and sums in another order, and with the examples' tolerances the iteration at which a run stops is very sensitive to such changes (see Known issues). The paths and barriers are the same.
 - `integrate_path` bounds that differ from the previous mesh's ends cut that mesh (a bound inside it) or extend it (a bound outside it), as before, except that padaquad 2.0.0 also drops the mesh points within a few rounding steps of a new bound; no caller in popcornn changes the bounds.
 
 ### Removed
 
 - The `rost50.yaml` example (a 71-atom reaction with UMA) and its `rost50.xyz`: a run takes several hours (about 36 s per UMA iteration on an A100, and an earlier run had not converged after 648 iterations). `gg3.yaml` remains the UMA example.
+
+### Fixed
+
+- `examples/configs/loss_example.yaml` failed at start-up: it used integrand schedulers and transition-state losses, which `PathOptimizer` currently disables. It now combines `pvre` and `vre` with fixed scales.
+- The `tests` CI workflow installed `tests/requirements.txt`, which no longer exists.
+- `PathOptimizer`'s docstring gave `patience` a default of 5; the default is 1.
+
+### Known issues
+
+- With the examples' integrator tolerances (`rtol: 1.0`, `atol: 0`), the measured gradient norm that the convergence test compares with `threshold` can be off by more than the threshold, so how many iterations a run takes is largely chance. On an already converged Müller–Brown path whose accurate gradient norm is 0.070, the examples' settings measured 0.06 to 15.7 depending on the random starting mesh, below the threshold of 0.1 in half the cases; over seeds 0–9 on a CPU, Müller–Brown took 48 to 504 iterations to the same barrier. Compare iteration counts and runtimes over several seeds, not single runs. The examples also do not use the tolerances `docs/convergence.md` recommends (`atol` = threshold/2, `rtol: 0.5`), which narrow the spread but do not remove it.
 
 ## [0.3.0] - 2026-11-15
 

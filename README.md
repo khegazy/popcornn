@@ -61,7 +61,9 @@ initialization, and writing the output). "opt."
 is the optimization time of the stages and the number of iterations
 until the convergence threshold was met. Every run stopped at its
 threshold, so the iteration counts, and the times,
-depend on the seed and the machine. †Timed without imports or writing
+depend on the seed and the machine: over seeds 0–9 on a CPU,
+Müller–Brown took 48 to 504 iterations to the same barrier (see
+"Known issues" under 0.4.0 in the [CHANGELOG](CHANGELOG.md)). †Timed without imports or writing
 the output (the `Popcornn` constructor and `optimize_path` only).
 
 Each run writes the optimized path and predicted transition state to

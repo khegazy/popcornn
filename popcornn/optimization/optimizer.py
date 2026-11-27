@@ -55,7 +55,7 @@ class PathOptimizer:
             Loss applied at the predicted TS time.
         threshold : float, optional
             Convergence trigger on ``‖∫∇L dt‖_2``. ``None`` disables.
-        patience : int, default=5
+        patience : int, default=1
             Number of consecutive iterations the trigger must hold.
         device : str
         dtype : torch.dtype
