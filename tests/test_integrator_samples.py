@@ -39,14 +39,14 @@ def muller_brown_setup():
     return path, device, dtype
 
 
-def test_track_ts_aligned_with_quadrature_mesh(muller_brown_setup):
+def test_track_ts_aligned_with_quadrature_mesh(
+    muller_brown_setup, cheap_integrator_params
+):
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(
+        **cheap_integrator_params,
         method="gk21",
         path_integrand_names="pvre",
-        rtol=1e-2,
-        atol=1e-2,
-        max_batch=500,  # holds every node: results equal padaquad's own batch size
         track_ts=True,
         device=device,
         dtype=dtype,
@@ -77,14 +77,12 @@ def test_track_ts_aligned_with_quadrature_mesh(muller_brown_setup):
     assert torch.isfinite(out.samples.dEdt).all()
 
 
-def test_track_ts_off_yields_none(muller_brown_setup):
+def test_track_ts_off_yields_none(muller_brown_setup, cheap_integrator_params):
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(
+        **cheap_integrator_params,
         method="gk21",
         path_integrand_names="pvre",
-        rtol=1e-2,
-        atol=1e-2,
-        max_batch=500,  # holds every node: results equal padaquad's own batch size
         track_ts=False,
         device=device,
         dtype=dtype,
@@ -123,6 +121,7 @@ _WARM_START_PARAMS = {
     "atol": 1e-2,
     "max_batch": 400,
     "track_loss": True,
+    "runtime_checks": True,  # tests raise on NaN/Inf (popcornn's default is False)
 }
 
 
@@ -252,6 +251,7 @@ def test_oom_batch_reduction_persists(
         max_batch=400,
         integrate_gradient=integrate_gradient,
         track_loss=True,
+        runtime_checks=True,  # tests raise on NaN/Inf (popcornn's default is False)
         device=device,
         dtype=dtype,
     )
@@ -309,6 +309,7 @@ def test_memory_options_leave_results_unchanged(muller_brown_setup, memory_optio
         "max_batch": 46,
         "track_loss": True,
         "track_ts": True,
+        # runtime_checks stays at popcornn's default (False): one case compares it with True.
         "device": device,
         "dtype": dtype,
     }
@@ -353,6 +354,7 @@ def test_device_and_runtime_checks_reach_padaquad(monkeypatch, runtime_checks):
     PathIntegrator(
         path_integrand_names="pvre",
         max_batch=500,  # never integrates; pinned only for the conftest guard
+        # runtime_checks is not given here: the test checks popcornn's default.
         device=torch.device("cuda", 1),
         dtype=torch.float64,
         **given,

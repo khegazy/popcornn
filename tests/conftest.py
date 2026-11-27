@@ -75,6 +75,57 @@ def _seed_rng():
     torch.manual_seed(TEST_SEED)
 
 
+@pytest.fixture(
+    params=[
+        torch.device("cpu"),
+        pytest.param(
+            torch.device("cuda"),
+            marks=pytest.mark.skipif(
+                not torch.cuda.is_available(), reason="CUDA is not available."
+            ),
+        ),
+    ],
+    ids=["cpu", "cuda"],
+)
+def device(request):
+    """Every device a test runs on: the CPU, and CUDA when it is available.
+    A test with its own ``parametrize("device", ...)`` overrides this."""
+    return request.param
+
+
+@pytest.fixture(params=[torch.float32, torch.float64], ids=["float32", "float64"])
+def dtype(request):
+    """Every dtype a test runs in. A test's own ``parametrize`` overrides this."""
+    return request.param
+
+
+@pytest.fixture
+def cheap_integrator_params():
+    """``PathIntegrator`` settings for tests that check wiring, not accuracy.
+
+    A new dict on every call, so no test can change another test's settings.
+    Extend it by merging into a new dict,
+    ``PathIntegrator(**{**cheap_integrator_params, "path_integrand_names": "pvre"})``;
+    passing it next to a keyword it already holds raises ``TypeError``.
+
+    - ``rtol=atol=1e-2``: explicit, so these tests do not depend on
+      ``PathIntegrator``'s defaults, and coarse, which is enough for tests that
+      check shapes, flags, finite values, log lines, call arguments and batch
+      sizes (plan 00, Task 5a). Far too loose for numerical checks.
+    - ``max_batch=500``: pinned, so padaquad does not search for a batch size
+      (the conftest guard refuses ``None``). It holds every node of these tests'
+      integrals, so results are bit-identical to padaquad's own choice; it is
+      above one gk21 panel (21 points), and it satisfies the memory rule
+      ``max_batch**2 * width <= 3.2e7`` up to width 128.
+    - ``runtime_checks=True``: padaquad raises on NaN or Inf. popcornn's default
+      is False, which would let a NaN reach the gradient silently.
+
+    ``integrate_gradient`` is left out: a test that is not about the gradient
+    mode should add ``"integrate_gradient": False``, which is cheaper (#89).
+    """
+    return {"rtol": 1e-2, "atol": 1e-2, "max_batch": 500, "runtime_checks": True}
+
+
 def pytest_make_parametrize_id(config, val, argname) -> str | None:
     """Name a test-data path by its file name in test ids.
 

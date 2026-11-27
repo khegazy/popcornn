@@ -19,15 +19,7 @@ from popcornn.tools import process_images
 from tests import IMAGES_DIR
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [torch.float32, torch.float64],
-)
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_sphere(dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     images = process_images(str(IMAGES_DIR / "sphere.json"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential("sphere", images=images, device=device, dtype=dtype)
@@ -63,15 +55,7 @@ def test_sphere(dtype, device):
     assert potential_output.forces_decomposed is None
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [torch.float32, torch.float64],
-)
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_muller_brown(dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     images = process_images(
         str(IMAGES_DIR / "muller_brown.json"), device=device, dtype=dtype
     )
@@ -119,15 +103,7 @@ def test_muller_brown(dtype, device):
     assert potential_output.forces_decomposed is None
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [torch.float32, torch.float64],
-)
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_wolfe(dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     images = process_images(str(IMAGES_DIR / "wolfe.json"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
@@ -175,15 +151,7 @@ def test_wolfe(dtype, device):
     assert potential_output.forces_decomposed is None
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [torch.float32, torch.float64],
-)
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_lennard_jones(dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     raw_images = [read(str(IMAGES_DIR / "LJ13.xyz"), index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
@@ -308,15 +276,7 @@ def test_lennard_jones(dtype, device):
     assert potential_output.forces_decomposed.grad_fn is not None
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [torch.float32, torch.float64],
-)
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_repel(dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     class RepelCalculator(Calculator):
         """
         Revised from ASE LennardJones Calculator to use the repulsive potential
@@ -497,10 +457,6 @@ def test_repel(dtype, device):
     assert potential_output.forces_decomposed.grad_fn is not None
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [torch.float32, torch.float64],
-)
 @pytest.mark.parametrize(
     "device", [torch.device("cpu"), torch.device("cuda"), torch.device("cuda", 1)]
 )

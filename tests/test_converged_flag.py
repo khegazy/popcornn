@@ -2,8 +2,8 @@
 
 Each stage contributes one bool: True if the ``threshold`` trigger fired,
 False if the stage exhausted ``num_optimizer_iterations`` (always False
-when ``threshold`` is None). ``max_batch`` is pinned so padaquad skips its
-memory benchmark.
+when ``threshold`` is None). The integrator settings are conftest's
+``cheap_integrator_params``: these tests check flags and log lines, not values.
 """
 
 from __future__ import annotations
@@ -16,15 +16,10 @@ import pytest
 from popcornn import Popcornn
 
 
-def _stage(num_optimizer_iterations, threshold=None):
+def _stage(integrator_params, num_optimizer_iterations, threshold=None):
     return {
         "potential_params": {"name": "muller_brown"},
-        "integrator_params": {
-            "path_integrand_names": "pvre",
-            "rtol": 1e-2,
-            "atol": 1e-2,
-            "max_batch": 100,
-        },
+        "integrator_params": {**integrator_params, "path_integrand_names": "pvre"},
         "optimizer_params": {
             "optimizer": {"name": "adam", "lr": 1e-3},
             "threshold": threshold,
@@ -34,7 +29,7 @@ def _stage(num_optimizer_iterations, threshold=None):
     }
 
 
-def _run(**popcornn_kwargs):
+def _run(integrator_params, **popcornn_kwargs):
     """Build the 2-image Muller-Brown Popcornn and run the three-stage chain.
 
     Stage 1 converges on its first iteration, stage 2 hits its iteration
@@ -51,15 +46,19 @@ def _run(**popcornn_kwargs):
     assert mep.converged is None
 
     converged = mep.optimize_path(
-        _stage(3, threshold=1e10),  # trigger fires on the first iteration
-        _stage(2, threshold=1e-12),  # unreachable trigger: iteration cap hit
-        _stage(2, threshold=None),  # trigger disabled
+        _stage(
+            integrator_params, 3, threshold=1e10
+        ),  # trigger fires on the first iteration
+        _stage(
+            integrator_params, 2, threshold=1e-12
+        ),  # unreachable trigger: iteration cap hit
+        _stage(integrator_params, 2, threshold=None),  # trigger disabled
     )
     return mep, converged
 
 
-def test_optimize_path_returns_per_stage_converged_flags():
-    mep, converged = _run()
+def test_optimize_path_returns_per_stage_converged_flags(cheap_integrator_params):
+    mep, converged = _run(cheap_integrator_params)
 
     assert converged == [True, False, False]
     assert all(type(flag) is bool for flag in converged)
@@ -69,7 +68,9 @@ def test_optimize_path_returns_per_stage_converged_flags():
 @pytest.mark.parametrize(
     ("quiet", "use_file"), [(False, False), (False, True), (True, True), (True, False)]
 )
-def test_progress_log_outputs(quiet, use_file, tmp_path, capsys, caplog):
+def test_progress_log_outputs(
+    quiet, use_file, tmp_path, capsys, caplog, cheap_integrator_params
+):
     """The table goes once to each requested output and never through the root logger."""
     log_file = (
         tmp_path / "logs" / "run.log" if use_file else None
@@ -79,7 +80,7 @@ def test_progress_log_outputs(quiet, use_file, tmp_path, capsys, caplog):
     )  # otherwise popcornn attaches nothing and standard logging decides
     if not routed:
         caplog.set_level(logging.INFO, logger="popcornn")
-    _run(quiet=quiet, log_file=log_file)
+    _run(cheap_integrator_params, quiet=quiet, log_file=log_file)
 
     screen = capsys.readouterr().out.splitlines()
     records = [r.getMessage() for r in caplog.records if r.name.startswith("popcornn")]
@@ -105,7 +106,7 @@ def test_progress_log_outputs(quiet, use_file, tmp_path, capsys, caplog):
         assert package_logger.level == logging.NOTSET
 
 
-def test_log_file_fixed_at_construction(tmp_path, monkeypatch):
+def test_log_file_fixed_at_construction(tmp_path, monkeypatch, cheap_integrator_params):
     """A relative log_file names one file even if the working directory changes later."""
     monkeypatch.chdir(tmp_path)
     mep = Popcornn(
@@ -117,7 +118,7 @@ def test_log_file_fixed_at_construction(tmp_path, monkeypatch):
         quiet=True,
     )
     monkeypatch.chdir(tmp_path / "logs")  # has no "logs" subfolder
-    mep.optimize_path(_stage(1))
+    mep.optimize_path(_stage(cheap_integrator_params, 1))
     # stage header, column header, 1 row, stage-done line
     assert (
         len((tmp_path / "logs" / "run.log").read_text(encoding="utf-8").splitlines())

@@ -14,12 +14,7 @@ from tests import IMAGES_DIR
     "raw_images",
     [[[-0.558, 1.442], [-0.050, 0.467]], str(IMAGES_DIR / "muller_brown.json")],
 )
-@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_list(raw_images, dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     images = process_images(raw_images, device=device, dtype=dtype)
     assert images.image_type is list
     assert images.positions.shape == (2, 2)
@@ -51,12 +46,7 @@ def test_list(raw_images, dtype, device):
         str(IMAGES_DIR / "muller_brown.npy"),
     ],
 )
-@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_numpy(raw_images, dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     images = process_images(raw_images, device=device, dtype=dtype)
     assert images.image_type is np.ndarray
     assert images.positions.shape == (2, 2)
@@ -88,12 +78,7 @@ def test_numpy(raw_images, dtype, device):
         str(IMAGES_DIR / "muller_brown.pt"),
     ],
 )
-@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_torch(raw_images, dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     images = process_images(raw_images, device=device, dtype=dtype)
     assert images.image_type is torch.Tensor
     assert images.positions.shape == (2, 2)
@@ -122,12 +107,7 @@ def test_torch(raw_images, dtype, device):
     "raw_images",
     [read(str(IMAGES_DIR / "OC20NEB.xyz"), index=":"), str(IMAGES_DIR / "OC20NEB.xyz")],
 )
-@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_xyz(raw_images, dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     images = process_images(raw_images, device=device, dtype=dtype)
     assert images.image_type is Atoms
     assert images.positions.shape == (2, 42)
@@ -347,12 +327,7 @@ def test_xyz(raw_images, dtype, device):
         str(IMAGES_DIR / "OC20NEB.traj"),
     ],
 )
-@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_traj(raw_images, dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     images = process_images(raw_images, device=device, dtype=dtype)
     assert images.image_type is Atoms
     assert images.positions.shape == (2, 42)
@@ -1189,11 +1164,7 @@ def test_xyz_with_intermediates(raw_images):
     assert len(images) == 10
 
 
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_charge_spin(device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     images = process_images(
         str(IMAGES_DIR / "T1x.xyz"), device=device, dtype=torch.float32
     )

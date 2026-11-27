@@ -11,12 +11,7 @@ from popcornn.tools import process_images
 from tests import IMAGES_DIR
 
 
-@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_linear(dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     images = process_images(
         str(IMAGES_DIR / "muller_brown.json"), device=device, dtype=dtype
     )
@@ -70,12 +65,7 @@ def test_linear(dtype, device):
     )
 
 
-@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_mlp(dtype, device, caplog):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     caplog.set_level(logging.DEBUG, logger="popcornn")
     images = process_images(
         str(IMAGES_DIR / "muller_brown.json"), device=device, dtype=dtype
@@ -462,12 +452,7 @@ def test_unwrap():
     ],
 )
 @pytest.mark.parametrize("path_name", ["linear", "mlp"])
-@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_velocity(raw_images, path_name, dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     images = process_images(raw_images, device=device, dtype=dtype)
     path = get_path(path_name, images=images, device=device, dtype=dtype)
     velocity = path(
@@ -481,12 +466,7 @@ def test_velocity(raw_images, path_name, dtype, device):
 
 
 @pytest.mark.parametrize("path_name", ["linear", "mlp"])
-@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_set_potential(path_name, dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     images = process_images(
         str(IMAGES_DIR / "muller_brown.json"), device=device, dtype=dtype
     )
