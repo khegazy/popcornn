@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `initial_mesh` in `integrator_params`: the starting mesh of each integral's first call (increasing times, for example `[[0.0], [0.3], [0.7], [1.0]]`, cut or extended to the integration bounds). Later calls start from the previous call's refined mesh as before. The default, `null`, keeps padaquad's random starting mesh, so a run then depends on the random seed and on how padaquad draws that mesh; a fixed mesh removes both. The test suite uses one.
+
 ## [0.4.0] - 2026-11-26
 
 Moves to padaquad 2.0.0, which no longer keeps a warm-start mesh and batch size on its solver and no longer runs a memory benchmark. popcornn now passes each solver's state from one integration to the next itself.
