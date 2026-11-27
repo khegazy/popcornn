@@ -111,7 +111,10 @@ def cheap_integrator_params():
     - ``rtol=atol=1e-2``: explicit, so these tests do not depend on
       ``PathIntegrator``'s defaults, and coarse, which is enough for tests that
       check shapes, flags, finite values, log lines, call arguments and batch
-      sizes (plan 00, Task 5a). Far too loose for numerical checks.
+      sizes (plan 00, Task 5a). Far too loose for numerical checks. Users:
+      the ``track_ts`` tests (sample alignment), ``test_ts_end_to_end``
+      (``ts_time`` in [0, 1], finite) and ``test_converged_flag`` (flags with
+      thresholds 1e10 and 1e-12, far from any gradient norm; log lines).
     - ``max_batch=500``: pinned, so padaquad does not search for a batch size
       (the conftest guard refuses ``None``). It holds every node of these tests'
       integrals, so results are bit-identical to padaquad's own choice; it is
