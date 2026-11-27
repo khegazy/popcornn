@@ -34,6 +34,7 @@ Moves to padaquad 2.0.0, which no longer keeps a warm-start mesh and batch size 
 ### Fixed
 
 - `examples/configs/loss_example.yaml` failed at start-up: it used integrand schedulers and transition-state losses, which `PathOptimizer` currently disables. It now combines `pvre` and `vre` with fixed scales.
+- popcornn imported `einops` without listing it as a dependency; it came with padaquad 1.x, which padaquad 2.0.0 no longer depends on, so `import popcornn` failed in a fresh environment. The two uses in `BasePath` are replaced by `torch.flatten` and `torch.unflatten`, and popcornn no longer needs `einops`.
 - The `tests` CI workflow installed `tests/requirements.txt`, which no longer exists.
 - `PathOptimizer`'s docstring gave `patience` a default of 5; the default is 1.
 

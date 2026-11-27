@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import torch
-from einops import rearrange
 
 from popcornn.potentials.base_potential import BasePotential, PotentialOutput
 from popcornn.tools import Images, SamplesCache, wrap_positions
@@ -290,7 +289,7 @@ class BasePath(torch.nn.Module):
         if len(time.shape) == 3:
             self._inp_reshaped = True
             self._inp_shape = time.shape
-            time = rearrange(time, "b c t -> (b c) t")
+            time = time.flatten(0, 1)  # [B, C, T] -> [B*C, T]
         elif len(time.shape) == 2:
             self._inp_reshaped = False
         elif len(time.shape) == 1:
@@ -309,7 +308,7 @@ class BasePath(torch.nn.Module):
             raise RuntimeError("Must call _reshape_in() before _reshape_out()")
         if self._inp_reshaped and result is not None:
             B, C, _ = self._inp_shape
-            return rearrange(result, "(b c) d -> b c d", b=B, c=C)
+            return result.unflatten(0, (B, C))  # [B*C, D] -> [B, C, D]
         return result
 
     def ts_search(
