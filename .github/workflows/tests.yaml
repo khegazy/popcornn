@@ -32,11 +32,8 @@ jobs:
           cache-dependency-path: pyproject.toml
 
       - name: Install pip packages
-        env:
-            MY_PRIVATE_REPO_TOKEN: ${{ secrets.MY_PRIVATE_REPO_TOKEN }}
         run: |
           pip install uv
-          uv pip install --system -r tests/requirements.txt
           uv pip install --system -e .[dev]
 
       - name: Run tests with pytest

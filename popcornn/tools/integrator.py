@@ -13,9 +13,10 @@ class SamplesCache:
     """Per-quadrature-point energy + dE/dt samples harvested during integration.
 
     Shape contract (``P`` = total accepted quadrature points; padaquad returns
-    its node-level outputs already flattened across panels with shared panel
-    boundaries deduplicated, so there is no per-panel ``[N, K]`` layout to
-    flatten on our side):
+    its node-level outputs already flattened across panels, so there is no
+    per-panel ``[N, K]`` layout to flatten on our side; with the Gauss–Kronrod
+    methods every node is inside its panel, so ``t = 0`` and ``t = 1`` are not
+    among the samples):
     - ``time``: ``[P]``, taken from ``IntegralOutput.nodes``'s ``[P, T]``.
     - ``energies``: ``[P, E]`` (typically ``E=1``; potentials may emit a
       decomposed energy tensor).
@@ -43,12 +44,12 @@ class PathIntegrator:
     popcornn API the optimizer uses:
 
     - the solver is built **once** in ``__init__`` and reused across every
-      ``integrate_path`` call (padaquad is stateful, unlike a free-function
-      integrator), so warm-start and memory benchmarking persist,
-    - **warm-start**: every call passes ``same_f=True``, so padaquad starts
-      from the optimized (pruned + refined) mesh and the batch size it stored
-      at the end of the previous call, which skips most adaptive-refinement
-      cost when the integrand changes only slightly between optimizer steps,
+      ``integrate_path`` call,
+    - **warm-start**: every call passes the ``IntegrationState`` padaquad
+      returned from the previous call (its pruned + refined mesh and batch
+      size) back to padaquad, which skips most adaptive-refinement cost when
+      the integrand changes only slightly between optimizer steps, and finds
+      the batch size only once per integrator,
     - per-iteration ``integrand_scales`` updates so schedulers take effect,
     - direct scatter of ``∂L/∂θ`` into ``path.parameters().grad``
       (no separate ``.backward()`` call — we integrate the gradient itself
@@ -76,6 +77,11 @@ class PathIntegrator:
         atol=0.0,
         norm="2",
         max_batch=None,
+        trade_speed_for_memory=True,
+        evaluation_buffer=5 * 2**30,
+        result_device="cpu",
+        record_evaluations=True,
+        runtime_checks=False,
         max_iter=5,
         track_loss=False,
         loss_rtol=0.0,
@@ -138,33 +144,80 @@ class PathIntegrator:
             signal read by ``PathOptimizer``.
         max_batch : int, optional
             Maximum number of quadrature points passed to the integrand in
-            one call. With ``integrate_gradient=True``, and in the
-            ``track_loss`` integral, it limits each call's memory, not the
-            total: padaquad evaluates every pending panel, keeping all their
-            outputs, before accepting or rejecting any. With
+            one call, used as given (it never grows). With
+            ``integrate_gradient=True``, and in the ``track_loss`` integral,
+            it limits each call's memory, not the total: padaquad evaluates
+            every pending panel before accepting or splitting any, and
+            ``trade_speed_for_memory`` sets how many of their outputs it holds
+            on the device at once. With
             ``integrate_gradient=False`` padaquad evaluates at most
             ``max_batch // nodes-per-panel`` panels and backpropagates through
-            them before evaluating more, so it also bounds the working memory.
-            Read only at construction. ``None`` makes padaquad
-            measure the memory of one evaluation on the first
-            ``integrate_path`` and size the batch from it; the stored size
-            is reused on every later call (``same_f=True``), so the slow
-            measurement runs once per integrator.
+            them before evaluating more, so it also bounds the working memory;
+            there it must be at least the nodes per panel (7 for ``gk7``, 21
+            for ``gk21``), else padaquad raises ``ValueError``. Read only at
+            construction.
 
-            Out-of-memory errors: with ``integrate_gradient=True``, and in
-            the ``track_loss`` integral, padaquad shrinks the batch and
-            retries, and the smaller size is kept for the rest of this
-            integrator's life (it never grows back). With
-            ``integrate_gradient=False`` padaquad backpropagates through
-            each batch and cannot retry, so the error is raised; set
-            ``max_batch`` explicitly for memory-tight runs, at least the
-            nodes per panel (9 for ``gk7``, 23 for ``gk21``: padaquad adds
-            both panel endpoints, with zero weight, to the Kronrod nodes).
+            ``None`` lets padaquad find the size on the first
+            ``integrate_path``: it calls the integrand on 10, 100 and 1,000
+            copies of one point (fewer when the first pass is smaller), starts
+            from the largest call that ran, then grows the batch by factors of
+            10 until a call runs out of memory, and retries that call at 0.75
+            times its size until it fits. Each solver (gradient and ``track_loss``) finds its own size
+            once and passes it, with the mesh, to every later call.
 
-            The stored size does **not** carry across stages built by
-            ``Popcornn._optimize`` (one fresh integrator per stage);
-            that is intentional, since different stages typically use
-            different potentials with different memory profiles.
+            Out-of-memory errors: padaquad shrinks the batch and retries, and
+            the smaller size is kept for the rest of this integrator's life
+            (it never grows back). With ``integrate_gradient=False`` an error
+            in a backward pass restarts the integral with smaller batches.
+            The size does **not** carry across stages built by
+            ``Popcornn._optimize`` (one fresh integrator per stage); that is
+            intentional, since different stages typically use different
+            potentials with different memory profiles.
+        trade_speed_for_memory, evaluation_buffer, result_device, record_evaluations
+            padaquad's memory options, passed to both solvers. They never
+            change which points are evaluated, the mesh or the integral
+            (padaquad user guide, "Devices and memory"). They matter when the
+            integrand's output is large: with ``integrate_gradient=True`` each
+            point's output is the ``[D]`` gradient (D = number of path
+            parameters, which grows with the atom count), as in catalysis with
+            many atoms kept in the path. See ``docs/memory-and-oom.md``.
+
+            - ``trade_speed_for_memory`` (default True; padaquad's default is
+              False): compute the quadrature once ``evaluation_buffer`` bytes
+              of values are waiting and move them to ``result_device``, so the
+              device holds at most the buffer plus one call's values instead
+              of a whole pass's. Without a buffer this costs about 0.2 ms per
+              call of the integrand on a GPU. Only with
+              ``integrate_gradient=True`` (and in the ``track_loss``
+              integral); ignored with ``integrate_gradient=False``, where
+              padaquad already holds one call at a time.
+            - ``evaluation_buffer`` (default ``5 * 2**30``, 5 GiB; padaquad's
+              default is None): bytes of values that may wait on the device
+              before their quadrature is computed; None computes it after
+              every call. A pass whose values fit in the buffer is integrated
+              once, as with ``trade_speed_for_memory=False``, so the buffer
+              costs time only for passes larger than it. Ignored unless
+              ``trade_speed_for_memory=True`` and ``integrate_gradient=True``.
+            - ``result_device`` (default ``"cpu"``): where the values of
+              accepted panels and the per-panel results go; None keeps them on
+              the integration device, so ``trade_speed_for_memory`` then saves
+              little.
+            - ``record_evaluations`` (default True): keep the integrand values
+              of accepted panels. popcornn does not read them, so False saves
+              their copy and memory, but padaquad then builds the next call's
+              mesh with ``merge_rule="power_law"`` (and warns). The values
+              are recorded on every call with ``track_ts`` on, whatever this
+              is, because the transition-state samples are read from them.
+        runtime_checks : bool, default=False
+            padaquad's ``runtime_checks`` (padaquad's default is True), passed
+            to both solvers. True raises ``ValueError`` naming the points
+            where the integrand returned NaN or Inf, and checks padaquad's own
+            bookkeeping once at the end of each call. False skips these
+            checks, which saves time and the temporary arrays the NaN check
+            builds (as large as a call's output, the ``[D]`` gradient per
+            point); a NaN
+            or Inf value is then accepted and reaches the gradient. Turn it on
+            to find where a path or potential produces NaN or Inf.
         max_iter : int, default=5
             Maximum adaptive-refinement depth, passed to padaquad as
             ``max_adaptive_splits``: the most times any single quadrature panel
@@ -178,10 +231,10 @@ class PathIntegrator:
             ``atol=0``) would otherwise split every panel forever, burning
             unbounded compute. The default of 5 leaves well-behaved integrals
             untouched (production runs converge well before depth 5; verified
-            identical grad_norm at 5/10/20 on Müller-Brown). Note this does
-            NOT rescue an integrand that returns NaN/Inf: padaquad raises a
-            ``ValueError`` naming the offending ``t``, so such degenerate
-            inputs must be avoided upstream.
+            identical grad_norm at 5/10/20 on Müller-Brown). A panel where
+            the integrand is NaN/Inf is accepted, not split, so it does not
+            refine forever either; with ``runtime_checks=True`` padaquad
+            raises a ``ValueError`` naming the offending ``t`` instead.
         track_loss : bool, default=False
             Run a separate detached integral of the scalar loss
             ``∫L(t) dt`` for monitoring. Costs an extra pass; when
@@ -205,10 +258,19 @@ class PathIntegrator:
         self.loss_atol = loss_atol
         self.track_ts = track_ts
         self.max_iter = max_iter
+        self.trade_speed_for_memory = trade_speed_for_memory
+        self.evaluation_buffer = evaluation_buffer
+        self.result_device = result_device
+        self.record_evaluations = record_evaluations
         self.device = device
         self.dtype = dtype
         self.N_integrals = 0
+        # Last result of integrate_path, and the IntegrationState (mesh and
+        # batch size) the main and loss solvers returned last; each call starts
+        # from its solver's state (padaquad keeps nothing between calls).
         self.integral_output = None
+        self._state = None
+        self._loss_state = None
 
         if path_integrand_names is None:
             self._terms = []
@@ -219,15 +281,16 @@ class PathIntegrator:
                 path_integrand_kwargs,
             )
 
-        # padaquad rejects dtype=None in _set_dtype — coalesce to float64 (the
-        # per-call set_dtype_by_input then matches the actual mesh-bound dtype
-        # anyway). The device is passed unchanged so a GPU index (cuda:1) is kept.
+        # padaquad rejects dtype=None in _set_dtype — coalesce to float64 (on
+        # each call, set_dtype_by_input then switches to the dtype of the mesh
+        # passed, or of the bounds on the first call). The device is passed
+        # unchanged so a GPU index (cuda:1) is kept.
         solver_dtype = self.dtype if self.dtype is not None else torch.float64
 
         # Build the adaptive-quadrature solver ONCE; reused across every
-        # integrate_path call so the warm-start state padaquad stores on it
-        # (mesh and batch size, used by same_f=True) persists for the
-        # integrator's lifetime.
+        # integrate_path call. padaquad keeps no warm-start state: each call
+        # starts from the state its solver returned last, self._state (main
+        # solver) and self._loss_state (loss solver).
         self._solver = adaptive_quadrature(
             sampling_type="uniform",  # str -> steps.ADAPTIVE_UNIFORM
             method=self.method,
@@ -235,12 +298,13 @@ class PathIntegrator:
             rtol=self.rtol,
             max_batch=max_batch,
             max_adaptive_splits=self.max_iter,  # per-panel split-depth cap; bounds refinement
+            runtime_checks=runtime_checks,
             dtype=solver_dtype,
             device=self.device,
         )
 
         # Detached loss integral runs on its own solver so it can use its own
-        # tolerances and keep an independent warm-start mesh. Only
+        # tolerances and its own warm start (self._loss_state). Only
         # needed in integrate_gradient mode; when integrate_gradient=False the
         # main pass already integrates the loss, so .loss comes for free.
         if self.integrate_gradient:
@@ -251,6 +315,7 @@ class PathIntegrator:
                 rtol=self.loss_rtol,
                 max_batch=max_batch,
                 max_adaptive_splits=self.max_iter,
+                runtime_checks=runtime_checks,
                 dtype=solver_dtype,
                 device=self.device,
             )
@@ -306,13 +371,16 @@ class PathIntegrator:
             Updated values for per-term scales (from schedulers).
         t_init, t_final : float or torch.Tensor, default 0.0 and 1.0
             Integration bounds, in [0, 1]. Passed to padaquad as 1-D
-            ``[1]`` mesh bounds.
+            ``[1]`` mesh bounds, together with the previous call's state:
+            bounds inside its mesh cut it, and a bound outside it extends it
+            (padaquad >= 2.0.0).
         """
         if integrand_scales:
             self.update_integrand_scales(**integrand_scales)
 
-        # padaquad wants 1-D ``[T]`` mesh bounds (T=1 here), not 0-d. Their
-        # dtype also drives the solver's working precision (set_dtype_by_input).
+        # padaquad wants 1-D ``[T]`` mesh bounds (T=1 here), not 0-d. On the
+        # first call their dtype sets the solver's working precision; later calls
+        # follow the mesh passed, which has that dtype (see __init__).
         t_init_1d = torch.as_tensor(
             t_init, dtype=self.dtype, device=self.device
         ).reshape(1)
@@ -382,19 +450,37 @@ class PathIntegrator:
 
             take_gradient = True
 
-        # same_f=True: padaquad starts from the mesh and batch size it stored at
-        # the end of the previous call on this solver (pruned + refined mesh;
-        # batch size including any out-of-memory reduction), so the slow memory
-        # measurement runs only on the first call. With nothing stored yet it
-        # uses a fresh random mesh and the constructor's max_batch.
-        result = self._solver.integrate(
+        # padaquad's memory options, the same for both solvers (the loss solver
+        # exists only with integrate_gradient=True). trade_speed_for_memory
+        # raises in padaquad with take_gradient=True, and evaluation_buffer
+        # without trade_speed_for_memory, so each is passed only where it
+        # applies. The TS samples are read from the recorded tracked
+        # variables, so track_ts records them.
+        memory_options = {
+            "result_device": self.result_device,
+            "record_evaluations": self.record_evaluations or self.track_ts,
+        }
+        if self.integrate_gradient:
+            memory_options["trade_speed_for_memory"] = self.trade_speed_for_memory
+            if self.trade_speed_for_memory:
+                memory_options["evaluation_buffer"] = self.evaluation_buffer
+
+        # Warm start: start from the previous call's state, its mesh (pruned +
+        # refined) and batch size (including any out-of-memory reduction), so
+        # the batch size is found only on the first call. The first call
+        # (state None) gets a fresh random mesh and the constructor's max_batch
+        # (or padaquad's growing batch size). parameters= lets padaquad restart
+        # after an out-of-memory error in a backward pass (take_gradient=True)
+        # even if the potential uses a custom autograd function.
+        result, self._state = self._solver.integrate(
             f,
-            same_f=True,
+            state=self._state,
             mesh_init=t_init_1d,
             mesh_final=t_final_1d,
+            parameters=params,
             error_norm=self.norm,
             take_gradient=take_gradient,  # see integrate_gradient branch above
-            result_device=self.device,
+            **memory_options,
         )
 
         integral_output = result
@@ -453,18 +539,18 @@ class PathIntegrator:
                 loss, _ = evaluate_integrand_sum(self._terms, t, path)
                 return loss.reshape(t.shape[0], -1).detach()  # [N, 1], bare tensor
 
-            loss_result = self._loss_solver.integrate(
+            # Warm start from this solver's own state. Its first call finds its
+            # own batch size rather than reusing the gradient solver's: the
+            # gradient integrand (a batched Jacobian) needs far more memory per
+            # point, and a size that ran out of memory never grows again.
+            loss_result, self._loss_state = self._loss_solver.integrate(
                 fval,
-                same_f=True,
+                state=self._loss_state,
                 mesh_init=t_init_1d,
                 mesh_final=t_final_1d,
                 error_norm=self.norm,
                 take_gradient=False,
-                # Read only on this solver's first call (same_f=True then uses
-                # its own stored size); starting from the gradient solver's
-                # size skips a second memory measurement.
-                max_batch=self._solver.previous_max_batch,
-                result_device=self.device,
+                **memory_options,
             )
             integral_output.loss = loss_result.integral.detach()  # [1]
         else:
@@ -482,8 +568,9 @@ class PathIntegrator:
         times; ``result.tracked_variables`` carries the ``(energies, dE/dt)``
         the integrand emitted, returned detached at the accepted nodes and
         aligned with ``nodes``. padaquad already returns these flattened across
-        panels with shared panel boundaries deduplicated (``P`` total points),
-        so we just move them to ``device`` and sort by time, letting consumers
+        panels (``P`` total points; a mesh point shared by two panels appears
+        once, and the Gauss–Kronrod methods evaluate no mesh point at all), so
+        we just move them to ``device`` and sort by time, letting consumers
         (TS search) scan in order without an extra ``argsort``.
 
         Note: unlike the old byte-keyed stitch, these are the *accepted* mesh
