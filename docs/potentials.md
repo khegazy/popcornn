@@ -29,7 +29,7 @@ systems.
 | `schwefel` | 2D Schwefel surface. |
 | `sphere` | 2D quadratic bowl. |
 | `constant` | Returns zero energy. Useful for testing. |
-| `harmonic` | N-dimensional harmonic oscillator. |
+| `harmonic` | All-atom pairwise harmonic potential around the sum of covalent radii, switched off beyond `r_max` by a sigmoid. |
 | `lennard_jones` | All-atom Lennard-Jones. |
 | `morse` | All-atom Morse pair potential. |
 | `repel` | All-atom soft-repulsive potential. **Use this with `path_integrand_names: geodesic` as a pre-step to fix atom clashes.** |

@@ -542,21 +542,6 @@ def pair_reference(
     return np.array(pair_energies), np.array(pair_forces)
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [
-        pytest.param(
-            torch.float32,
-            id="float32",
-            marks=pytest.mark.xfail(
-                raises=AssertionError,
-                strict=True,
-                reason="#94: energies are float64 in float32 runs",
-            ),
-        ),
-        pytest.param(torch.float64, id="float64"),
-    ],
-)
 @pytest.mark.parametrize("system", ["LJ13.xyz", "T1x.xyz"])
 @pytest.mark.parametrize(
     ("name", "params", "reference_params"),
@@ -624,7 +609,7 @@ def test_pair_potentials(name, params, reference_params, system, dtype, device):
         tensor = getattr(output, field)
         assert tensor.shape == expected_shapes[field], field
         assert tensor.device.type == device.type, field
-        assert tensor.dtype == dtype, field  # float32 fails here until #94 is fixed
+        assert tensor.dtype == dtype, field
         assert tensor.grad_fn is not None, field
         torch.testing.assert_close(
             tensor,
