@@ -16,6 +16,7 @@ from fairchem.core import FAIRChemCalculator, pretrained_mlip
 from popcornn.paths import get_path
 from popcornn.potentials import get_potential
 from popcornn.tools import process_images
+from tests import IMAGES_DIR
 
 
 @pytest.mark.parametrize(
@@ -27,7 +28,7 @@ def test_sphere(dtype, device):
     if device.type == "cuda" and not torch.cuda.is_available():
         pytest.skip(reason="CUDA is not available, skipping test.")
 
-    images = process_images("tests/images/sphere.json", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "sphere.json"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential("sphere", images=images, device=device, dtype=dtype)
 
@@ -72,7 +73,7 @@ def test_muller_brown(dtype, device):
         pytest.skip(reason="CUDA is not available, skipping test.")
 
     images = process_images(
-        "tests/images/muller_brown.json", device=device, dtype=dtype
+        str(IMAGES_DIR / "muller_brown.json"), device=device, dtype=dtype
     )
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential("muller_brown", images=images, device=device, dtype=dtype)
@@ -127,7 +128,7 @@ def test_wolfe(dtype, device):
     if device.type == "cuda" and not torch.cuda.is_available():
         pytest.skip(reason="CUDA is not available, skipping test.")
 
-    images = process_images("tests/images/wolfe.json", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "wolfe.json"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
         "wolfe_schlegel", images=images, device=device, dtype=dtype
@@ -183,11 +184,11 @@ def test_lennard_jones(dtype, device):
     if device.type == "cuda" and not torch.cuda.is_available():
         pytest.skip(reason="CUDA is not available, skipping test.")
 
-    raw_images = [read("tests/images/LJ13.xyz", index=i) for i in (0, 1, 1)]
+    raw_images = [read(str(IMAGES_DIR / "LJ13.xyz"), index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = LennardJones()
-    images = process_images("tests/images/LJ13.xyz", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "LJ13.xyz"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
         "lennard_jones", cutoff=3.0, images=images, device=device, dtype=dtype
@@ -245,11 +246,11 @@ def test_lennard_jones(dtype, device):
     assert potential_output.forces_decomposed.grad_fn is not None
 
     pytest.skip("Switching the full radius graph to minimal image convention")
-    raw_images = [read("tests/images/LJ35.xyz", index=i) for i in (0, 1, 1)]
+    raw_images = [read(str(IMAGES_DIR / "LJ35.xyz"), index=i) for i in (0, 1, 1)]
     interpolate(raw_images, mic=True)
     for image in raw_images:
         image.calc = LennardJones()
-    images = process_images("tests/images/LJ35.xyz", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "LJ35.xyz"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
         "lennard_jones", cutoff=3.0, images=images, device=device, dtype=dtype
@@ -372,11 +373,11 @@ def test_repel(dtype, device):
             self.results["energy"] = energy
             self.results["forces"] = forces
 
-    raw_images = [read("tests/images/LJ13.xyz", index=i) for i in (0, 1, 1)]
+    raw_images = [read(str(IMAGES_DIR / "LJ13.xyz"), index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = RepelCalculator()
-    images = process_images("tests/images/LJ13.xyz", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "LJ13.xyz"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
         "repel", cutoff=3.0, images=images, device=device, dtype=dtype
@@ -434,11 +435,11 @@ def test_repel(dtype, device):
     assert potential_output.forces_decomposed.grad_fn is not None
 
     pytest.skip("Switching the full radius graph to minimal image convention")
-    raw_images = [read("tests/images/LJ35.xyz", index=i) for i in (0, 1, 1)]
+    raw_images = [read(str(IMAGES_DIR / "LJ35.xyz"), index=i) for i in (0, 1, 1)]
     interpolate(raw_images, mic=True)
     for image in raw_images:
         image.calc = RepelCalculator()
-    images = process_images("tests/images/LJ35.xyz", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "LJ35.xyz"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
         "repel", cutoff=3.0, images=images, device=device, dtype=dtype
@@ -511,14 +512,14 @@ def test_uma(dtype, device):
     # if dtype == torch.float64:
     #     pytest.skip("UMA potential is not supported for float64 due to precision issues.")
 
-    raw_images = [read("tests/images/T1x.xyz", index=i) for i in (0, 1, 1)]
+    raw_images = [read(str(IMAGES_DIR / "T1x.xyz"), index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = FAIRChemCalculator(
             pretrained_mlip.get_predict_unit("uma-s-1", device=device.type),
             task_name="omol",
         )
-    images = process_images("tests/images/T1x.xyz", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "T1x.xyz"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
         "uma",
@@ -562,14 +563,14 @@ def test_uma(dtype, device):
     (grad_t,) = torch.autograd.grad(potential_output.energies.sum(), t)
     assert grad_t.device == positions.device
 
-    raw_images = [read("tests/images/OC20NEB.xyz", index=i) for i in (0, 1, 1)]
+    raw_images = [read(str(IMAGES_DIR / "OC20NEB.xyz"), index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = FAIRChemCalculator(
             pretrained_mlip.get_predict_unit("uma-s-1", device=device.type),
             task_name="oc20",
         )
-    images = process_images("tests/images/OC20NEB.xyz", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "OC20NEB.xyz"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
         "uma",

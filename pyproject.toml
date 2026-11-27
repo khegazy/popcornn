@@ -74,7 +74,7 @@ minversion = "6.0"
 addopts = ["-p no:warnings", "--import-mode=importlib"]
 xfail_strict = true
 log_cli_level = "warn"
-pythonpath = "popcornn/popcornn"
+pythonpath = ["."]  # the repository root, so `import tests` works from any directory
 testpaths = ["tests"]
 
 [tool.coverage.run]

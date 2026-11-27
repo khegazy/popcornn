@@ -1,5 +1,8 @@
+"""popcornn test suite: shared constants for the test modules."""
+
 from __future__ import annotations
 
-import sys
+from pathlib import Path
 
-sys.path.append(".")
+# Test data, found relative to this package so tests run from any directory.
+IMAGES_DIR = Path(__file__).parent / "images"

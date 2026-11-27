@@ -9,8 +9,6 @@ paying for any extra path forwards.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 import torch
 
@@ -18,6 +16,7 @@ from popcornn.paths import get_path
 from popcornn.potentials import get_potential
 from popcornn.tools import PathIntegrator, SamplesCache, process_images
 from popcornn.tools.integrand import evaluate_integrand_sum
+from tests import IMAGES_DIR
 
 
 @pytest.fixture
@@ -26,7 +25,7 @@ def muller_brown_setup():
     device = torch.device("cpu")
     dtype = torch.float64
     images = process_images(
-        str(Path(__file__).parent / "images" / "muller_brown.json"),
+        str(IMAGES_DIR / "muller_brown.json"),
         device=device,
         dtype=dtype,
     )
