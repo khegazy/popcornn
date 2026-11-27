@@ -18,7 +18,7 @@ import pytest
 import torch
 
 from popcornn.tools import PathIntegrator
-from tests import IMAGES_DIR, TEST_SEED
+from tests import IMAGES_DIR, TEST_SEED, starting_mesh
 
 _ORIGINAL_INIT = PathIntegrator.__init__
 _INIT_SIGNATURE = inspect.signature(_ORIGINAL_INIT)
@@ -123,10 +123,20 @@ def cheap_integrator_params():
     - ``runtime_checks=True``: padaquad raises on NaN or Inf. popcornn's default
       is False, which would let a NaN reach the gradient silently.
 
+    - ``initial_mesh=starting_mesh(TEST_SEED)``: a fixed starting mesh, so
+      padaquad draws no random mesh and results do not depend on how it
+      draws one.
+
     ``integrate_gradient`` is left out: a test that is not about the gradient
     mode should add ``"integrate_gradient": False``, which is cheaper (#89).
     """
-    return {"rtol": 1e-2, "atol": 1e-2, "max_batch": 500, "runtime_checks": True}
+    return {
+        "rtol": 1e-2,
+        "atol": 1e-2,
+        "max_batch": 500,
+        "runtime_checks": True,
+        "initial_mesh": starting_mesh(TEST_SEED),
+    }
 
 
 def pytest_make_parametrize_id(config, val, argname) -> str | None:

@@ -16,7 +16,7 @@ from popcornn.paths import get_path
 from popcornn.potentials import get_potential
 from popcornn.tools import PathIntegrator, SamplesCache, process_images
 from popcornn.tools.integrand import evaluate_integrand_sum
-from tests import IMAGES_DIR
+from tests import IMAGES_DIR, TEST_SEED, starting_mesh
 
 
 @pytest.fixture
@@ -94,8 +94,8 @@ def test_track_ts_off_yields_none(muller_brown_setup, cheap_integrator_params):
 
 def _record_integrate_calls(monkeypatch, integrator):
     """Wrap both padaquad solvers' ``integrate`` to record, per call, the
-    ``state`` passed and the state returned. Returns
-    ``{"main": [...], "loss": [...]}`` of ``(state_in, state_out)``."""
+    ``state`` passed, the state returned and the ``mesh`` passed. Returns
+    ``{"main": [...], "loss": [...]}`` of ``(state_in, state_out, mesh_in)``."""
     calls = {"main": [], "loss": []}
     for name, solver in (
         ("main", integrator._solver),
@@ -104,7 +104,7 @@ def _record_integrate_calls(monkeypatch, integrator):
 
         def recording(*args, _integrate=solver.integrate, _name=name, **kwargs):
             result, state = _integrate(*args, **kwargs)
-            calls[_name].append((kwargs["state"], state))
+            calls[_name].append((kwargs["state"], state, kwargs.get("mesh")))
             return result, state
 
         monkeypatch.setattr(solver, "integrate", recording)
@@ -122,6 +122,7 @@ _WARM_START_PARAMS = {
     "max_batch": 400,
     "track_loss": True,
     "runtime_checks": True,  # tests raise on NaN/Inf (popcornn's default is False)
+    "initial_mesh": starting_mesh(TEST_SEED),  # no random starting mesh
 }
 
 
@@ -150,7 +151,7 @@ def test_warm_start_passes_previous_state(muller_brown_setup, monkeypatch, max_b
 
     assert torch.isfinite(out.integral).all()
     for name in ("main", "loss"):
-        (state_in_1, state_out_1), (state_in_2, _) = calls[name]
+        (state_in_1, state_out_1, _), (state_in_2, _, _) = calls[name]
         assert state_in_1 is None
         assert state_in_2 is state_out_1
         if max_batch is None:
@@ -159,6 +160,39 @@ def test_warm_start_passes_previous_state(muller_brown_setup, monkeypatch, max_b
             assert state_out_1.max_batch == max_batch
     assert integrator._state is calls["main"][1][1]
     assert integrator._loss_state is calls["loss"][1][1]
+
+
+def test_initial_mesh_is_used_without_random_draws(
+    muller_brown_setup, monkeypatch, cheap_integrator_params
+):
+    """With ``initial_mesh``, each solver's first call starts from that mesh
+    instead of a random one, so ``integrate_path`` draws no random numbers and
+    results do not depend on how padaquad draws its starting mesh. Later calls
+    start from the state, as before (padaquad takes ``mesh`` or ``state``, not
+    both)."""
+    path, device, dtype = muller_brown_setup
+    mesh = starting_mesh(0)
+    integrator = PathIntegrator(
+        **{**cheap_integrator_params, "initial_mesh": mesh},
+        method="gk21",
+        path_integrand_names="pvre",
+        track_loss=True,
+        device=device,
+        dtype=dtype,
+    )
+    calls = _record_integrate_calls(monkeypatch, integrator)
+
+    rng_before = torch.random.get_rng_state()
+    integrator.integrate_path(path)
+    integrator.integrate_path(path)
+    assert torch.equal(torch.random.get_rng_state(), rng_before)
+
+    for name in ("main", "loss"):
+        (state_in_1, state_out_1, mesh_in_1), (state_in_2, _, mesh_in_2) = calls[name]
+        assert state_in_1 is None
+        assert torch.equal(mesh_in_1.cpu(), mesh.to(dtype))
+        assert state_in_2 is state_out_1
+        assert mesh_in_2 is None
 
 
 @pytest.mark.parametrize(
@@ -177,15 +211,13 @@ def test_bounds_relative_to_previous_mesh(
     integrator = PathIntegrator(**_WARM_START_PARAMS, device=device, dtype=dtype)
     calls = _record_integrate_calls(monkeypatch, integrator)
 
-    torch.manual_seed(0)
     integrator.integrate_path(path, t_final=first_final)
     out = integrator.integrate_path(path, t_final=second_final)
 
-    (_, first_state), (state_2, second_state) = calls["main"]
+    (_, first_state, _), (state_2, second_state, _) = calls["main"]
     assert state_2 is first_state
     assert second_state.mesh[-1].item() == second_final
 
-    torch.manual_seed(0)
     fresh = PathIntegrator(**_WARM_START_PARAMS, device=device, dtype=dtype)
     expected = fresh.integrate_path(path, t_final=second_final)
     # padaquad bounds each panel's estimated error in the L2 norm (norm="2") by
@@ -193,10 +225,11 @@ def test_bounds_relative_to_previous_mesh(
     # whole vector in that norm, not element by element (small components carry
     # large relative errors). The bound is per panel, not on the total, and
     # max_iter can accept a panel that misses it, so no tolerance follows from
-    # it: 5e-2 is an empirical margin. Measured 2026-11-17 on CPU, seeds 0-5 for
-    # the meshes (this test uses 0): relative L2 difference at most 7.1e-3
-    # (extend) and 2.5e-6 (cut). Both runs are seeded, so the result is
-    # deterministic on a given machine.
+    # it: 5e-2 is an empirical margin. Measured 2026-11-27 on CPU (padaquad
+    # 2.0.0) over the starting meshes starting_mesh(0..5) (this test uses
+    # TEST_SEED = 0): relative L2 difference at most 6.8e-3 (extend) and
+    # 2.4e-15 (cut). Both runs start from the same fixed mesh, so the result
+    # is deterministic on a given machine.
     diff = (out.grad_integral - expected.grad_integral).norm()
     assert diff <= 5e-2 * expected.grad_integral.norm()
 
@@ -252,6 +285,7 @@ def test_oom_batch_reduction_persists(
         integrate_gradient=integrate_gradient,
         track_loss=True,
         runtime_checks=True,  # tests raise on NaN/Inf (popcornn's default is False)
+        initial_mesh=starting_mesh(TEST_SEED),  # no random starting mesh
         device=device,
         dtype=dtype,
     )
@@ -310,12 +344,12 @@ def test_memory_options_leave_results_unchanged(muller_brown_setup, memory_optio
         "track_loss": True,
         "track_ts": True,
         # runtime_checks stays at popcornn's default (False): one case compares it with True.
+        "initial_mesh": starting_mesh(TEST_SEED),  # both runs start from the same mesh
         "device": device,
         "dtype": dtype,
     }
     runs = []
     for options in ({}, memory_options):
-        torch.manual_seed(0)  # the first mesh is random
         integrator = PathIntegrator(**(params | options))
         runs.append([integrator.integrate_path(path) for _ in range(2)])
     if "track_ts" in memory_options:

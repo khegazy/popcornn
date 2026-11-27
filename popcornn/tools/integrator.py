@@ -77,6 +77,7 @@ class PathIntegrator:
         atol=0.0,
         norm="2",
         max_batch=None,
+        initial_mesh=None,
         trade_speed_for_memory=True,
         evaluation_buffer=5 * 2**30,
         result_device="cpu",
@@ -173,6 +174,16 @@ class PathIntegrator:
             ``Popcornn._optimize`` (one fresh integrator per stage); that is
             intentional, since different stages typically use different
             potentials with different memory profiles.
+        initial_mesh : torch.Tensor or sequence, optional
+            Starting mesh of each solver's first ``integrate_path`` call:
+            increasing times of shape ``[M, 1]`` (a list is converted), cut or
+            extended by padaquad to ``t_init`` and ``t_final``. Later calls
+            start from the state the solver returned, as without it. ``None``
+            (default) lets padaquad draw a random starting mesh from torch's
+            global generator, so results then depend on that generator's state
+            and on how padaquad draws the mesh; a fixed mesh makes them
+            independent of both (the tests use one). padaquad validates the
+            mesh and raises ``ValueError`` for a malformed one.
         trade_speed_for_memory, evaluation_buffer, result_device, record_evaluations
             padaquad's memory options, passed to both solvers. They never
             change which points are evaluated, the mesh or the integral
@@ -264,6 +275,11 @@ class PathIntegrator:
         self.record_evaluations = record_evaluations
         self.device = device
         self.dtype = dtype
+        self.initial_mesh = (
+            None
+            if initial_mesh is None
+            else torch.as_tensor(initial_mesh, dtype=dtype, device=device)
+        )
         self.N_integrals = 0
         # Last result of integrate_path, and the IntegrationState (mesh and
         # batch size) the main and loss solvers returned last; each call starts
@@ -468,13 +484,16 @@ class PathIntegrator:
         # Warm start: start from the previous call's state, its mesh (pruned +
         # refined) and batch size (including any out-of-memory reduction), so
         # the batch size is found only on the first call. The first call
-        # (state None) gets a fresh random mesh and the constructor's max_batch
-        # (or padaquad's growing batch size). parameters= lets padaquad restart
-        # after an out-of-memory error in a backward pass (take_gradient=True)
-        # even if the potential uses a custom autograd function.
+        # (state None) starts from initial_mesh, or a fresh random mesh when it
+        # is None, and the constructor's max_batch (or padaquad's growing batch
+        # size); padaquad takes mesh= or state=, never both. parameters= lets
+        # padaquad restart after an out-of-memory error in a backward pass
+        # (take_gradient=True) even if the potential uses a custom autograd
+        # function.
         result, self._state = self._solver.integrate(
             f,
             state=self._state,
+            mesh=self.initial_mesh if self._state is None else None,
             mesh_init=t_init_1d,
             mesh_final=t_final_1d,
             parameters=params,
@@ -546,6 +565,7 @@ class PathIntegrator:
             loss_result, self._loss_state = self._loss_solver.integrate(
                 fval,
                 state=self._loss_state,
+                mesh=self.initial_mesh if self._loss_state is None else None,
                 mesh_init=t_init_1d,
                 mesh_final=t_final_1d,
                 error_norm=self.norm,
