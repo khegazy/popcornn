@@ -18,7 +18,7 @@ from popcornn.paths import get_path
 from popcornn.potentials import get_potential
 from popcornn.tools import PathIntegrator, SamplesCache, process_images
 from popcornn.tools.integrand import evaluate_integrand_sum
-from tests import IMAGES_DIR, TEST_SEED, starting_mesh
+from tests import CHEAP_TOLERANCES, IMAGES_DIR, TEST_SEED, starting_mesh
 
 
 @pytest.fixture
@@ -119,8 +119,7 @@ def _record_integrate_calls(monkeypatch, integrator):
 _WARM_START_PARAMS = {
     "method": "gk21",
     "path_integrand_names": "pvre",
-    "rtol": 1e-2,
-    "atol": 1e-2,
+    **CHEAP_TOLERANCES,
     "max_batch": 400,
     "track_loss": True,
     "runtime_checks": True,  # tests raise on NaN/Inf (popcornn's default is False)
@@ -281,8 +280,7 @@ def test_oom_batch_reduction_persists(
     integrator = PathIntegrator(
         method="gk21",
         path_integrand_names="pvre",
-        rtol=1e-2,
-        atol=1e-2,
+        **CHEAP_TOLERANCES,
         max_batch=400,
         integrate_gradient=integrate_gradient,
         track_loss=True,
@@ -340,8 +338,7 @@ def test_memory_options_leave_results_unchanged(muller_brown_setup, memory_optio
     params = {
         "method": "gk21",
         "path_integrand_names": "pvre",
-        "rtol": 1e-2,
-        "atol": 1e-2,
+        **CHEAP_TOLERANCES,
         "max_batch": 46,
         "track_loss": True,
         "track_ts": True,
@@ -446,8 +443,7 @@ def test_initial_mesh_follows_the_default_dtype_when_dtype_is_none(mesh):
     )
     integrator = PathIntegrator(
         path_integrand_names="pvre",
-        rtol=1e-2,
-        atol=1e-2,
+        **CHEAP_TOLERANCES,
         max_batch=500,
         runtime_checks=True,
         initial_mesh=mesh,

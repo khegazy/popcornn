@@ -18,7 +18,7 @@ import pytest
 import torch
 
 from popcornn.tools import PathIntegrator
-from tests import IMAGES_DIR, TEST_SEED, starting_mesh
+from tests import CHEAP_TOLERANCES, IMAGES_DIR, TEST_SEED, starting_mesh
 
 _ORIGINAL_INIT = PathIntegrator.__init__
 _INIT_SIGNATURE = inspect.signature(_ORIGINAL_INIT)
@@ -110,7 +110,7 @@ def cheap_integrator_params():
     ``PathIntegrator(**{**cheap_integrator_params, "path_integrand_names": "pvre"})``;
     passing it next to a keyword it already holds raises ``TypeError``.
 
-    - ``rtol=atol=1e-2``: explicit, so these tests do not depend on
+    - ``CHEAP_TOLERANCES`` (``rtol=atol=1e-2``): explicit, so these tests do not depend on
       ``PathIntegrator``'s defaults, and coarse, which is enough for tests that
       check shapes, flags, finite values, log lines, call arguments and batch
       sizes (plan 00, Task 5a). Far too loose for numerical checks. Users:
@@ -133,8 +133,7 @@ def cheap_integrator_params():
     mode should add ``"integrate_gradient": False``, which is cheaper (#89).
     """
     return {
-        "rtol": 1e-2,
-        "atol": 1e-2,
+        **CHEAP_TOLERANCES,
         "max_batch": 500,
         "runtime_checks": True,
         "initial_mesh": starting_mesh(TEST_SEED),

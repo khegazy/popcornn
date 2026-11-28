@@ -9,6 +9,11 @@ import torch
 # Test data, found relative to this package so tests run from any directory.
 IMAGES_DIR = Path(__file__).parent / "images"
 
+# PathIntegrator tolerances for tests that check wiring (shapes, flags, call
+# arguments, batch sizes), not accuracy; far too loose for numerical checks.
+# Used by conftest.cheap_integrator_params and by test-specific settings.
+CHEAP_TOLERANCES = {"rtol": 1e-2, "atol": 1e-2}
+
 # Seed of torch's global generator at the start of every test (conftest.py).
 TEST_SEED = 0
 
