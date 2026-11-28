@@ -12,30 +12,18 @@ from __future__ import annotations
 import pytest
 import torch
 
-from popcornn.paths import get_path
-from popcornn.potentials import get_potential
-from popcornn.tools import PathIntegrator, SamplesCache, process_images
+from popcornn.tools import PathIntegrator, SamplesCache
 from popcornn.tools.integrand import evaluate_integrand_sum
-from tests import IMAGES_DIR, TEST_SEED, starting_mesh
+from tests import IMAGES_DIR, TEST_SEED, make_path, starting_mesh
 
 
 @pytest.fixture
 def muller_brown_setup():
     device = torch.device("cpu")
     dtype = torch.float64
-    images = process_images(
-        str(IMAGES_DIR / "muller_brown.json"),
-        device=device,
-        dtype=dtype,
+    path = make_path(
+        str(IMAGES_DIR / "muller_brown.json"), "muller_brown", device, dtype
     )
-    path = get_path("mlp", images=images, device=device, dtype=dtype)
-    potential = get_potential(
-        "muller_brown",
-        images=images,
-        device=device,
-        dtype=dtype,
-    )
-    path.set_potential(potential)
     return path, device, dtype
 
 
