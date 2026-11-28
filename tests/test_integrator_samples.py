@@ -9,6 +9,8 @@ paying for any extra path forwards.
 
 from __future__ import annotations
 
+import inspect
+
 import pytest
 import torch
 
@@ -394,3 +396,78 @@ def test_device_and_runtime_checks_reach_padaquad(monkeypatch, runtime_checks):
         **given,
     )
     assert calls == [(torch.device("cuda", 1), bool(runtime_checks))] * 2
+
+
+def test_init_arguments_keep_their_0_4_0_positions():
+    """``initial_mesh`` (added after 0.4.0) comes last, so code that passes
+    0.4.0's arguments by position still binds them to the same parameters."""
+    released_0_4_0 = [
+        "method",
+        "integrate_gradient",
+        "path_integrand_names",
+        "path_integrand_scales",
+        "path_integrand_kwargs",
+        "rtol",
+        "atol",
+        "norm",
+        "max_batch",
+        "trade_speed_for_memory",
+        "evaluation_buffer",
+        "result_device",
+        "record_evaluations",
+        "runtime_checks",
+        "max_iter",
+        "track_loss",
+        "loss_rtol",
+        "loss_atol",
+        "track_ts",
+        "device",
+        "dtype",
+    ]
+    names = list(inspect.signature(PathIntegrator).parameters)
+    assert names == [*released_0_4_0, "initial_mesh"]
+
+
+@pytest.mark.parametrize(
+    "mesh",
+    [starting_mesh(0), [[0], [1]]],
+    ids=["float64_tensor", "integer_list"],
+)
+def test_initial_mesh_follows_the_default_dtype_when_dtype_is_none(mesh):
+    """With ``dtype=None`` the bounds come out in torch's default dtype, so the
+    mesh must too: a float64 mesh would make padaquad integrate a float32 path
+    in float64, and an integer list is not a valid padaquad mesh at all."""
+    images = process_images(
+        str(IMAGES_DIR / "muller_brown.json"), device="cpu", dtype=torch.float32
+    )
+    path = get_path("mlp", images=images, device="cpu", dtype=torch.float32)
+    path.set_potential(
+        get_potential("muller_brown", images=images, device="cpu", dtype=torch.float32)
+    )
+    integrator = PathIntegrator(
+        path_integrand_names="pvre",
+        rtol=1e-2,
+        atol=1e-2,
+        max_batch=500,
+        runtime_checks=True,
+        initial_mesh=mesh,
+        device=torch.device("cpu"),
+    )
+    out = integrator.integrate_path(path)
+    assert torch.isfinite(out.integral).all()
+
+
+def test_initial_mesh_is_copied():
+    """The integrator keeps its own copy, so changing the caller's tensor later
+    (or sharing one tensor between integrators) cannot change its mesh."""
+    mesh = starting_mesh(0)
+    original = mesh.clone()
+    integrator = PathIntegrator(
+        path_integrand_names="pvre",
+        max_batch=500,
+        initial_mesh=mesh,
+        device=torch.device("cpu"),
+        dtype=torch.float64,
+    )
+    mesh[1] = 0.5
+    assert torch.equal(integrator.initial_mesh, original)

@@ -77,7 +77,6 @@ class PathIntegrator:
         atol=0.0,
         norm="2",
         max_batch=None,
-        initial_mesh=None,
         trade_speed_for_memory=True,
         evaluation_buffer=5 * 2**30,
         result_device="cpu",
@@ -90,6 +89,7 @@ class PathIntegrator:
         track_ts=False,
         device=None,
         dtype=None,
+        initial_mesh=None,
     ):
         """
         Parameters
@@ -174,16 +174,6 @@ class PathIntegrator:
             ``Popcornn._optimize`` (one fresh integrator per stage); that is
             intentional, since different stages typically use different
             potentials with different memory profiles.
-        initial_mesh : torch.Tensor or sequence, optional
-            Starting mesh of each solver's first ``integrate_path`` call:
-            increasing times of shape ``[M, 1]`` (a list is converted), cut or
-            extended by padaquad to ``t_init`` and ``t_final``. Later calls
-            start from the state the solver returned, as without it. ``None``
-            (default) lets padaquad draw a random starting mesh from torch's
-            global generator, so results then depend on that generator's state
-            and on how padaquad draws the mesh; a fixed mesh makes them
-            independent of both (the tests use one). padaquad validates the
-            mesh and raises ``ValueError`` for a malformed one.
         trade_speed_for_memory, evaluation_buffer, result_device, record_evaluations
             padaquad's memory options, passed to both solvers. They never
             change which points are evaluated, the mesh or the integral
@@ -256,6 +246,18 @@ class PathIntegrator:
             loss integral can use more nodes than the gradient integral.
         device : torch.device
         dtype : torch.dtype
+        initial_mesh : torch.Tensor or sequence, optional
+            Starting mesh of each solver's first ``integrate_path`` call:
+            increasing times of shape ``[M, 1]`` (a list is converted), cut or
+            extended by padaquad to ``t_init`` and ``t_final``. Later calls
+            start from the state the solver returned, as without it. ``None``
+            (default) lets padaquad draw a random starting mesh from torch's
+            global generator, so results then depend on that generator's state
+            and on how padaquad draws the mesh; a fixed mesh makes them
+            independent of both (the tests use one). padaquad validates the
+            mesh and raises ``ValueError`` for a malformed one. It is copied,
+            in ``dtype`` (torch's default dtype when ``dtype`` is None, the
+            dtype the bounds then get).
         """
         self.method = method
         self.integrate_gradient = integrate_gradient
@@ -278,7 +280,13 @@ class PathIntegrator:
         self.initial_mesh = (
             None
             if initial_mesh is None
-            else torch.as_tensor(initial_mesh, dtype=dtype, device=device)
+            # A copy, in the bounds' dtype: integrate_path builds the bounds in
+            # self.dtype, which torch.as_tensor leaves as the default dtype when None.
+            else torch.as_tensor(
+                initial_mesh,
+                dtype=dtype if dtype is not None else torch.get_default_dtype(),
+                device=device,
+            ).clone()
         )
         self.N_integrals = 0
         # Last result of integrate_path, and the IntegrationState (mesh and
