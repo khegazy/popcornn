@@ -17,7 +17,8 @@ import numpy as np
 import pytest
 import torch
 from ase import Atoms
-from ase.io import read
+from ase.constraints import FixAtoms
+from ase.io import read, write
 
 from popcornn import Popcornn
 from popcornn.potentials.morse import MorsePotential
@@ -169,3 +170,22 @@ def test_two_stage_atomic_run_returns_ase_path_and_ts(cheap_integrator_params):
         assert torch.equal(p, params_split[name]), (
             f"{name} differs between one call and two calls"
         )
+
+
+def test_output_frames_keep_fixed_atoms(tmp_path):
+    """Output frames carry the input's FixAtoms indices, one entry per atom,
+    and can be written (a per-coordinate mask gave indices up to 3N - 1, which
+    made writing a frame raise IndexError)."""
+    frames = read(XYZ, index=":")
+    for atoms in frames:
+        atoms.set_constraint(FixAtoms(indices=[16]))
+    mep = Popcornn(
+        images=frames,
+        path_params={"name": "mlp", "width": 8, "depth": 2},
+        device="cpu",
+        dtype="float64",
+    )
+    output = mep.get_discrete_path(num_record_points=3)
+    for atoms in output:
+        assert list(atoms.constraints[0].index) == [16]
+    write(tmp_path / "path.xyz", output, format="extxyz")
