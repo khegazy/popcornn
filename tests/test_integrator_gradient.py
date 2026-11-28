@@ -43,6 +43,9 @@ What no case here can see
       path; the zero-weight reference checks catch bugs in ∂x/∂b. A bug that
       unpins an endpoint is caught: eq. 3 assumes ∂x/∂θ = 0 there.
     - Confusing the main and loss solvers of ``PathIntegrator``.
+    - Other random weights: the random-weight cases are one draw (seed TEST_SEED,
+      PyTorch's default initialization, width 128). A more strongly curved path,
+      with more turning points, is not tested.
 
 How to re-measure
     If a case fails after a padaquad update, run the slow mesh sweep
@@ -134,9 +137,8 @@ def _turning_point_terms(path: MLPpath) -> ExactReference:
         """E, dE/dt and F at times t (a float or 1-D array), all detached."""
         t = torch.as_tensor(np.atleast_1d(t), dtype=torch.float64).requires_grad_(True)
         out = path(t, return_velocities=True, return_energies=True, return_forces=True)
-        edot = -(out.forces * out.velocities).sum(
-            -1
-        )  # the same dE/dt as PathIntegrator
+        # The same dE/dt as PathIntegrator.
+        edot = -(out.forces * out.velocities).sum(-1)
         return (
             out.energies[:, 0].detach().numpy(),
             edot.detach().numpy(),
@@ -230,15 +232,12 @@ def test_exact_reference(system: str, weights: str) -> None:
     assert low * ref.loss <= ref.loss - ref.grid_total_variation <= high * ref.loss
     if weights == "zero":
         bias_grad = ref.grad[-ref.state_dict["mlp.2.bias"].numel() :]
-        assert not ref.grad[
-            : -bias_grad.numel()
-        ].any()  # spec eq. (4): only b has a gradient
-        if (
-            system == "sphere"
-        ):  # E = |x|^2 from (-1, 1) to (1, 1): one minimum at t = 1/2
-            tol = REFERENCE_TOL[
-                torch.float64
-            ]  # relative to the largest reference value, 2 and 1 here
+        # Spec eq. (4): only b has a gradient.
+        assert not ref.grad[: -bias_grad.numel()].any()
+        # Sphere: E = |x|^2 from (-1, 1) to (1, 1), one minimum at t = 1/2.
+        if system == "sphere":
+            # Relative to the largest reference value, 2 and 1 here.
+            tol = REFERENCE_TOL[torch.float64]
             assert ref.turning_times == pytest.approx((0.5,), abs=tol)
             assert ref.loss == pytest.approx(2.0, abs=2.0 * tol)
             torch.testing.assert_close(
@@ -255,7 +254,8 @@ def test_exact_reference(system: str, weights: str) -> None:
                     float((bias_grad - legacy_grad).norm() / bias_grad.norm())
                     <= LEGACY_GRAD_RTOL
                 )
-    else:  # eq. (3) is the derivative of eq. (1): central differences along random directions
+    else:
+        # Eq. (3) is the derivative of eq. (1): central differences along random directions.
         path = make_path(*SYSTEMS[system], torch.device("cpu"), torch.float64)
         path.load_state_dict(ref.state_dict)
         theta = parameters_to_vector(path.parameters()).detach()
@@ -273,9 +273,8 @@ def test_exact_reference(system: str, weights: str) -> None:
             assert fd_error <= FD_GRAD_TOL * float(ref.grad.norm()), f"{fd_error:.2e}"
 
 
-MAX_BATCH = (
-    500  # largest single call is 231 points; 500**2 * 128 = 3.2e7 (plan 00 memory rule)
-)
+# Largest single call is 231 points; 500**2 * 128 = 3.2e7 (plan 00 memory rule).
+MAX_BATCH = 500
 MESH_SEEDS = range(10)  # CI runs TEST_SEED; the other meshes are slow cases
 # The float64 loss of muller_brown and wolfe has one error source, a turning point next to
 # an endpoint (plan 01, Fact 4; #104). Its worst case is the same in both float64
@@ -450,6 +449,7 @@ def test_pvre_loss_and_gradient_match_exact(
     assert grad.dtype == dtype
     assert grad.device.type == device.type
     assert out.loss.dtype == dtype
+    assert out.loss.device.type == device.type
     grad_error = float((grad.double().cpu() - ref.grad).norm() / ref.grad.norm())
     assert grad_error <= s["max_grad_error"][weights][system], (
         f"relative gradient error {grad_error:.2e}"
@@ -458,9 +458,8 @@ def test_pvre_loss_and_gradient_match_exact(
     assert loss_error <= s["max_loss_error"][weights][system], (
         f"relative loss error {loss_error:.2e}"
     )
-    if (
-        weights == "zero"
-    ):  # spec eq. (4): exactly zero through a zero weight or GELU(0) = 0
+    # Spec eq. (4): exactly zero through a zero weight or GELU(0) = 0.
+    if weights == "zero":
         bias = path.mlp[-1].bias
         for name, p in path.named_parameters():
             if p is not bias:
