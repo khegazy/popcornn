@@ -344,6 +344,12 @@ class Popcornn:
 
         ``num_record_points`` defaults to ``self.num_record_points``
         (set by the constructor).
+
+        The points carry positions only. The path is not evaluated on a
+        potential here, so the returned ``Atoms`` have no energies or
+        forces and ``get_potential_energy()`` raises
+        ``PropertyNotImplementedError``. ``get_ts()`` returns the
+        transition state with its energy and forces.
         """
         if num_record_points is None:
             num_record_points = self.num_record_points

@@ -40,9 +40,10 @@ python run.py --config configs/gg3.yaml
 When `run.py` finishes on an **atomistic** input (anything that came
 from an ASE `Atoms` list — including the `gg3` example) it writes:
 
-- `popcornn_path.xyz` — the optimized path as a sequence of frames.
+- `popcornn_path.xyz` — the optimized path as a sequence of frames,
+  positions only (no energies or forces).
 - `popcornn_ts.xyz` — the single frame at the predicted transition
-  state.
+  state, with its energy and forces.
 
 You can open both in any standard molecular viewer (ASE GUI, VMD,
 Avogadro, OVITO).
