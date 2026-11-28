@@ -651,7 +651,9 @@ def test_pair_potentials(name, params, reference_params, system, dtype, device):
 
 
 @pytest.mark.parametrize(
-    "device", [torch.device("cpu"), torch.device("cuda"), torch.device("cuda", 1)]
+    "device",
+    [torch.device("cpu"), torch.device("cuda"), torch.device("cuda", 1)],
+    ids=["cpu", "cuda", "cuda1"],
 )
 def test_uma(dtype, device):
     pytest.skip(reason="Give github an UMA license")
