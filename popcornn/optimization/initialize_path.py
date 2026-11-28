@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import torch
 
 if TYPE_CHECKING:
-    import numpy as np
+    from popcornn.paths.base_path import BasePath
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +16,11 @@ INIT_LOSS_THRESHOLD = 1e-8
 
 
 def randomly_initialize_path(
-    path: torch.tensor,
+    path: BasePath,
     n_points: int,
     order_points: bool = False,
     seed: int | None = None,
-) -> torch.Tensor | np.ndarray:
+) -> BasePath:
     """
     Initialize the path through randomly drawn intermediate points.
 
@@ -39,8 +39,8 @@ def randomly_initialize_path(
     order_points : bool, default=False
         If True, sort the random points along every dimension so the
         sampled chain is monotonic in each coordinate.
-    seed : int, default=1910
-        RNG seed.
+    seed : int, default=None
+        RNG seed. If None, the global RNG is not reseeded.
 
     Returns
     -------
@@ -95,7 +95,7 @@ def randomly_initialize_path(
 
 
 def loss_init(
-    path: torch.tensor, times: torch.tensor, positions: torch.tensor
+    path: BasePath, times: torch.Tensor, positions: torch.Tensor
 ) -> torch.Tensor:
     """
     Mean-squared displacement between path predictions and target points.
@@ -103,11 +103,16 @@ def loss_init(
     Used as the fitting loss in ``initialize_path``. For periodic
     systems, the displacement is wrapped under the minimum-image
     convention before squaring.
+
+    Raises
+    ------
+    ValueError
+        If the predictions and ``positions`` differ in shape.
     """
     preds = path(times).positions
-    assert preds.shape == positions.shape, (
-        f"Shapes do not match: {preds.shape} != {positions.shape}"
-    )
+    if preds.shape != positions.shape:
+        msg = f"Shapes do not match: {preds.shape} != {positions.shape}"
+        raise ValueError(msg)
     disp = positions - preds
     if path.transform is not None:
         disp = path.transform(disp, center=1.0)
@@ -115,12 +120,12 @@ def loss_init(
 
 
 def initialize_path(
-    path: torch.tensor,
-    times: torch.tensor,
-    init_points: torch.tensor,
+    path: BasePath,
+    times: torch.Tensor,
+    init_points: torch.Tensor,
     lr: float = 0.001,
     max_steps: int = 10000,  # 5000
-) -> torch.tensor:
+) -> BasePath:
     """
     Fit the path's parameters so it passes through given points at given times.
 
@@ -134,7 +139,7 @@ def initialize_path(
     path : BasePath
         Path to fit. Must have trainable parameters.
     times : torch.Tensor
-        Target times in [0, 1]; shape ``[N, 1]``.
+        Target times in [0, 1]; shape ``[N]`` or ``[N, 1]``.
     init_points : torch.Tensor
         Target positions; shape ``[N, D]``.
     lr : float, default=0.001
@@ -154,7 +159,9 @@ def initialize_path(
     Raises
     ------
     ValueError
-        If ``max_steps`` is negative.
+        If ``max_steps`` is negative, if ``init_points`` does not match the
+        shape of the path's predictions at ``times``, or if the loss is NaN
+        or Inf (a NaN or Inf target or path output).
     """
     if max_steps < 0:
         msg = f"max_steps must be >= 0, got {max_steps}"
@@ -164,6 +171,14 @@ def initialize_path(
     for n_steps in range(max_steps + 1):
         optimizer.zero_grad()
         loss = loss_init(path, times, init_points)
+        # NaN never passes the threshold check, so without this a NaN target would
+        # run every step and return NaN parameters.
+        if not torch.isfinite(loss):
+            msg = (
+                f"Path initialization loss is {loss.item()} at step {n_steps}; "
+                "check init_points and the path for NaN or Inf"
+            )
+            raise ValueError(msg)
         # Checked before stepping, so the path returned is the one that met it.
         if loss.item() < INIT_LOSS_THRESHOLD:
             break

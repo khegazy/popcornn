@@ -136,23 +136,52 @@ def test_initialize_path_keeps_converged_path(caplog):
 
 @pytest.mark.parametrize("max_steps", [0, 5])
 def test_initialize_path_warns_at_max_steps(caplog, max_steps):
-    """A fit stopped by ``max_steps`` logs one WARNING with the step count (#91).
+    """A fit stopped by ``max_steps`` logs one WARNING with the step count (#91),
+    and takes exactly ``max_steps`` Adam steps.
 
     After at most 5 Adam steps at lr = 1e-3 the loss is about 0.27, far above the
     threshold. ``initialize_path`` is called directly: inside ``Popcornn.__init__``
-    the ``popcornn`` logger does not propagate to caplog's root handler.
+    the ``popcornn`` logger does not propagate to caplog's root handler. The
+    WARNING quotes ``max_steps`` itself, so the step count is read from the INFO
+    line, which reports the loop's own counter.
     """
     images, path, times = _mb_setup(torch.device("cpu"), torch.float64)
 
-    with caplog.at_level(logging.WARNING, logger="popcornn"):
+    with caplog.at_level(logging.INFO, logger="popcornn"):
         initialize_path(path, times, images.positions, max_steps=max_steps)
 
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnings) == 1
     assert f"did not converge after {max_steps} iterations" in warnings[0].getMessage()
+    finished = [r.getMessage() for r in caplog.records if "Finished" in r.getMessage()]
+    assert finished == [f"Finished path initialization after {max_steps} iterations"]
 
 
 def test_initialize_path_rejects_negative_max_steps():
     images, path, times = _mb_setup(torch.device("cpu"), torch.float64)
     with pytest.raises(ValueError, match="max_steps"):
         initialize_path(path, times, images.positions, max_steps=-1)
+
+
+def test_initialize_path_rejects_a_nonfinite_loss():
+    """A NaN target makes the loss NaN, which never passes the threshold check;
+    the fit must raise at once rather than run every step and return NaN
+    parameters."""
+    images, path, times = _mb_setup(torch.device("cpu"), torch.float64)
+    targets = images.positions.clone()
+    targets[1] = float("nan")
+    before = [p.detach().clone() for p in path.parameters()]
+    with pytest.raises(ValueError, match="NaN or Inf"):
+        initialize_path(path, times, targets, max_steps=20)
+    assert all(
+        torch.equal(old, new)
+        for old, new in zip(before, path.parameters(), strict=True)
+    )
+
+
+def test_initialize_path_rejects_mismatched_targets():
+    """Targets whose shape differs from the path's predictions raise ValueError
+    (an ``assert`` would vanish under ``python -O`` and let them broadcast)."""
+    images, path, times = _mb_setup(torch.device("cpu"), torch.float64)
+    with pytest.raises(ValueError, match="Shapes do not match"):
+        initialize_path(path, times, images.positions[1:], max_steps=0)
