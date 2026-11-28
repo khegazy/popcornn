@@ -116,7 +116,7 @@ def test_two_stage_atomic_run_returns_ase_path_and_ts(cheap_integrator_params):
 
     # [4] ASE path output. Check the length first so an empty list fails clearly.
     frames = mep.get_discrete_path()
-    assert len(frames) == mep.num_record_points
+    assert len(frames) == POPCORNN_KWARGS["num_record_points"]
     for i, frame in enumerate(frames):
         assert isinstance(frame, Atoms)
         assert frame.get_chemical_symbols() == reference[0].get_chemical_symbols(), (
@@ -129,20 +129,26 @@ def test_two_stage_atomic_run_returns_ase_path_and_ts(cheap_integrator_params):
     # design; nothing in popcornn reads them (#96).
 
     # [3] Endpoints are pinned by the (1 - t) t factor in MLPpath.get_positions.
+    # The only error is rounding in initial + t (final - initial) at t = 1:
+    # worst 2.2e-16 Å over starting meshes 0-9, so the limit is 5e-15 Å
+    # (smallest {1,2,5}x10^k >= 10x the worst).
     np.testing.assert_allclose(
-        frames[0].positions, reference[0].positions, rtol=0, atol=1e-12
+        frames[0].positions, reference[0].positions, rtol=0, atol=5e-15
     )
     np.testing.assert_allclose(
-        frames[-1].positions, reference[-1].positions, rtol=0, atol=1e-12
+        frames[-1].positions, reference[-1].positions, rtol=0, atol=5e-15
     )
 
     # [5] TS frame. Its energy must equal stage 2's (Morse) TS energy, which
-    # shows get_ts used the TS from the last stage.
+    # shows get_ts used the TS from the last stage. get_ts evaluates one point,
+    # ts_search a batch of candidates, so the two can round differently: worst
+    # 3.2e-16 relative over starting meshes 0-9, so the limit is 5e-15. A stale
+    # TS from stage 1 differs by about 1e-2 relative.
     ts = mep.get_ts()
     assert isinstance(ts, Atoms)
     assert np.isfinite(ts.positions).all()
     assert ts.get_potential_energy() == pytest.approx(
-        float(mep.path.ts_energy), rel=1e-12
+        float(mep.path.ts_energy), rel=5e-15
     )
     assert ts.get_forces().shape == (n_atoms, 3)
     assert np.isfinite(ts.get_forces()).all()

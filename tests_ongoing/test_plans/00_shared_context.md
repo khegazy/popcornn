@@ -66,7 +66,7 @@ These all come from the 0.2.0 CHANGELOG ("Changed" and "Removed") and the curren
 ## What `tests_ongoing/` contains (corrected)
 
 - **Benchmark JSONs.** The `**/benchmarks/*.json` files are **not empty**. There are 28 tracked files, about 55 MB in total, holding reference trajectories from the pre-0.2.0 torchpathdiffeq integrator. (My first review wrongly called them 0 bytes because I measured them with `wc -l`, which counts newlines; these JSONs are single lines.) They can't serve as references for the padaquad integrator.
-- **Small input to keep.** `configs/xyz/hard.xyz` is the one small input worth copying into `tests/images/` (17 atoms, C5H10O2, 2 frames). Plan 04 uses it.
+- **Small input to keep.** `hard.xyz` (17 atoms, C5H10O2, 2 frames) was the one small input worth keeping; it now lives in `tests/images/hard.xyz` (moved from `configs/xyz/`), and plan 04 uses it.
 - **Code changes to schedulers and the TS loss.** The commented-out scheduler and TS-time-loss code in `optimizer.py` was disabled in commit `aaec76a` (#82). The pre-migration version is `popcornn/optimization/path_optimizer.py` at `aaec76a^`, which is the reference for plans 05 and 06.
 
 ## Confidence
