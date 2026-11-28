@@ -146,34 +146,30 @@ def process_images(raw_images, device, dtype, unwrap_positions=True):
                 logger.warning(
                     "Not unwrapping atom positions. Assuming atoms are already unwrapped or do not travel across period boundaries."
                 )
-        assert np.all(
-            image.get_positions().shape == raw_images[0].get_positions().shape
-            for image in raw_images
-        ), "All images must have the same shape."
+
+        # np.all(<generator>) treats the generator as one truthy value, so these
+        # checks compare each frame with the first explicitly.
+        def require_same(what, get):
+            first = get(raw_images[0])
+            if not all(np.array_equal(get(image), first) for image in raw_images[1:]):
+                msg = f"All images must have the same {what}."
+                raise ValueError(msg)
+
+        require_same("shape", lambda image: image.get_positions().shape)
         positions = torch.tensor(
             np.array([image.get_positions().flatten() for image in raw_images]),
             device=device,
             dtype=dtype,
         )
-        assert np.all(
-            image.get_atomic_numbers() == raw_images[0].get_atomic_numbers()
-            for image in raw_images
-        ), "All images must have the same atomic atomic_numbers."
+        require_same("atomic numbers", lambda image: image.get_atomic_numbers())
         atomic_numbers = torch.tensor(
             raw_images[0].get_atomic_numbers(), device=device, dtype=torch.long
         )
-        assert np.all(
-            image.get_pbc() == raw_images[0].get_pbc() for image in raw_images
-        ), "All images must have the same pbc."
+        require_same("pbc", lambda image: image.get_pbc())
         pbc = torch.tensor(raw_images[0].get_pbc(), device=device, dtype=torch.bool)
-        assert np.all(
-            image.get_cell() == raw_images[0].get_cell() for image in raw_images
-        ), "All images must have the same cell."
+        require_same("cell", lambda image: image.get_cell().array)
         cell = torch.tensor(raw_images[0].get_cell().array, device=device, dtype=dtype)
-        assert np.all(
-            image.constraints.__repr__() == raw_images[0].constraints.__repr__()
-            for image in raw_images
-        ), "All images must have the same constraints."
+        require_same("constraints", lambda image: repr(image.constraints))
         fix_positions = torch.zeros_like(positions[0], dtype=torch.bool)
         fix_positions = fix_positions.view(-1, 3)
         for constraint in raw_images[0].constraints:
@@ -182,21 +178,13 @@ def process_images(raw_images, device, dtype, unwrap_positions=True):
             else:
                 raise ValueError(f"Cannot handle constraint type {type(constraint)}.")
         fix_positions = fix_positions.flatten()
-        assert np.all(
-            image.get_tags() == raw_images[0].get_tags() for image in raw_images
-        ), "All images must have the same tags."
+        require_same("tags", lambda image: image.get_tags())
         tags = torch.tensor(raw_images[0].get_tags(), device=device, dtype=torch.int)
-        assert np.all(
-            image.info.get("charge", 0) == raw_images[0].info.get("charge", 0)
-            for image in raw_images
-        ), "All images must have the same charge."
+        require_same("charge", lambda image: image.info.get("charge", 0))
         charge = torch.tensor(
             raw_images[0].info.get("charge", 0), device=device, dtype=torch.int
         )
-        assert np.all(
-            image.info.get("spin", 0) == raw_images[0].info.get("spin", 0)
-            for image in raw_images
-        ), "All images must have the same spin."
+        require_same("spin", lambda image: image.info.get("spin", 0))
         spin = torch.tensor(
             raw_images[0].info.get("spin", 0), device=device, dtype=torch.int
         )

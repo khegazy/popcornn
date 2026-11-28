@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 import torch
 from ase import Atoms
+from ase.constraints import FixAtoms
 from ase.io import read
 
 from popcornn.tools import process_images
@@ -1855,3 +1856,53 @@ def test_unwrap(caplog):
             dtype=torch.float32,
         ),
     )
+
+
+def _set_numbers(atoms):
+    atoms.set_atomic_numbers(atoms.get_atomic_numbers()[::-1])
+
+
+def _set_charge(atoms):
+    atoms.info["charge"] = 1
+
+
+def _set_spin(atoms):
+    atoms.info["spin"] = 3
+
+
+def _set_tags(atoms):
+    atoms.set_tags(1)
+
+
+def _set_pbc(atoms):
+    atoms.set_pbc(True)
+
+
+def _set_cell(atoms):
+    atoms.set_cell([10.0, 10.0, 10.0])
+
+
+def _set_constraint(atoms):
+    atoms.set_constraint(FixAtoms(indices=[0]))
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        _set_numbers,
+        _set_charge,
+        _set_spin,
+        _set_tags,
+        _set_pbc,
+        _set_cell,
+        _set_constraint,
+    ],
+    ids=["atomic_numbers", "charge", "spin", "tags", "pbc", "cell", "constraints"],
+)
+def test_frames_that_disagree_are_rejected(change):
+    """All frames must describe the same system: a last frame with different
+    atomic numbers, charge, spin, tags, pbc, cell or constraints raises."""
+    frames = read(str(IMAGES_DIR / "hard.xyz"), index=":")
+    change(frames[-1])
+    with pytest.raises(ValueError, match="All images must have the same"):
+        process_images(frames, device=torch.device("cpu"), dtype=torch.float64)
