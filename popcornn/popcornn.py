@@ -116,7 +116,8 @@ class _StageLogger:
         always populated.
         """
         wall = self.wall_s()
-        s_iter = wall / (it + 1)
+        # it = -1 after a stage with num_optimizer_iterations=0 (no iteration ran).
+        s_iter = wall / (it + 1) if it >= 0 else float("nan")
         line = (
             f"stage {self.stage_idx} done  iters={it + 1}  "
             f"time={wall:.1f}s  time/iter={s_iter:.4f}s  "

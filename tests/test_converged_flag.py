@@ -12,6 +12,7 @@ import logging
 import re
 
 import pytest
+import torch
 
 from popcornn import Popcornn
 
@@ -138,3 +139,23 @@ def test_init_logs_path_fit(capsys):
     assert screen[0] == "Beginning path initialization"
     assert re.fullmatch(r"Finished path initialization after \d+ iterations", screen[1])
     assert len(screen) == 2
+
+
+def test_zero_iteration_stage_returns_unconverged_and_keeps_path(
+    cheap_integrator_params,
+):
+    """A stage with num_optimizer_iterations=0 only runs the stage-end
+    diagnostic: it reports False and does not move the path."""
+    mep = Popcornn(
+        images=[[-0.558, 1.442], [0.623, 0.028]],
+        path_params={"name": "mlp", "width": 8, "depth": 2, "activation": "gelu"},
+        device="cpu",
+        dtype="float64",
+        quiet=True,
+    )
+    before = [p.detach().clone() for p in mep.path.parameters()]
+    assert mep.optimize_path(_stage(cheap_integrator_params, 0)) == [False]
+    assert all(
+        torch.equal(old, new)
+        for old, new in zip(before, mep.path.parameters(), strict=True)
+    )
