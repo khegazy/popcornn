@@ -24,7 +24,7 @@ Plans 05 and 06 cover features that are currently commented out of `PathOptimize
 - #93: Size of `tests_ongoing/`.
 - #94: Morse and harmonic return float64 energies in float32 runs. Test 02 exposes it.
 - #95: `get_schedulers` modifies its config dict, and `last_step=1` divides by zero. Relevant to test 05.
-- #96: `get_discrete_path()` returns `Atoms` without energies. Test 04 depends on how it's decided.
+- #96: `get_discrete_path()` returns `Atoms` without energies. Decided 2026-11-27: intended, and now documented; test 04 asserts nothing about those energies.
 - #97: padaquad reports convergence while the `pvre` gradient is still off by about 2%. This is why test 01 needs tight tolerances.
 
 ## How to run
