@@ -8,6 +8,7 @@ import pytest
 import torch
 from padaquad import adaptive_quadrature
 
+from popcornn import Popcornn
 from popcornn.tools import PathIntegrator
 from tests import IMAGES_DIR, TEST_SEED, starting_mesh
 
@@ -93,3 +94,35 @@ def test_no_test_reads_data_relative_to_the_working_directory():
         if relative.search(line)
     ]
     assert offenders == [], f"working-directory-relative data paths: {offenders}"
+
+
+def test_max_batch_passed_by_position_is_read_by_the_guard():
+    """The guard binds the constructor's signature, so max_batch passed by
+    position (the 9th argument) counts: None is refused, a pinned value is
+    accepted. A guard that only read keyword arguments would refuse both."""
+    positional = ("gk7", True, "pvre", None, None, 1e-2, 1e-2, "2")
+    with pytest.raises(RuntimeError, match="unpinned_max_batch"):
+        PathIntegrator(*positional, None)
+    PathIntegrator(*positional, 500)
+
+
+def test_unpinned_max_batch_is_refused_through_popcornn(cheap_integrator_params):
+    """Integrators that Popcornn builds from integrator_params are guarded too."""
+    mep = Popcornn(
+        images=[[-0.558, 1.442], [0.623, 0.028]],
+        path_params={"name": "mlp", "width": 8, "depth": 2},
+        device="cpu",
+        dtype="float64",
+        quiet=True,
+    )
+    integrator_params = {**cheap_integrator_params, "path_integrand_names": "pvre"}
+    del integrator_params["max_batch"]
+    with pytest.raises(RuntimeError, match="unpinned_max_batch"):
+        mep.optimize_path(
+            {
+                "potential_params": {"name": "muller_brown"},
+                "integrator_params": integrator_params,
+                "optimizer_params": {"optimizer": {"name": "adam", "lr": 1e-3}},
+                "num_optimizer_iterations": 1,
+            }
+        )

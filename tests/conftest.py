@@ -47,7 +47,9 @@ def _forbid_unpinned_max_batch():
     out of memory, and popcornn's per-point gradient needs memory that grows
     like the square of the batch (#89). The batch it settles on depends on the
     machine, and a different batch changes results at the rounding level.
-    Session scope also covers module- and session-scoped fixtures.
+    Session scope also covers module- and session-scoped fixtures, but not code
+    that runs while pytest collects tests (module level or a ``parametrize``
+    list): build integrators inside tests or fixtures.
     """
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(PathIntegrator, "__init__", _refuse_unpinned)
