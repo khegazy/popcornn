@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-import numpy as np
 import torch
 
+if TYPE_CHECKING:
+    import numpy as np
+
 logger = logging.getLogger(__name__)
+
+# ``initialize_path`` stops once ``loss_init`` (mean-squared displacement over all
+# image coordinates) is below this. Tests import it rather than copying the value.
+INIT_LOSS_THRESHOLD = 1e-8
 
 
 def randomly_initialize_path(
@@ -133,55 +140,44 @@ def initialize_path(
     lr : float, default=0.001
         Adam learning rate for the fit.
     max_steps : int, default=10000
-        Cap on fit iterations. The loop also exits early when the
-        loss drops below ``1e-8``.
+        Cap on Adam steps; 0 only evaluates the loss. The loss is
+        checked before each step and the fit stops as soon as it is
+        below ``INIT_LOSS_THRESHOLD``, so the returned path meets the
+        threshold whenever the fit converges. If the cap is reached
+        first, a WARNING is logged and the path is returned as is.
 
     Returns
     -------
     BasePath
         The fitted path (same object, mutated in place).
+
+    Raises
+    ------
+    ValueError
+        If ``max_steps`` is negative.
     """
+    if max_steps < 0:
+        msg = f"max_steps must be >= 0, got {max_steps}"
+        raise ValueError(msg)
     logger.info("Beginning path initialization")
-    loss, prev_loss = torch.tensor([2e-10]), torch.tensor([1e-10])
     optimizer = torch.optim.Adam(path.parameters(), lr=lr)
-    idx, rel_error = 0, 100
-    # while (idx < 1500 or loss > 1e-8) and idx < max_steps:
-    for idx in range(max_steps):
+    for n_steps in range(max_steps + 1):
         optimizer.zero_grad()
-
-        prev_loss = loss.item()
         loss = loss_init(path, times, init_points)
-
+        # Checked before stepping, so the path returned is the one that met it.
+        if loss.item() < INIT_LOSS_THRESHOLD:
+            break
+        if n_steps == max_steps:
+            logger.warning(
+                f"Path initialization did not converge after {max_steps} iterations: "
+                f"loss {loss.item():.3e} is not below {INIT_LOSS_THRESHOLD:g}"
+            )
+            break
         loss.backward()
         optimizer.step()
-        rel_error = np.abs(prev_loss - loss.item()) / prev_loss
-        # idx = idx + 1
-        if idx % 1000 == 0:
-            logger.debug(
-                f"\tIteration {idx}: Loss {loss:.4} | Relative Error {rel_error:.5}"
-            )
-        #     fig, ax = plt.subplots()
-        #     path_output = path.get_path()
-        #     geometric_path = path_output.geometric_path.detach().cpu().numpy()
-        #     ax.plot(init_points[:,0], init_points[:,1], 'ob')
-        #     ax.plot(geometric_path[:,0], geometric_path[:,1], '-k')
-        #     fig.savefig(f"./plots/initialization/init_path_{idx}.png")
-        # if rel_error < 1e-8:
-        #     break
-        if loss.item() < 1e-8:
-            break
-    else:
-        # raise ValueError(f"INFO: Maximum number of steps reached: {max_steps}")
-        pass
+        if n_steps % 1000 == 0:
+            logger.debug(f"\tIteration {n_steps}: Loss {loss.item():.4}")
 
-        # print(prev_loss, loss, jnp.abs(prev_loss - loss)/prev_loss)
-
-    logger.info(f"Finished path initialization after {idx} iterations")
-    # fig, ax = plt.subplots()
-    # path_output = path.get_path()
-    # geometric_path = path_output.geometric_path.detach().numpy()
-    # ax.plot(init_points[:,0], init_points[:,1], 'ob')
-    # ax.plot(geometric_path[:,0], geometric_path[:,1], '-k')
-    # fig.savefig("./plots/init_path.png")
-
+    # n_steps is the number of Adam steps taken.
+    logger.info(f"Finished path initialization after {n_steps} iterations")
     return path

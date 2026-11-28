@@ -10,9 +10,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 - `initial_mesh` in `integrator_params`: the starting mesh of each integral's first call (increasing times, for example `[[0.0], [0.3], [0.7], [1.0]]`, cut or extended to the integration bounds). Later calls start from the previous call's refined mesh as before. The default, `null`, keeps padaquad's random starting mesh, so a run then depends on the random seed and on how padaquad draws that mesh; a fixed mesh removes both. The test suite uses one.
 
+### Changed
+
+- `initialize_path`'s "Finished path initialization after N iterations" message counts the Adam steps taken; before, it showed one less than the steps taken whenever the fit took at least one step. Its DEBUG progress line no longer shows the relative change of the loss. A negative `max_steps` raises `ValueError`. The fit threshold is the module constant `popcornn.optimization.initialize_path.INIT_LOSS_THRESHOLD` (1e-8, unchanged).
+
 ### Fixed
 
 - `MorsePotential` and `HarmonicPotential` return energies in the configured `dtype`; in float32 runs they returned float64 energies (#94).
+- `initialize_path`, which `Popcornn` runs when given more than two images, no longer takes one more Adam step after its loss falls below the threshold, so it returns the path that met it. Before, that step could leave the path above the threshold (MSE up to 1.75e-8 against 1e-8 at the default width). Runs started from intermediate images therefore give slightly different paths.
+- `initialize_path` logs a WARNING when it reaches `max_steps` before its loss falls below the threshold; it returned silently (#91).
 
 ## [0.4.0] - 2026-11-26
 
