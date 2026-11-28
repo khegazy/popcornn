@@ -96,6 +96,8 @@ Re-checked on padaquad 2.0.0 and popcornn `e4a02f4` on 2026-11-26 unless marked.
    | `loss_atol=1e-8` | 1, 3, 9 | 429 (\|L − 2\| = 4.3e-6) |
    | `integrate_gradient=False`, `rtol=1e-4` (loss_atol ignored) | none | 0.67 of `rtol`·L |
 
+   **Superseded (2026-11-27).** This table did not reproduce with `starting_mesh(0..9)` at `PathIntegrator`'s other defaults (`gk7`, `max_iter=5`) on padaquad 2.0.0. The re-measured numbers are in `00_shared_context.md`, "Loss tolerance": at `1e-4` seed 5 is over (1.6×); at `1e-6` seeds 3, 4, 5 and 9 are over (up to 3.3×); at `1e-8` every seed is over (up to 150×), each with a non-convergence warning. The cause of the difference was not investigated (plan 01, Task 3).
+
 7. **Order dependence.**
    - **Full-suite audit (2026-11-16).** 16 test cases depend on test order, all in `test_paths.py`: the 12 MLP cases of `test_velocity` (never seeded) and the 4 MLP cases of `test_set_potential` (draw before their reseed at line 575). A per-test seed removes all 16.
    - **The rewritten `test_integrator_samples.py` (#103)** was re-audited on 2026-11-26: nothing flagged, 18 passed.
