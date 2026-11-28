@@ -1,19 +1,26 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-import numpy as np
 import torch
+
+if TYPE_CHECKING:
+    from popcornn.paths.base_path import BasePath
 
 logger = logging.getLogger(__name__)
 
+# ``initialize_path`` stops once ``loss_init`` (mean-squared displacement over all
+# image coordinates) is below this. Tests import it rather than copying the value.
+INIT_LOSS_THRESHOLD = 1e-8
+
 
 def randomly_initialize_path(
-    path: torch.tensor,
+    path: BasePath,
     n_points: int,
     order_points: bool = False,
     seed: int | None = None,
-) -> torch.Tensor | np.ndarray:
+) -> BasePath:
     """
     Initialize the path through randomly drawn intermediate points.
 
@@ -32,8 +39,8 @@ def randomly_initialize_path(
     order_points : bool, default=False
         If True, sort the random points along every dimension so the
         sampled chain is monotonic in each coordinate.
-    seed : int, default=1910
-        RNG seed.
+    seed : int, default=None
+        RNG seed. If None, the global RNG is not reseeded.
 
     Returns
     -------
@@ -88,7 +95,7 @@ def randomly_initialize_path(
 
 
 def loss_init(
-    path: torch.tensor, times: torch.tensor, positions: torch.tensor
+    path: BasePath, times: torch.Tensor, positions: torch.Tensor
 ) -> torch.Tensor:
     """
     Mean-squared displacement between path predictions and target points.
@@ -96,11 +103,16 @@ def loss_init(
     Used as the fitting loss in ``initialize_path``. For periodic
     systems, the displacement is wrapped under the minimum-image
     convention before squaring.
+
+    Raises
+    ------
+    ValueError
+        If the predictions and ``positions`` differ in shape.
     """
     preds = path(times).positions
-    assert preds.shape == positions.shape, (
-        f"Shapes do not match: {preds.shape} != {positions.shape}"
-    )
+    if preds.shape != positions.shape:
+        msg = f"Shapes do not match: {preds.shape} != {positions.shape}"
+        raise ValueError(msg)
     disp = positions - preds
     if path.transform is not None:
         disp = path.transform(disp, center=1.0)
@@ -108,12 +120,12 @@ def loss_init(
 
 
 def initialize_path(
-    path: torch.tensor,
-    times: torch.tensor,
-    init_points: torch.tensor,
+    path: BasePath,
+    times: torch.Tensor,
+    init_points: torch.Tensor,
     lr: float = 0.001,
     max_steps: int = 10000,  # 5000
-) -> torch.tensor:
+) -> BasePath:
     """
     Fit the path's parameters so it passes through given points at given times.
 
@@ -127,61 +139,60 @@ def initialize_path(
     path : BasePath
         Path to fit. Must have trainable parameters.
     times : torch.Tensor
-        Target times in [0, 1]; shape ``[N, 1]``.
+        Target times in [0, 1]; shape ``[N]`` or ``[N, 1]``.
     init_points : torch.Tensor
         Target positions; shape ``[N, D]``.
     lr : float, default=0.001
         Adam learning rate for the fit.
     max_steps : int, default=10000
-        Cap on fit iterations. The loop also exits early when the
-        loss drops below ``1e-8``.
+        Cap on Adam steps; 0 only evaluates the loss. The loss is
+        checked before each step and the fit stops as soon as it is
+        below ``INIT_LOSS_THRESHOLD``, so the returned path meets the
+        threshold whenever the fit converges. If the cap is reached
+        first, a WARNING is logged and the path is returned as is.
 
     Returns
     -------
     BasePath
         The fitted path (same object, mutated in place).
+
+    Raises
+    ------
+    ValueError
+        If ``max_steps`` is negative, if ``init_points`` does not match the
+        shape of the path's predictions at ``times``, or if the loss is NaN
+        or Inf (a NaN or Inf target or path output).
     """
+    if max_steps < 0:
+        msg = f"max_steps must be >= 0, got {max_steps}"
+        raise ValueError(msg)
     logger.info("Beginning path initialization")
-    loss, prev_loss = torch.tensor([2e-10]), torch.tensor([1e-10])
     optimizer = torch.optim.Adam(path.parameters(), lr=lr)
-    idx, rel_error = 0, 100
-    # while (idx < 1500 or loss > 1e-8) and idx < max_steps:
-    for idx in range(max_steps):
+    for n_steps in range(max_steps + 1):
         optimizer.zero_grad()
-
-        prev_loss = loss.item()
         loss = loss_init(path, times, init_points)
-
+        # NaN never passes the threshold check, so without this a NaN target would
+        # run every step and return NaN parameters.
+        if not torch.isfinite(loss):
+            msg = (
+                f"Path initialization loss is {loss.item()} at step {n_steps}; "
+                "check init_points and the path for NaN or Inf"
+            )
+            raise ValueError(msg)
+        # Checked before stepping, so the path returned is the one that met it.
+        if loss.item() < INIT_LOSS_THRESHOLD:
+            break
+        if n_steps == max_steps:
+            logger.warning(
+                f"Path initialization did not converge after {max_steps} iterations: "
+                f"loss {loss.item():.3e} is not below {INIT_LOSS_THRESHOLD:g}"
+            )
+            break
         loss.backward()
         optimizer.step()
-        rel_error = np.abs(prev_loss - loss.item()) / prev_loss
-        # idx = idx + 1
-        if idx % 1000 == 0:
-            logger.debug(
-                f"\tIteration {idx}: Loss {loss:.4} | Relative Error {rel_error:.5}"
-            )
-        #     fig, ax = plt.subplots()
-        #     path_output = path.get_path()
-        #     geometric_path = path_output.geometric_path.detach().cpu().numpy()
-        #     ax.plot(init_points[:,0], init_points[:,1], 'ob')
-        #     ax.plot(geometric_path[:,0], geometric_path[:,1], '-k')
-        #     fig.savefig(f"./plots/initialization/init_path_{idx}.png")
-        # if rel_error < 1e-8:
-        #     break
-        if loss.item() < 1e-8:
-            break
-    else:
-        # raise ValueError(f"INFO: Maximum number of steps reached: {max_steps}")
-        pass
+        if n_steps % 1000 == 0:
+            logger.debug(f"\tIteration {n_steps}: Loss {loss.item():.4}")
 
-        # print(prev_loss, loss, jnp.abs(prev_loss - loss)/prev_loss)
-
-    logger.info(f"Finished path initialization after {idx} iterations")
-    # fig, ax = plt.subplots()
-    # path_output = path.get_path()
-    # geometric_path = path_output.geometric_path.detach().numpy()
-    # ax.plot(init_points[:,0], init_points[:,1], 'ob')
-    # ax.plot(geometric_path[:,0], geometric_path[:,1], '-k')
-    # fig.savefig("./plots/init_path.png")
-
+    # n_steps is the number of Adam steps taken.
+    logger.info(f"Finished path initialization after {n_steps} iterations")
     return path

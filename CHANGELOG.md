@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-11-28
+
+Expands the test suite (exact path-integral and gradient references, Morse and harmonic references, `initialize_path`, an atomic end-to-end run, and shared test infrastructure), adds `initial_mesh`, and fixes the bugs those tests found.
+
+### Added
+
+- `initial_mesh` in `integrator_params`: the starting mesh of each integral's first call (increasing times, for example `[[0.0], [0.3], [0.7], [1.0]]`, cut or extended to the integration bounds). Later calls start from the previous call's refined mesh as before. The default, `null`, keeps padaquad's random starting mesh, so a run then depends on the random seed and on how padaquad draws that mesh; a fixed mesh removes both. The test suite uses one.
+
+### Changed
+
+- `initialize_path`'s "Finished path initialization after N iterations" message counts the Adam steps taken; before, it showed one less than the steps taken whenever the fit took at least one step. Its DEBUG progress line no longer shows the relative change of the loss. A negative `max_steps` raises `ValueError`. The fit threshold is the module constant `popcornn.optimization.initialize_path.INIT_LOSS_THRESHOLD` (1e-8, unchanged).
+- `initialize_path` raises `ValueError` when its loss is NaN or Inf (a NaN or Inf target or path output); before, it ran all `max_steps` steps and returned NaN parameters with only a warning. Targets whose shape differs from the path's predictions also raise `ValueError` instead of `AssertionError`.
+- `process_images` raises `ValueError` when the frames differ in shape, atomic numbers, pbc, cell, constraints, tags, charge or spin. Its checks could never fail before (`np.all` of a generator is always true), so such input was accepted and the first frame's values were used.
+
+### Fixed
+
+- `MorsePotential` and `HarmonicPotential` return energies in the configured `dtype`; in float32 runs they returned float64 energies (#94).
+- `initialize_path`, which `Popcornn` runs when given more than two images, no longer takes one more Adam step after its loss falls below the threshold, so it returns the path that met it. Before, that step could leave the path above the threshold (in a 60-seed sweep at the default width, 3 runs ended above 1e-8, the worst at 1.75e-8). Runs started from intermediate images therefore give slightly different paths.
+- `initialize_path` logs a WARNING when it reaches `max_steps` before its loss falls below the threshold; it returned silently (#91).
+- Frames returned by `get_discrete_path()` and `get_ts()` for an input with fixed atoms carry the input's `FixAtoms` indices. They were built from the per-coordinate mask, so atom i became indices 3i to 3i+2, and writing such a frame (for example to extxyz, as `examples/run.py` does) raised `IndexError`. The optimization itself was not affected.
+- A stage with `num_optimizer_iterations: 0` no longer raises `ZeroDivisionError` in its stage-end log line; it runs only the stage-end diagnostic and reports `time/iter=nan`.
+
 ## [0.4.0] - 2026-11-26
 
 Moves to padaquad 2.0.0, which no longer keeps a warm-start mesh and batch size on its solver and no longer runs a memory benchmark. popcornn now passes each solver's state from one integration to the next itself.

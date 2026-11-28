@@ -9,45 +9,34 @@ paying for any extra path forwards.
 
 from __future__ import annotations
 
-from pathlib import Path
+import inspect
 
 import pytest
 import torch
 
-from popcornn.paths import get_path
-from popcornn.potentials import get_potential
-from popcornn.tools import PathIntegrator, SamplesCache, process_images
+from popcornn.tools import PathIntegrator, SamplesCache
 from popcornn.tools.integrand import evaluate_integrand_sum
+from tests import CHEAP_TOLERANCES, IMAGES_DIR, TEST_SEED, make_path, starting_mesh
 
 
 @pytest.fixture
 def muller_brown_setup():
-    torch.manual_seed(0)
     device = torch.device("cpu")
     dtype = torch.float64
-    images = process_images(
-        str(Path(__file__).parent / "images" / "muller_brown.json"),
-        device=device,
-        dtype=dtype,
+    path = make_path(
+        str(IMAGES_DIR / "muller_brown.json"), "muller_brown", device, dtype
     )
-    path = get_path("mlp", images=images, device=device, dtype=dtype)
-    potential = get_potential(
-        "muller_brown",
-        images=images,
-        device=device,
-        dtype=dtype,
-    )
-    path.set_potential(potential)
     return path, device, dtype
 
 
-def test_track_ts_aligned_with_quadrature_mesh(muller_brown_setup):
+def test_track_ts_aligned_with_quadrature_mesh(
+    muller_brown_setup, cheap_integrator_params
+):
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(
+        **cheap_integrator_params,
         method="gk21",
         path_integrand_names="pvre",
-        rtol=1e-2,
-        atol=1e-2,
         track_ts=True,
         device=device,
         dtype=dtype,
@@ -78,13 +67,12 @@ def test_track_ts_aligned_with_quadrature_mesh(muller_brown_setup):
     assert torch.isfinite(out.samples.dEdt).all()
 
 
-def test_track_ts_off_yields_none(muller_brown_setup):
+def test_track_ts_off_yields_none(muller_brown_setup, cheap_integrator_params):
     path, device, dtype = muller_brown_setup
     integrator = PathIntegrator(
+        **cheap_integrator_params,
         method="gk21",
         path_integrand_names="pvre",
-        rtol=1e-2,
-        atol=1e-2,
         track_ts=False,
         device=device,
         dtype=dtype,
@@ -96,8 +84,8 @@ def test_track_ts_off_yields_none(muller_brown_setup):
 
 def _record_integrate_calls(monkeypatch, integrator):
     """Wrap both padaquad solvers' ``integrate`` to record, per call, the
-    ``state`` passed and the state returned. Returns
-    ``{"main": [...], "loss": [...]}`` of ``(state_in, state_out)``."""
+    ``state`` passed, the state returned and the ``mesh`` passed. Returns
+    ``{"main": [...], "loss": [...]}`` of ``(state_in, state_out, mesh_in)``."""
     calls = {"main": [], "loss": []}
     for name, solver in (
         ("main", integrator._solver),
@@ -106,7 +94,7 @@ def _record_integrate_calls(monkeypatch, integrator):
 
         def recording(*args, _integrate=solver.integrate, _name=name, **kwargs):
             result, state = _integrate(*args, **kwargs)
-            calls[_name].append((kwargs["state"], state))
+            calls[_name].append((kwargs["state"], state, kwargs.get("mesh")))
             return result, state
 
         monkeypatch.setattr(solver, "integrate", recording)
@@ -119,14 +107,21 @@ def _record_integrate_calls(monkeypatch, integrator):
 _WARM_START_PARAMS = {
     "method": "gk21",
     "path_integrand_names": "pvre",
-    "rtol": 1e-2,
-    "atol": 1e-2,
+    **CHEAP_TOLERANCES,
     "max_batch": 400,
     "track_loss": True,
+    "runtime_checks": True,  # tests raise on NaN/Inf (popcornn's default is False)
+    "initial_mesh": starting_mesh(TEST_SEED),  # no random starting mesh
 }
 
 
-@pytest.mark.parametrize("max_batch", [400, None], ids=["pinned", "found"])
+@pytest.mark.parametrize(
+    "max_batch",
+    [
+        pytest.param(400, id="pinned"),
+        pytest.param(None, id="found", marks=pytest.mark.unpinned_max_batch),
+    ],
+)
 def test_warm_start_passes_previous_state(muller_brown_setup, monkeypatch, max_batch):
     """Each call starts from the state its own solver returned last (mesh and
     batch size); the first call of each solver starts from none, so the loss
@@ -145,7 +140,7 @@ def test_warm_start_passes_previous_state(muller_brown_setup, monkeypatch, max_b
 
     assert torch.isfinite(out.integral).all()
     for name in ("main", "loss"):
-        (state_in_1, state_out_1), (state_in_2, _) = calls[name]
+        (state_in_1, state_out_1, _), (state_in_2, _, _) = calls[name]
         assert state_in_1 is None
         assert state_in_2 is state_out_1
         if max_batch is None:
@@ -154,6 +149,39 @@ def test_warm_start_passes_previous_state(muller_brown_setup, monkeypatch, max_b
             assert state_out_1.max_batch == max_batch
     assert integrator._state is calls["main"][1][1]
     assert integrator._loss_state is calls["loss"][1][1]
+
+
+def test_initial_mesh_is_used_without_random_draws(
+    muller_brown_setup, monkeypatch, cheap_integrator_params
+):
+    """With ``initial_mesh``, each solver's first call starts from that mesh
+    instead of a random one, so ``integrate_path`` draws no random numbers and
+    results do not depend on how padaquad draws its starting mesh. Later calls
+    start from the state, as before (padaquad takes ``mesh`` or ``state``, not
+    both)."""
+    path, device, dtype = muller_brown_setup
+    mesh = starting_mesh(0)
+    integrator = PathIntegrator(
+        **{**cheap_integrator_params, "initial_mesh": mesh},
+        method="gk21",
+        path_integrand_names="pvre",
+        track_loss=True,
+        device=device,
+        dtype=dtype,
+    )
+    calls = _record_integrate_calls(monkeypatch, integrator)
+
+    rng_before = torch.random.get_rng_state()
+    integrator.integrate_path(path)
+    integrator.integrate_path(path)
+    assert torch.equal(torch.random.get_rng_state(), rng_before)
+
+    for name in ("main", "loss"):
+        (state_in_1, state_out_1, mesh_in_1), (state_in_2, _, mesh_in_2) = calls[name]
+        assert state_in_1 is None
+        assert torch.equal(mesh_in_1.cpu(), mesh.to(dtype))
+        assert state_in_2 is state_out_1
+        assert mesh_in_2 is None
 
 
 @pytest.mark.parametrize(
@@ -172,15 +200,13 @@ def test_bounds_relative_to_previous_mesh(
     integrator = PathIntegrator(**_WARM_START_PARAMS, device=device, dtype=dtype)
     calls = _record_integrate_calls(monkeypatch, integrator)
 
-    torch.manual_seed(0)
     integrator.integrate_path(path, t_final=first_final)
     out = integrator.integrate_path(path, t_final=second_final)
 
-    (_, first_state), (state_2, second_state) = calls["main"]
+    (_, first_state, _), (state_2, second_state, _) = calls["main"]
     assert state_2 is first_state
     assert second_state.mesh[-1].item() == second_final
 
-    torch.manual_seed(0)
     fresh = PathIntegrator(**_WARM_START_PARAMS, device=device, dtype=dtype)
     expected = fresh.integrate_path(path, t_final=second_final)
     # padaquad bounds each panel's estimated error in the L2 norm (norm="2") by
@@ -188,10 +214,11 @@ def test_bounds_relative_to_previous_mesh(
     # whole vector in that norm, not element by element (small components carry
     # large relative errors). The bound is per panel, not on the total, and
     # max_iter can accept a panel that misses it, so no tolerance follows from
-    # it: 5e-2 is an empirical margin. Measured 2026-11-17 on CPU, seeds 0-5 for
-    # the meshes (this test uses 0): relative L2 difference at most 7.1e-3
-    # (extend) and 2.5e-6 (cut). Both runs are seeded, so the result is
-    # deterministic on a given machine.
+    # it: 5e-2 is an empirical margin. Measured 2026-11-27 on CPU (padaquad
+    # 2.0.0) over the starting meshes starting_mesh(0..5) (this test uses
+    # TEST_SEED = 0): relative L2 difference at most 7.1e-3 (extend) and
+    # 2.1e-6 (cut). Both runs start from the same fixed mesh, so the result
+    # is deterministic on a given machine.
     diff = (out.grad_integral - expected.grad_integral).norm()
     assert diff <= 5e-2 * expected.grad_integral.norm()
 
@@ -241,11 +268,12 @@ def test_oom_batch_reduction_persists(
     integrator = PathIntegrator(
         method="gk21",
         path_integrand_names="pvre",
-        rtol=1e-2,
-        atol=1e-2,
+        **CHEAP_TOLERANCES,
         max_batch=400,
         integrate_gradient=integrate_gradient,
         track_loss=True,
+        runtime_checks=True,  # tests raise on NaN/Inf (popcornn's default is False)
+        initial_mesh=starting_mesh(TEST_SEED),  # no random starting mesh
         device=device,
         dtype=dtype,
     )
@@ -298,17 +326,17 @@ def test_memory_options_leave_results_unchanged(muller_brown_setup, memory_optio
     params = {
         "method": "gk21",
         "path_integrand_names": "pvre",
-        "rtol": 1e-2,
-        "atol": 1e-2,
+        **CHEAP_TOLERANCES,
         "max_batch": 46,
         "track_loss": True,
         "track_ts": True,
+        # runtime_checks stays at popcornn's default (False): one case compares it with True.
+        "initial_mesh": starting_mesh(TEST_SEED),  # both runs start from the same mesh
         "device": device,
         "dtype": dtype,
     }
     runs = []
     for options in ({}, memory_options):
-        torch.manual_seed(0)  # the first mesh is random
         integrator = PathIntegrator(**(params | options))
         runs.append([integrator.integrate_path(path) for _ in range(2)])
     if "track_ts" in memory_options:
@@ -346,8 +374,83 @@ def test_device_and_runtime_checks_reach_padaquad(monkeypatch, runtime_checks):
     given = {} if runtime_checks is None else {"runtime_checks": runtime_checks}
     PathIntegrator(
         path_integrand_names="pvre",
+        max_batch=500,  # never integrates; pinned only for the conftest guard
+        # runtime_checks is not given here: the test checks popcornn's default.
         device=torch.device("cuda", 1),
         dtype=torch.float64,
         **given,
     )
     assert calls == [(torch.device("cuda", 1), bool(runtime_checks))] * 2
+
+
+def test_init_arguments_keep_their_0_4_0_positions():
+    """``initial_mesh`` (added after 0.4.0) comes last, so code that passes
+    0.4.0's arguments by position still binds them to the same parameters."""
+    released_0_4_0 = [
+        "method",
+        "integrate_gradient",
+        "path_integrand_names",
+        "path_integrand_scales",
+        "path_integrand_kwargs",
+        "rtol",
+        "atol",
+        "norm",
+        "max_batch",
+        "trade_speed_for_memory",
+        "evaluation_buffer",
+        "result_device",
+        "record_evaluations",
+        "runtime_checks",
+        "max_iter",
+        "track_loss",
+        "loss_rtol",
+        "loss_atol",
+        "track_ts",
+        "device",
+        "dtype",
+    ]
+    names = list(inspect.signature(PathIntegrator).parameters)
+    assert names == [*released_0_4_0, "initial_mesh"]
+
+
+@pytest.mark.parametrize(
+    "mesh",
+    [starting_mesh(0), [[0], [1]]],
+    ids=["float64_tensor", "integer_list"],
+)
+def test_initial_mesh_follows_the_default_dtype_when_dtype_is_none(mesh):
+    """With ``dtype=None`` the bounds come out in torch's default dtype, so the
+    mesh must too: a float64 mesh would make padaquad integrate a float32 path
+    in float64, and an integer list is not a valid padaquad mesh at all."""
+    path = make_path(
+        str(IMAGES_DIR / "muller_brown.json"),
+        "muller_brown",
+        torch.device("cpu"),
+        torch.float32,
+    )
+    integrator = PathIntegrator(
+        path_integrand_names="pvre",
+        **CHEAP_TOLERANCES,
+        max_batch=500,
+        runtime_checks=True,
+        initial_mesh=mesh,
+        device=torch.device("cpu"),
+    )
+    out = integrator.integrate_path(path)
+    assert torch.isfinite(out.integral).all()
+
+
+def test_initial_mesh_is_copied():
+    """The integrator keeps its own copy, so changing the caller's tensor later
+    (or sharing one tensor between integrators) cannot change its mesh."""
+    mesh = starting_mesh(0)
+    original = mesh.clone()
+    integrator = PathIntegrator(
+        path_integrand_names="pvre",
+        max_batch=500,
+        initial_mesh=mesh,
+        device=torch.device("cpu"),
+        dtype=torch.float64,
+    )
+    mesh[1] = 0.5
+    assert torch.equal(integrator.initial_mesh, original)

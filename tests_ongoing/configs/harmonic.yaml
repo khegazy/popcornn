@@ -1,5 +1,5 @@
 initialization_params:
-  images: configs/xyz/hard.xyz
+  images: ../tests/images/hard.xyz
   path_params: 
     name: mlp
     n_embed: 1

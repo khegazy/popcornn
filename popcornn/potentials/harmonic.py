@@ -61,7 +61,9 @@ class HarmonicPotential(BasePotential):
         Set the r0_ij values for the potential
         """
         radii = torch.tensor(
-            [covalent_radii[n] for n in atomic_numbers], device=self.device
+            [covalent_radii[n] for n in atomic_numbers],
+            device=self.device,
+            dtype=self.dtype,
         )
         r0 = radii.view(-1, 1) + radii.view(1, -1)
         self.ind = torch.triu_indices(

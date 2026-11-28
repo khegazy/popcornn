@@ -14,8 +14,7 @@ import torch
 from popcornn import Popcornn
 
 
-def test_optimize_path_returns_ts_image():
-    torch.manual_seed(0)
+def test_optimize_path_returns_ts_image(cheap_integrator_params):
     mep = Popcornn(
         images=[[-0.558, 1.442], [0.623, 0.028]],
         path_params={
@@ -31,9 +30,8 @@ def test_optimize_path_returns_ts_image():
         {
             "potential_params": {"name": "muller_brown"},
             "integrator_params": {
+                **cheap_integrator_params,
                 "path_integrand_names": "pvre",
-                "rtol": 1e-2,
-                "atol": 1e-2,
             },
             "optimizer_params": {
                 "optimizer": {"name": "adam", "lr": 1e-3},

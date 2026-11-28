@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 import pytest
 import torch
 from ase.calculators.calculator import Calculator
 from ase.calculators.lj import LennardJones
+from ase.calculators.morse import MorsePotential
 from ase.data import covalent_radii
 from ase.io import read
 from ase.mep import interpolate
@@ -16,18 +17,14 @@ from fairchem.core import FAIRChemCalculator, pretrained_mlip
 from popcornn.paths import get_path
 from popcornn.potentials import get_potential
 from popcornn.tools import process_images
+from tests import IMAGES_DIR, REFERENCE_TOL
+
+if TYPE_CHECKING:
+    from ase import Atoms
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [torch.float32, torch.float64],
-)
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_sphere(dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
-    images = process_images("tests/images/sphere.json", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "sphere.json"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential("sphere", images=images, device=device, dtype=dtype)
 
@@ -62,17 +59,9 @@ def test_sphere(dtype, device):
     assert potential_output.forces_decomposed is None
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [torch.float32, torch.float64],
-)
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_muller_brown(dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     images = process_images(
-        "tests/images/muller_brown.json", device=device, dtype=dtype
+        str(IMAGES_DIR / "muller_brown.json"), device=device, dtype=dtype
     )
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential("muller_brown", images=images, device=device, dtype=dtype)
@@ -118,16 +107,8 @@ def test_muller_brown(dtype, device):
     assert potential_output.forces_decomposed is None
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [torch.float32, torch.float64],
-)
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_wolfe(dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
-    images = process_images("tests/images/wolfe.json", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "wolfe.json"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
         "wolfe_schlegel", images=images, device=device, dtype=dtype
@@ -174,20 +155,12 @@ def test_wolfe(dtype, device):
     assert potential_output.forces_decomposed is None
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [torch.float32, torch.float64],
-)
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_lennard_jones(dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
-    raw_images = [read("tests/images/LJ13.xyz", index=i) for i in (0, 1, 1)]
+    raw_images = [read(str(IMAGES_DIR / "LJ13.xyz"), index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = LennardJones()
-    images = process_images("tests/images/LJ13.xyz", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "LJ13.xyz"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
         "lennard_jones", cutoff=3.0, images=images, device=device, dtype=dtype
@@ -245,11 +218,11 @@ def test_lennard_jones(dtype, device):
     assert potential_output.forces_decomposed.grad_fn is not None
 
     pytest.skip("Switching the full radius graph to minimal image convention")
-    raw_images = [read("tests/images/LJ35.xyz", index=i) for i in (0, 1, 1)]
+    raw_images = [read(str(IMAGES_DIR / "LJ35.xyz"), index=i) for i in (0, 1, 1)]
     interpolate(raw_images, mic=True)
     for image in raw_images:
         image.calc = LennardJones()
-    images = process_images("tests/images/LJ35.xyz", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "LJ35.xyz"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
         "lennard_jones", cutoff=3.0, images=images, device=device, dtype=dtype
@@ -307,15 +280,7 @@ def test_lennard_jones(dtype, device):
     assert potential_output.forces_decomposed.grad_fn is not None
 
 
-@pytest.mark.parametrize(
-    "dtype",
-    [torch.float32, torch.float64],
-)
-@pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
 def test_repel(dtype, device):
-    if device.type == "cuda" and not torch.cuda.is_available():
-        pytest.skip(reason="CUDA is not available, skipping test.")
-
     class RepelCalculator(Calculator):
         """
         Revised from ASE LennardJones Calculator to use the repulsive potential
@@ -372,11 +337,11 @@ def test_repel(dtype, device):
             self.results["energy"] = energy
             self.results["forces"] = forces
 
-    raw_images = [read("tests/images/LJ13.xyz", index=i) for i in (0, 1, 1)]
+    raw_images = [read(str(IMAGES_DIR / "LJ13.xyz"), index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = RepelCalculator()
-    images = process_images("tests/images/LJ13.xyz", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "LJ13.xyz"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
         "repel", cutoff=3.0, images=images, device=device, dtype=dtype
@@ -434,11 +399,11 @@ def test_repel(dtype, device):
     assert potential_output.forces_decomposed.grad_fn is not None
 
     pytest.skip("Switching the full radius graph to minimal image convention")
-    raw_images = [read("tests/images/LJ35.xyz", index=i) for i in (0, 1, 1)]
+    raw_images = [read(str(IMAGES_DIR / "LJ35.xyz"), index=i) for i in (0, 1, 1)]
     interpolate(raw_images, mic=True)
     for image in raw_images:
         image.calc = RepelCalculator()
-    images = process_images("tests/images/LJ35.xyz", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "LJ35.xyz"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
         "repel", cutoff=3.0, images=images, device=device, dtype=dtype
@@ -496,12 +461,194 @@ def test_repel(dtype, device):
     assert potential_output.forces_decomposed.grad_fn is not None
 
 
+def pair_reference(
+    atoms: Atoms, name: str, params: dict[str, float]
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-pair energies and forces of popcornn's ``morse`` and ``harmonic``
+    potentials, by an explicit loop over atom pairs.
+
+    Pair energies, with :math:`r_0 = R^{cov}_i + R^{cov}_j` the sum of covalent
+    radii from ``ase.data.covalent_radii`` (Cordero et al., 2008, Dalton Trans.,
+    2832-2838, https://doi.org/10.1039/B801115J):
+
+    - morse: :math:`E_{ij} = (1 - e^{-\\alpha (r_{ij} - r_0)})^2 - 1`, the Morse
+      potential (P. M. Morse, 1929, Phys. Rev. 34, 57,
+      https://doi.org/10.1103/PhysRev.34.57) with unit well depth, shifted by
+      -1 so that the energy vanishes at large separation;
+    - harmonic: :math:`E_{ij} = (r_{ij} - r_0)^2 \\,\\sigma((r_{max} - r_{ij}) / skin)`,
+      with :math:`\\sigma` the logistic sigmoid.
+
+    Forces use the hand-derived :math:`dE/dr` (independent of autograd):
+    morse :math:`2(1 - x)\\alpha x` with :math:`x = e^{-\\alpha (r - r_0)}`;
+    harmonic :math:`2(r - r_0)\\sigma + (r - r_0)^2 \\sigma'` with
+    :math:`\\sigma' = -\\sigma(1 - \\sigma) / skin`.
+
+    Plain Cartesian distances: non-periodic systems only.
+
+    Parameters
+    ----------
+    atoms : Atoms
+        A non-periodic structure.
+    name : str
+        ``"morse"`` or ``"harmonic"``.
+    params : dict[str, float]
+        Exactly ``{"alpha"}`` for morse, or ``{"r_max", "skin"}`` for harmonic.
+        Every key is required, so the expected values are pinned by the caller.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        Per-pair energies, shape ``(n_pairs,)``, and per-pair forces, shape
+        ``(n_pairs, 3 * n_atoms)``, with pairs ordered i < j, i outer (the
+        order of ``torch.triu_indices(n, n, offset=1)``).
+    """
+    required = {"morse": {"alpha"}, "harmonic": {"r_max", "skin"}}
+    if atoms.pbc.any():
+        msg = "pair_reference uses plain Cartesian distances; got a periodic system."
+        raise ValueError(msg)
+    if name not in required:
+        msg = f"Unknown pair potential {name!r}; expected one of {sorted(required)}."
+        raise ValueError(msg)
+    if set(params) != required[name]:
+        msg = f"{name} needs exactly {sorted(required[name])}, got {sorted(params)}."
+        raise ValueError(msg)
+
+    positions = atoms.positions
+    n_atoms = len(atoms)
+    pair_energies, pair_forces = [], []
+    for i in range(n_atoms):
+        for j in range(i + 1, n_atoms):
+            r0 = covalent_radii[atoms.numbers[i]] + covalent_radii[atoms.numbers[j]]
+            d = positions[i] - positions[j]
+            r = np.linalg.norm(d)
+            if name == "morse":
+                x = np.exp(-params["alpha"] * (r - r0))
+                energy = (1 - x) ** 2 - 1
+                de_dr = 2 * (1 - x) * params["alpha"] * x
+            elif name == "harmonic":
+                s = 1 / (1 + np.exp(-(params["r_max"] - r) / params["skin"]))
+                energy = (r - r0) ** 2 * s
+                de_dr = 2 * (r - r0) * s - (r - r0) ** 2 * s * (1 - s) / params["skin"]
+            force = np.zeros((n_atoms, 3))
+            force[i] = -de_dr * d / r
+            force[j] = de_dr * d / r
+            pair_energies.append(energy)
+            pair_forces.append(force.ravel())
+    return np.array(pair_energies), np.array(pair_forces)
+
+
+@pytest.mark.parametrize("system", ["LJ13.xyz", "T1x.xyz"])
 @pytest.mark.parametrize(
-    "dtype",
-    [torch.float32, torch.float64],
+    ("name", "params", "reference_params"),
+    [
+        # `params` goes to popcornn; `reference_params` pins the values the reference
+        # must use. The default cases pass {} to popcornn, so they also pin the
+        # documented defaults.
+        pytest.param("morse", {}, {"alpha": 2.0}, id="morse-default"),
+        pytest.param("morse", {"alpha": 1.3}, {"alpha": 1.3}, id="morse-alpha1.3"),
+        pytest.param(
+            "harmonic", {}, {"r_max": 1.5, "skin": 0.1}, id="harmonic-default"
+        ),
+        pytest.param(
+            "harmonic",
+            {"r_max": 2.0, "skin": 0.2},
+            {"r_max": 2.0, "skin": 0.2},
+            id="harmonic-rmax2-skin0.2",
+        ),
+    ],
 )
+def test_pair_potentials(name, params, reference_params, system, dtype, device):
+    """Morse and harmonic energies and forces, totals and per pair, against
+    ``pair_reference``; Morse totals also against ASE where it applies.
+
+    T1x (C3H8O2) is needed besides LJ13: all LJ13 pairs share one r0, so a
+    mismatch between pairs and their r0 would pass on LJ13 alone.
+    """
+    data = str(IMAGES_DIR / system)
+    raw_images = [read(data, index=i) for i in (0, 1, 1)]
+    interpolate(raw_images)
+    references = [pair_reference(image, name, reference_params) for image in raw_images]
+    energies_decomposed_ref = torch.tensor(
+        np.stack([e for e, _ in references]), device=device, dtype=dtype
+    )
+    forces_decomposed_ref = torch.tensor(
+        np.stack([f for _, f in references]), device=device, dtype=dtype
+    )
+
+    images = process_images(data, device=device, dtype=dtype)
+    path = get_path("linear", images=images, device=device, dtype=dtype)
+    potential = get_potential(name, images=images, device=device, dtype=dtype, **params)
+    output = potential(
+        path(
+            torch.tensor(
+                [0.0, 0.5, 1.0], requires_grad=True, device=device, dtype=dtype
+            )
+        ).positions
+    )
+
+    n_atoms = len(raw_images[0])
+    n_pairs = n_atoms * (n_atoms - 1) // 2
+    expected = {
+        "energies": energies_decomposed_ref.sum(dim=-1, keepdim=True),
+        "energies_decomposed": energies_decomposed_ref,
+        "forces": forces_decomposed_ref.sum(dim=-2),
+        "forces_decomposed": forces_decomposed_ref,
+    }
+    expected_shapes = {
+        "energies": (3, 1),
+        "energies_decomposed": (3, n_pairs),
+        "forces": (3, 3 * n_atoms),
+        "forces_decomposed": (3, n_pairs, 3 * n_atoms),
+    }
+    for field, reference in expected.items():
+        tensor = getattr(output, field)
+        assert tensor.shape == expected_shapes[field], field
+        assert tensor.device.type == device.type, field
+        assert tensor.dtype == dtype, field
+        assert tensor.grad_fn is not None, field
+        torch.testing.assert_close(
+            tensor,
+            reference,
+            rtol=0.0,
+            atol=REFERENCE_TOL[dtype] * reference.abs().max().item(),
+            msg=lambda m, field=field: f"{field}: {m}",
+        )
+
+    # Ties the Morse formula to third-party code (ASE), where ASE applies: one element.
+    # ASE's pair energy eps*e^{rho0(1-d/r0)}(e^{rho0(1-d/r0)}-2) equals the Morse E_ij
+    # above when eps=1 and rho0=alpha*r0. rcut1 and rcut2 are in units of r0 and are
+    # set out of range, so ASE's smooth cutoff never acts.
+    if name == "morse" and len(set(raw_images[0].numbers)) == 1:
+        r0 = 2 * covalent_radii[raw_images[0].numbers[0]]
+        ase_morse = MorsePotential(
+            epsilon=1.0,
+            rho0=reference_params["alpha"] * r0,
+            r0=r0,
+            rcut1=100.0,
+            rcut2=101.0,
+        )
+        ase_energies, ase_forces = [], []
+        for image in raw_images:
+            image.calc = ase_morse
+            ase_energies.append([image.get_potential_energy()])
+            ase_forces.append(image.get_forces().flatten())
+        for tensor, ase_values in (
+            (output.energies, ase_energies),
+            (output.forces, ase_forces),
+        ):
+            reference = torch.tensor(np.array(ase_values), device=device, dtype=dtype)
+            torch.testing.assert_close(
+                tensor,
+                reference,
+                rtol=0.0,
+                atol=REFERENCE_TOL[dtype] * reference.abs().max().item(),
+            )
+
+
 @pytest.mark.parametrize(
-    "device", [torch.device("cpu"), torch.device("cuda"), torch.device("cuda", 1)]
+    "device",
+    [torch.device("cpu"), torch.device("cuda"), torch.device("cuda", 1)],
+    ids=["cpu", "cuda", "cuda1"],
 )
 def test_uma(dtype, device):
     pytest.skip(reason="Give github an UMA license")
@@ -511,14 +658,14 @@ def test_uma(dtype, device):
     # if dtype == torch.float64:
     #     pytest.skip("UMA potential is not supported for float64 due to precision issues.")
 
-    raw_images = [read("tests/images/T1x.xyz", index=i) for i in (0, 1, 1)]
+    raw_images = [read(str(IMAGES_DIR / "T1x.xyz"), index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = FAIRChemCalculator(
             pretrained_mlip.get_predict_unit("uma-s-1", device=device.type),
             task_name="omol",
         )
-    images = process_images("tests/images/T1x.xyz", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "T1x.xyz"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
         "uma",
@@ -562,14 +709,14 @@ def test_uma(dtype, device):
     (grad_t,) = torch.autograd.grad(potential_output.energies.sum(), t)
     assert grad_t.device == positions.device
 
-    raw_images = [read("tests/images/OC20NEB.xyz", index=i) for i in (0, 1, 1)]
+    raw_images = [read(str(IMAGES_DIR / "OC20NEB.xyz"), index=i) for i in (0, 1, 1)]
     interpolate(raw_images)
     for image in raw_images:
         image.calc = FAIRChemCalculator(
             pretrained_mlip.get_predict_unit("uma-s-1", device=device.type),
             task_name="oc20",
         )
-    images = process_images("tests/images/OC20NEB.xyz", device=device, dtype=dtype)
+    images = process_images(str(IMAGES_DIR / "OC20NEB.xyz"), device=device, dtype=dtype)
     path = get_path("linear", images=images, device=device, dtype=dtype)
     potential = get_potential(
         "uma",

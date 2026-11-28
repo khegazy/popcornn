@@ -116,7 +116,8 @@ class _StageLogger:
         always populated.
         """
         wall = self.wall_s()
-        s_iter = wall / (it + 1)
+        # it = -1 after a stage with num_optimizer_iterations=0 (no iteration ran).
+        s_iter = wall / (it + 1) if it >= 0 else float("nan")
         line = (
             f"stage {self.stage_idx} done  iters={it + 1}  "
             f"time={wall:.1f}s  time/iter={s_iter:.4f}s  "
@@ -344,6 +345,12 @@ class Popcornn:
 
         ``num_record_points`` defaults to ``self.num_record_points``
         (set by the constructor).
+
+        The points carry positions only. The path is not evaluated on a
+        potential here, so the returned ``Atoms`` have no energies or
+        forces and ``get_potential_energy()`` raises
+        ``PropertyNotImplementedError``. ``get_ts()`` returns the
+        transition state with its energy and forces.
         """
         if num_record_points is None:
             num_record_points = self.num_record_points

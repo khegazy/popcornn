@@ -39,8 +39,14 @@ def output_to_atoms(output, ref_images):
             else None,
             pbc=ref_images.pbc.detach().cpu().numpy(),
             cell=ref_images.cell.detach().cpu().numpy(),
+            # fix_positions is per coordinate (3N); FixAtoms wants one entry per
+            # atom. process_images only accepts FixAtoms, which fixes whole rows.
             constraint=ase.constraints.FixAtoms(
-                mask=ref_images.fix_positions.detach().cpu().numpy()
+                mask=ref_images.fix_positions.reshape(n_atoms, 3)
+                .all(dim=1)
+                .detach()
+                .cpu()
+                .numpy()
             ),
             tags=ref_images.tags.detach().cpu().numpy(),
             info={"charge": ref_images.charge.item(), "spin": ref_images.spin.item()},
