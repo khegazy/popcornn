@@ -26,10 +26,8 @@ import pytest
 import torch
 
 from popcornn import Popcornn
-from popcornn.paths import get_path
-from popcornn.potentials import get_potential
-from popcornn.tools import PathIntegrator, process_images
-from tests import IMAGES_DIR, TEST_SEED, starting_mesh
+from popcornn.tools import PathIntegrator
+from tests import IMAGES_DIR, TEST_SEED, make_path, starting_mesh
 
 pytestmark = [
     pytest.mark.slow,  # the tight reference takes 10-45 s on a loaded login node
@@ -91,11 +89,7 @@ def _integrated_gradient(mesh_seed: int, **integrator_params) -> torch.Tensor:
         The flattened gradient, shape [number of trainable parameters].
     """
     torch.manual_seed(PATH_SEED)
-    images = process_images(IMAGES, device=DEVICE, dtype=DTYPE)
-    path = get_path(**PATH_PARAMS, images=images, device=DEVICE, dtype=DTYPE)
-    path.set_potential(
-        get_potential("morse", images=images, device=DEVICE, dtype=DTYPE)
-    )
+    path = make_path(IMAGES, "morse", DEVICE, DTYPE, **PATH_PARAMS)
     integrator = PathIntegrator(
         **COMMON,
         **integrator_params,

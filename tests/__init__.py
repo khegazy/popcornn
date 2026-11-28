@@ -3,8 +3,16 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import torch
+
+from popcornn.paths import get_path
+from popcornn.potentials import get_potential
+from popcornn.tools import process_images
+
+if TYPE_CHECKING:
+    from popcornn.paths.base_path import BasePath
 
 # Test data, found relative to this package so tests run from any directory.
 IMAGES_DIR = Path(__file__).parent / "images"
@@ -16,6 +24,55 @@ CHEAP_TOLERANCES = {"rtol": 1e-2, "atol": 1e-2}
 
 # Seed of torch's global generator at the start of every test (conftest.py).
 TEST_SEED = 0
+
+# Limit for comparing a computation with an independent closed-form or explicit
+# reference that differs from it only by rounding, relative to the reference's
+# largest value. Used by test_potentials.py (pair potentials against a pair loop)
+# and test_integrator_gradient.py (the sphere's exact pvre loss and gradient).
+# Measured worst for the pair potentials, CPU and A100 (2026-11-14): float64
+# 1.7e-15, float32 1.4e-6. The float32 value assumes coordinates within a few
+# Angstrom of the origin.
+REFERENCE_TOL = {torch.float64: 1e-10, torch.float32: 2e-5}
+
+
+def make_path(
+    images: str,
+    potential: str,
+    device: torch.device,
+    dtype: torch.dtype,
+    name: str = "mlp",
+    **path_kwargs,
+) -> BasePath:
+    """A path between the images in ``images``, with its potential attached.
+
+    The same three steps as ``Popcornn`` (``process_images``, ``get_path``,
+    ``set_potential``), without the optimizer around them. The path's weights
+    come from torch's global generator, which the conftest seeds per test.
+
+    Parameters
+    ----------
+    images : str
+        Image file, normally ``str(IMAGES_DIR / "<file>")``.
+    potential : str
+        Potential name for ``get_potential``.
+    device, dtype
+        Where and in what precision to build everything.
+    name : str, default "mlp"
+        Path name for ``get_path``.
+    **path_kwargs
+        Further ``get_path`` arguments, for example ``width``.
+
+    Returns
+    -------
+    BasePath
+        The path, with ``set_potential`` already called.
+    """
+    processed = process_images(images, device=device, dtype=dtype)
+    path = get_path(name, images=processed, device=device, dtype=dtype, **path_kwargs)
+    path.set_potential(
+        get_potential(potential, images=processed, device=device, dtype=dtype)
+    )
+    return path
 
 
 def starting_mesh(seed: int) -> torch.Tensor:

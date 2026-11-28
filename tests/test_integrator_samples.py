@@ -14,30 +14,18 @@ import inspect
 import pytest
 import torch
 
-from popcornn.paths import get_path
-from popcornn.potentials import get_potential
-from popcornn.tools import PathIntegrator, SamplesCache, process_images
+from popcornn.tools import PathIntegrator, SamplesCache
 from popcornn.tools.integrand import evaluate_integrand_sum
-from tests import CHEAP_TOLERANCES, IMAGES_DIR, TEST_SEED, starting_mesh
+from tests import CHEAP_TOLERANCES, IMAGES_DIR, TEST_SEED, make_path, starting_mesh
 
 
 @pytest.fixture
 def muller_brown_setup():
     device = torch.device("cpu")
     dtype = torch.float64
-    images = process_images(
-        str(IMAGES_DIR / "muller_brown.json"),
-        device=device,
-        dtype=dtype,
+    path = make_path(
+        str(IMAGES_DIR / "muller_brown.json"), "muller_brown", device, dtype
     )
-    path = get_path("mlp", images=images, device=device, dtype=dtype)
-    potential = get_potential(
-        "muller_brown",
-        images=images,
-        device=device,
-        dtype=dtype,
-    )
-    path.set_potential(potential)
     return path, device, dtype
 
 
@@ -434,12 +422,11 @@ def test_initial_mesh_follows_the_default_dtype_when_dtype_is_none(mesh):
     """With ``dtype=None`` the bounds come out in torch's default dtype, so the
     mesh must too: a float64 mesh would make padaquad integrate a float32 path
     in float64, and an integer list is not a valid padaquad mesh at all."""
-    images = process_images(
-        str(IMAGES_DIR / "muller_brown.json"), device="cpu", dtype=torch.float32
-    )
-    path = get_path("mlp", images=images, device="cpu", dtype=torch.float32)
-    path.set_potential(
-        get_potential("muller_brown", images=images, device="cpu", dtype=torch.float32)
+    path = make_path(
+        str(IMAGES_DIR / "muller_brown.json"),
+        "muller_brown",
+        torch.device("cpu"),
+        torch.float32,
     )
     integrator = PathIntegrator(
         path_integrand_names="pvre",
