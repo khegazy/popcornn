@@ -17,7 +17,7 @@ from fairchem.core import FAIRChemCalculator, pretrained_mlip
 from popcornn.paths import get_path
 from popcornn.potentials import get_potential
 from popcornn.tools import process_images
-from tests import IMAGES_DIR
+from tests import IMAGES_DIR, REFERENCE_TOL
 
 if TYPE_CHECKING:
     from ase import Atoms
@@ -459,11 +459,6 @@ def test_repel(dtype, device):
         atol=1e-5,
     )
     assert potential_output.forces_decomposed.grad_fn is not None
-
-
-REFERENCE_TOL = {torch.float64: 1e-10, torch.float32: 2e-5}
-# Measured worst, CPU and A100 (2026-11-14): float64 1.7e-15, float32 1.4e-6.
-# The float32 value assumes coordinates within a few Angstrom of the origin.
 
 
 def pair_reference(
